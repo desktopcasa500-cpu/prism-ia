@@ -1,0 +1,20 @@
+:root {
+  --bg: #0b0c14;
+  --bg-glass: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
+  --purple: #8b5cf6;
+  --blue: #3b82f6;
+  --text: #e8e8f0;
+  --text-dim: #9a9ab0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(circle at top, #14152a 0%, var(--bg) 60%); color: var(--text); min-height: 100vh; }
+a { color: inherit; text-decoration: none; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.glass { background: var(--bg-glass); border: 1px solid var(--border); backdrop-filter: blur(12px); border-radius: 16px; }
+.btn { padding: 12px 24px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 15px; }
+.btn-primary { background: linear-gradient(135deg, var(--purple), var(--blue)); color: white; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+input, textarea { background: rgba(255,255,255,0.03); border: 1px solid var(--border); color: var(--text); padding: 12px 14px; border-radius: 10px; font-size: 15px; width: 100%; }
+input:focus, textarea:focus { outline: 1px solid var(--purple); }

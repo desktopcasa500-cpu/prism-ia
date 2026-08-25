@@ -80,4 +80,5 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
 export const api = {
   get: (path, options) => request('GET', path, undefined, options),
   post: (path, body, options) => request('POST', path, body, options),
+  delete: (path, options) => request('DELETE', path, undefined, options),
 };

@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { useState } from 'react';
 import PrismScrollStory from '../components/PrismScrollStory.jsx';
 import PrismNews from '../components/PrismNews.jsx';
 
@@ -17,7 +16,6 @@ function initials(user) {
 
 export default function Landing() {
   const { user } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
   const label = user?.name || user?.email?.split('@')[0] || 'Perfil';
 
   return (

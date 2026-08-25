@@ -5,6 +5,7 @@ import { runOrchestration } from '../services/orchestrator.js';
 
 const router = Router();
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
+const ALLOWED_MODELS = new Set(['prism-nano-1.0', 'prism-mini-1.0', 'prism-tex-1.5', 'prism-taff-1.0', 'prism-taff-2.0']);
 const MAX_MESSAGE_LENGTH = 20_000;
 router.use(requireAuth);
 
@@ -43,10 +44,7 @@ router.get('/sessions/:id/messages', async (req, res, next) => {
 
 router.delete('/sessions/:id', async (req, res, next) => {
   try {
-    const result = await pool.query(
-      'DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, req.userId],
-    );
+    const result = await pool.query('DELETE FROM sessions WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, req.userId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
     res.status(204).end();
   } catch (error) { next(error); }
@@ -55,13 +53,21 @@ router.delete('/sessions/:id', async (req, res, next) => {
 router.post('/sessions/:id/messages', async (req, res, next) => {
   const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
   const effort = req.body?.effort || 'medium';
+  const model = req.body?.model || 'prism-mini-1.0';
   if (!content) return res.status(400).json({ error: 'Mensagem vazia' });
   if (content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa' });
   if (!ALLOWED_EFFORTS.has(effort)) return res.status(400).json({ error: 'Nível de pensamento inválido' });
+  if (!ALLOWED_MODELS.has(model)) return res.status(400).json({ error: 'Modelo inválido' });
 
   try {
     const owns = await pool.query('SELECT id, title FROM sessions WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
     if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada' });
+
+    const previous = await pool.query(
+      `SELECT role, content FROM messages WHERE session_id = $1 AND user_id = $2 ORDER BY created_at DESC LIMIT 16`,
+      [req.params.id, req.userId],
+    );
+    const conversationContext = previous.rows.reverse().map((message) => `${message.role}: ${message.content}`).join('\n');
 
     await pool.query(
       'INSERT INTO messages (session_id, user_id, role, content, effort) VALUES ($1, $2, $3, $4, $5)',
@@ -73,7 +79,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
 
     let result;
     try {
-      result = await runOrchestration(content, effort);
+      result = await runOrchestration(content, effort, { model }, conversationContext);
     } catch (error) {
       console.error('Orchestration error:', error);
       const missingKeys = /não configurada/i.test(error?.message || '');
@@ -92,7 +98,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
       [req.params.id, req.userId, text, effort, Number.isFinite(result.tokens) ? result.tokens : 0],
     );
 
-    res.json({ message: saved.rows[0], providers_used: Array.isArray(result.providers) ? result.providers : [] });
+    res.json({ message: saved.rows[0], providers_used: Array.isArray(result.providers) ? result.providers : [], model, effort });
   } catch (error) { next(error); }
 });
 

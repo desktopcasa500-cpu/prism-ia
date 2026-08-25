@@ -66,7 +66,6 @@ export default function Chat() {
   }, [handleAuthError, openSession]);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto', block: 'end' });
   }, [messages, sending]);
@@ -92,7 +91,6 @@ export default function Chat() {
     setError('');
     setSending(true);
     let sessionId = activeSession;
-
     try {
       if (!sessionId) {
         const created = await api.post('/chat/sessions', {});
@@ -101,7 +99,6 @@ export default function Chat() {
         setActiveSession(sessionId);
         setSessions((items) => [created.session, ...items.filter((item) => item.id !== sessionId)]);
       }
-
       const localId = `local-${Date.now()}`;
       setMessages((items) => [...items, { id: localId, role: 'user', content, effort }]);
       setInput('');
@@ -128,15 +125,14 @@ export default function Chat() {
       <aside className="chat-sidebar">
         <div className="sidebar-top">
           <button className="brand brand-button" onClick={() => navigate('/chat')} aria-label="Ir para o início do Prism">
-            <span className="brand-mark">P</span><span>Prism IA</span>
+            <span className="brand-mark" aria-hidden="true" /><span>Prism IA</span>
           </button>
-          <button className="new-chat" onClick={newSession} disabled={sending}>Nova conversa <span>⌘ N</span></button>
+          <button className="new-chat" onClick={newSession} disabled={sending}>Novo</button>
         </div>
 
         <div className="session-heading">Conversas</div>
         <div className="session-list" aria-live="polite">
-          {loadingSessions && <div className="sidebar-placeholder">Carregando conversas</div>}
-          {!loadingSessions && !sessions.length && <div className="sidebar-placeholder">Suas conversas aparecerão aqui.</div>}
+          {loadingSessions && <div className="sidebar-placeholder">Carregando</div>}
           {!loadingSessions && sessions.map((session) => (
             <button key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`} onClick={() => openSession(session.id)}>
               <span>{session.title || 'Nova conversa'}</span>
@@ -147,28 +143,25 @@ export default function Chat() {
         <div className="sidebar-bottom">
           <button className="profile-button" onClick={() => navigate('/studio')}>
             <span className="avatar">{getInitial(user?.name)}</span>
-            <span className="profile-text"><strong>{user?.name || 'Usuário'}</strong><small>Prism {user?.plan || 'free'}</small></span>
-            <span className="profile-arrow">Abrir</span>
+            <span className="profile-text"><strong>{user?.name || 'Usuário'}</strong><small>Plano {user?.plan || 'Grátis'}</small></span>
+            <span className="profile-arrow">⌄</span>
           </button>
-          <button className="logout-button" onClick={() => { logout(); navigate('/login', { replace: true }); }}>Sair da conta</button>
         </div>
       </aside>
 
       <main className="chat-main">
         <header className="chat-topbar">
           <div><span className="topbar-kicker">Prism</span><span className="topbar-title">{activeSession ? 'Conversa' : 'Nova conversa'}</span></div>
-          <button className="topbar-model" onClick={() => setEffort((value) => value === 'medium' ? 'ultracode' : 'medium')}>
-            <span>Prism Taff 2.0</span><small>{effort === 'ultracode' ? 'Ultra' : 'Equilibrado'}</small>
+          <button className="topbar-model" onClick={() => setEffort((value) => value === 'medium' ? 'ultracode' : 'medium')} aria-label="Selecionar modelo">
+            <span>Prism Mini 1.0</span><small>{effort === 'ultracode' ? 'Ultra' : 'Médio'}</small>
           </button>
         </header>
 
         <section className="messages" aria-live="polite">
           {!messages.length && !loadingMessages ? (
             <div className="empty-chat">
-              <div className="empty-rule" />
-              <span className="eyebrow">Prism IA</span>
               <h1>O que vamos construir?</h1>
-              <p>Comece com uma pergunta, uma ideia ou um projeto. O resto acontece na conversa.</p>
+              <p>Comece com uma pergunta, uma ideia ou um projeto.</p>
               <div className="prompt-suggestions">
                 <button onClick={() => setInput('Quero transformar uma ideia em um projeto completo.')}>Transformar uma ideia em projeto</button>
                 <button onClick={() => setInput('Revise meu código e encontre os problemas mais importantes.')}>Revisar um código</button>
@@ -192,12 +185,12 @@ export default function Chat() {
         <div className="composer-area">
           {error && <div className="chat-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>Fechar</button></div>}
           <div className="composer">
-            <textarea ref={textareaRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Escreva para o Prism" disabled={sending} aria-label="Mensagem" />
+            <textarea ref={textareaRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Como posso ajudar você hoje?" disabled={sending} aria-label="Mensagem" />
             <div className="composer-footer">
               <span>Enter envia · Shift + Enter quebra a linha</span>
               <div className="composer-actions">
-                <select value={effort} onChange={(event) => setEffort(event.target.value)} aria-label="Nível de pensamento">
-                  <option value="medium">Equilibrado</option>
+                <select value={effort} onChange={(event) => setEffort(event.target.value)} aria-label="Nível de esforço">
+                  <option value="medium">Médio</option>
                   <option value="ultracode">Ultra</option>
                 </select>
                 <button className="send-button" onClick={send} disabled={sending || !input.trim()}>{sending ? 'Processando' : 'Enviar'}</button>

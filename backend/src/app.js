@@ -13,35 +13,40 @@ import projectsRoutes from './routes/projects.js';
 import filesRoutes from './routes/files.js';
 import uploadsRoutes from './routes/uploads.js';
 import aiRoutes from './routes/ai.js';
+import githubRoutes from './routes/github.js';
 import { pool } from './db/pool.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../../dist');
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || '').split(',').map((value) => value.trim()).filter(Boolean);
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(cors({ origin:(origin,callback)=>{ if(!origin || allowedOrigins.length===0 || allowedOrigins.includes(origin)) return callback(null,true); return callback(new Error('Origem não permitida')); }, credentials:true }));
-app.use(express.json({limit:'10mb'}));
-app.use(rateLimit({windowMs:60000,max:120,standardHeaders:true,legacyHeaders:false}));
+app.use(cors({ origin: (origin, callback) => { if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('Origem não permitida')); }, credentials: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
 
-app.get('/api/health', async(_req,res)=>{ try { await pool.query('SELECT 1'); res.json({ok:true,database:'connected',auth:Boolean(process.env.JWT_SECRET)}); } catch { res.status(503).json({ok:false,database:'unreachable',auth:Boolean(process.env.JWT_SECRET)}); }});
+app.get('/api/health', async (_req, res) => {
+  try { await pool.query('SELECT 1'); res.json({ ok: true, database: 'connected', auth: Boolean(process.env.JWT_SECRET), github: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) }); }
+  catch { res.status(503).json({ ok: false, database: 'unreachable', auth: Boolean(process.env.JWT_SECRET) }); }
+});
 
-app.use('/api/auth',authRoutes);
-app.use('/api/user',userRoutes);
-app.use('/api/chat',chatRoutes);
-app.use('/api/skills',skillsRoutes);
-app.use('/api/models',modelsRoutes);
-app.use('/api/projects',projectsRoutes);
-app.use('/api/files',filesRoutes);
-app.use('/api/uploads',uploadsRoutes);
-app.use('/api/ai',aiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/skills', skillsRoutes);
+app.use('/api/models', modelsRoutes);
+app.use('/api/projects', projectsRoutes);
+app.use('/api/files', filesRoutes);
+app.use('/api/uploads', uploadsRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/github', githubRoutes);
 
-app.use(express.static(distPath,{index:false}));
-app.get('*',(req,res,next)=>{ if(req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath,'index.html'),error=>{if(error)next(error);});});
-app.use((_req,res)=>res.status(404).json({error:'Endpoint não encontrado'}));
-app.use((err,_req,res,_next)=>{console.error(err);res.status(500).json({error:err.message||'Erro interno do servidor'});});
+app.use(express.static(distPath, { index: false }));
+app.get('*', (req, res, next) => { if (req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath, 'index.html'), error => { if (error) next(error); }); });
+app.use((_req, res) => res.status(404).json({ error: 'Endpoint não encontrado' }));
+app.use((err, _req, res, _next) => { console.error(err); res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' }); });
 
 export default app;

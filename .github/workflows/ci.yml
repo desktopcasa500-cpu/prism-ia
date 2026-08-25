@@ -1,0 +1,24 @@
+name: Prism IA CI
+
+on:
+  push:
+    branches: [main, codex-production-finish]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run build
+      - run: node --check backend/src/server.js
+      - run: node --check backend/src/app.js
+      - run: node --check backend/src/routes/chat.js
+      - run: node --check backend/src/routes/github.js
+      - run: node --check backend/src/services/orchestrator.js

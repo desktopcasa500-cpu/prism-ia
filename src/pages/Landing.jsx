@@ -58,13 +58,13 @@ export default function Landing() {
           </aside>
         </section>
 
+        <PrismScrollStory />
+
         <section className="home-intro">
           <span>01 / A IDEIA</span>
           <h2>Você descreve.<br /><em>A Prism organiza.</em></h2>
           <p>O trabalho começa como uma conversa. A plataforma transforma o pedido em etapas de raciocínio, código e validação e usa os motores certos para cada uma delas.</p>
         </section>
-
-        <PrismScrollStory />
 
         <section className="home-links">
           {quickLinks.map(([number, title, text, href]) => (

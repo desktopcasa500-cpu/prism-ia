@@ -19,7 +19,7 @@ export default function Chat() {
   const [sessions, setSessions] = useState([]); const [activeSession, setActiveSession] = useState(null); const [messages, setMessages] = useState([]);
   const [input, setInput] = useState(''); const [effort, setEffort] = useState(() => localStorage.getItem('prism-effort') || 'medium');
   const [sending, setSending] = useState(false); const [loadingSessions, setLoadingSessions] = useState(true); const [loadingMessages, setLoadingMessages] = useState(false); const [error, setError] = useState('');
-  const [effortOpen, setEffortOpen] = useState(false); const textareaRef = useRef(null); const bottomRef = useRef(null); const sessionRequestRef = useRef(0);
+  const [effortOpen, setEffortOpen] = useState(false); const [deletingSession, setDeletingSession] = useState(null); const textareaRef = useRef(null); const bottomRef = useRef(null); const sessionRequestRef = useRef(0);
   const selectedEffort = efforts.find((item) => item.id === effort) || efforts[1];
 
   const handleAuthError = useCallback((requestError) => { if (requestError.status === 401 || requestError.status === 403) { logout(); navigate('/login', { replace: true }); return true; } return false; }, [logout, navigate]);
@@ -30,6 +30,24 @@ export default function Chat() {
   useEffect(() => { localStorage.setItem('prism-effort', effort); }, [effort]);
 
   async function newSession() { if (sending) return; setError(''); try { const result = await api.post('/chat/sessions', {}); if (!result.session?.id) throw new Error('O servidor não retornou uma conversa válida.'); setSessions((items) => [result.session, ...items.filter((item) => item.id !== result.session.id)]); setActiveSession(result.session.id); setMessages([]); requestAnimationFrame(() => textareaRef.current?.focus()); } catch (e) { if (!handleAuthError(e)) setError(e.message || 'Não foi possível criar a conversa.'); } }
+  async function deleteSession(session, event) {
+    event?.stopPropagation();
+    if (sending || deletingSession) return;
+    const confirmed = window.confirm(`Excluir “${session.title || 'Nova conversa'}”? Esta ação remove a conversa e todas as mensagens dela permanentemente.`);
+    if (!confirmed) return;
+    setDeletingSession(session.id); setError('');
+    try {
+      await api.delete(`/chat/sessions/${encodeURIComponent(session.id)}`);
+      const remaining = sessions.filter((item) => item.id !== session.id);
+      setSessions(remaining);
+      if (activeSession === session.id) {
+        if (remaining.length) await openSession(remaining[0].id);
+        else { setActiveSession(null); setMessages([]); }
+      }
+    } catch (e) {
+      if (!handleAuthError(e)) setError(e.message || 'Não foi possível excluir a conversa.');
+    } finally { setDeletingSession(null); }
+  }
   async function send() { const content = input.trim(); if (!content || sending) return; setError(''); setSending(true); let sessionId = activeSession; try { if (!sessionId) { const created = await api.post('/chat/sessions', {}); sessionId = created.session?.id; if (!sessionId) throw new Error('Não foi possível iniciar uma conversa.'); setActiveSession(sessionId); setSessions((items) => [created.session, ...items.filter((item) => item.id !== sessionId)]); } const localId = `local-${Date.now()}`; setMessages((items) => [...items, { id: localId, role: 'user', content, effort }]); setInput(''); const result = await api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { content, effort }); if (!result.message) throw new Error('O servidor não retornou uma resposta válida.'); setMessages((items) => [...items, result.message]); setSessions((items) => items.map((item) => item.id === sessionId && item.title === 'Nova conversa' ? { ...item, title: content.replace(/\s+/g, ' ').slice(0, 64) } : item)); } catch (e) { if (!handleAuthError(e)) setError(e.message || 'Não foi possível concluir a solicitação.'); } finally { setSending(false); requestAnimationFrame(() => textareaRef.current?.focus()); } }
   function handleKeyDown(event) { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }
   function chooseEffort(value) { setEffort(value); setEffortOpen(false); }
@@ -41,7 +59,7 @@ export default function Chat() {
       <button className="codex-nav-button" onClick={() => navigate('/codex')}><span className="pixel-nav-icon" /> Prism Codex <small>Workspace</small></button>
     </div>
     <div className="session-heading"><span>Conversas</span><span>{sessions.length || ''}</span></div>
-    <div className="session-list" aria-live="polite">{loadingSessions && <div className="sidebar-placeholder"><i /><i /><i /></div>}{!loadingSessions && !sessions.length && <div className="sidebar-empty">Suas conversas aparecerão aqui.</div>}{!loadingSessions && sessions.map((session) => <button key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`} onClick={() => openSession(session.id)}><span className="session-title">{session.title || 'Nova conversa'}</span><small>{formatDate(session.created_at)}</small></button>)}</div>
+    <div className="session-list" aria-live="polite">{loadingSessions && <div className="sidebar-placeholder"><i /><i /><i /></div>}{!loadingSessions && !sessions.length && <div className="sidebar-empty">Suas conversas aparecerão aqui.</div>}{!loadingSessions && sessions.map((session) => <div key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`}><button className="session-open" onClick={() => openSession(session.id)} disabled={deletingSession === session.id}><span className="session-title">{session.title || 'Nova conversa'}</span><small>{formatDate(session.updated_at || session.created_at)}</small></button><button className="session-delete" onClick={(event) => deleteSession(session, event)} disabled={deletingSession === session.id} aria-label={`Excluir ${session.title || 'conversa'}`} title="Excluir conversa">{deletingSession === session.id ? '…' : '×'}</button></div>)}</div>
     <div className="sidebar-bottom"><button className="profile-button" onClick={() => navigate('/studio')}><span className="avatar">{getInitial(user?.name)}</span><span className="profile-text"><strong>{user?.name || 'Usuário'}</strong><small>Plano {user?.plan || 'Grátis'}</small></span><span className="profile-arrow">↗</span></button></div></aside>
 
     <main className="chat-main"><header className="chat-topbar"><div className="chat-context"><span className="topbar-kicker">PRISM CODEX</span><span className="topbar-title">{activeSession ? 'Conversa' : 'Novo espaço'}</span></div>

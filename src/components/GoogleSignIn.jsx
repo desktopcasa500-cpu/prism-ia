@@ -41,7 +41,7 @@ export default function GoogleSignIn({ onSuccess }) {
         auto_select: false,
       });
       window.google.accounts.id.renderButton(hostRef.current, {
-        theme: 'filled_black',
+        theme: 'outline',
         size: 'large',
         width: Math.min(360, hostRef.current.clientWidth || 360),
         shape: 'rectangular',
@@ -68,6 +68,6 @@ export default function GoogleSignIn({ onSuccess }) {
     return () => { cancelled = true; };
   }, [login]);
 
-  if (!CLIENT_ID) return <div className="notice">Login com Google indisponível até configurar VITE_GOOGLE_CLIENT_ID.</div>;
-  return <div><div ref={hostRef} className="google-wrap" />{error && <div className="notice" style={{marginTop:10}} role="alert">{error}</div>}</div>;
+  if (!CLIENT_ID) return null;
+  return <div><div ref={hostRef} className="google-wrap" />{error && <div className="notice" style={{ marginTop: 10 }} role="alert">{error}</div>}</div>;
 }

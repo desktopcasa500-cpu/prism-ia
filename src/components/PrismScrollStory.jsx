@@ -3,36 +3,40 @@ import './prism-scroll-story.css';
 
 const stories = [
   {
+    kind: 'black',
     index: '01',
-    eyebrow: 'ENTRADA',
-    title: 'Você define o trabalho.',
-    text: 'A Prism recebe a intenção, o contexto e os arquivos que realmente importam. Nada de formulários para cada detalhe.',
-    mark: 'INPUT',
-    tone: 'orange'
+    eyebrow: 'O MÉTODO',
+    title: 'Mais de um motor. Uma direção.',
+    text: 'A Prism distribui cada etapa do trabalho entre motores especializados e reúne o resultado em um único fluxo.',
+    mark: 'PRISM / SYSTEM'
   },
   {
     index: '02',
-    eyebrow: 'SÍNTESE',
-    title: 'Mais de um motor. Uma resposta.',
-    text: 'Modelos diferentes podem participar da mesma tarefa. A Prism combina raciocínio, geração e revisão para chegar a um resultado mais consistente.',
-    mark: 'SYNTHESIS',
-    tone: 'black'
+    eyebrow: 'ENTRADA',
+    title: 'Você define o trabalho.',
+    text: 'A intenção, o contexto e os arquivos entram juntos. A plataforma reduz a distância entre uma ideia e aquilo que precisa ser construído.',
+    mark: 'INPUT'
   },
   {
     index: '03',
-    eyebrow: 'EXECUÇÃO',
-    title: 'A resposta vira trabalho real.',
-    text: 'Código, arquivos, alterações e resultados aparecem no mesmo fluxo. O Codex trabalha sobre o projeto, não apenas sobre uma caixa de texto.',
-    mark: 'BUILD',
-    tone: 'red'
+    eyebrow: 'ROTEAMENTO',
+    title: 'O trabalho encontra o motor certo.',
+    text: 'Tarefas diferentes recebem estratégias diferentes. Código, análise, revisão e síntese não precisam seguir o mesmo caminho.',
+    mark: 'ROUTE'
   },
   {
     index: '04',
+    eyebrow: 'EXECUÇÃO',
+    title: 'A resposta vira trabalho real.',
+    text: 'Arquivos, alterações e resultados aparecem no mesmo fluxo. O Codex trabalha sobre o projeto, não apenas sobre uma caixa de texto.',
+    mark: 'BUILD'
+  },
+  {
+    index: '05',
     eyebrow: 'RESULTADO',
     title: 'Você continua no controle.',
-    text: 'Revise, aceite, rejeite, baixe ou continue. A Prism deixa o resultado visível e editável até o último passo.',
-    mark: 'SHIP',
-    tone: 'cream'
+    text: 'Revise, aceite, rejeite, baixe ou continue. O resultado permanece visível e editável até o último passo.',
+    mark: 'SHIP'
   }
 ];
 
@@ -55,7 +59,8 @@ export default function PrismScrollStory() {
       if (!section) return;
       const rect = section.getBoundingClientRect();
       const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
-      setProgress(Math.min(1, Math.max(0, -rect.top / scrollable)));
+      const next = Math.min(1, Math.max(0, -rect.top / scrollable));
+      setProgress(next);
     };
 
     measure();
@@ -82,13 +87,16 @@ export default function PrismScrollStory() {
             style={{ transform: `translate3d(${-distance * progress}px, 0, 0)` }}
           >
             <article className="prism-scroll-story__intro">
-              <p className="prism-scroll-story__kicker">NÃO É UMA CAIXA PRETA</p>
+              <p className="prism-scroll-story__kicker">A PRIMEIRA COISA QUE VOCÊ VÊ</p>
               <h2>Da intenção ao resultado.</h2>
-              <p>Um sistema de trabalho que mostra o que acontece entre o seu pedido e aquilo que a Prism entrega.</p>
+              <p>Role a página. A Prism muda de eixo e mostra o caminho do trabalho, passo a passo.</p>
+              <span className="prism-scroll-story__peek">01 →</span>
             </article>
-
             {stories.map((story) => (
-              <article className={`prism-scroll-story__card prism-scroll-story__card--${story.tone}`} key={story.index}>
+              <article
+                className={`prism-scroll-story__card ${story.kind === 'black' ? 'prism-scroll-story__card--black' : ''}`}
+                key={story.index}
+              >
                 <div className="prism-scroll-story__meta">
                   <span>{story.index}</span>
                   <span>{story.eyebrow}</span>
@@ -97,17 +105,11 @@ export default function PrismScrollStory() {
                   <div className="prism-scroll-story__mark">{story.mark}</div>
                   <h3>{story.title}</h3>
                   <p>{story.text}</p>
-                  {story.tone === 'black' && (
-                    <div className="prism-scroll-story__ticker" aria-hidden="true">
-                      <span>THINK</span><span>WRITE</span><span>REVIEW</span><span>BUILD</span>
-                    </div>
-                  )}
                 </div>
               </article>
             ))}
-
             <article className="prism-scroll-story__end">
-              <span>PRISM IA / END OF SEQUENCE</span>
+              <span>PRISM IA / 2026</span>
               <strong>Trabalho real.<br />Visível. Editável.</strong>
             </article>
           </div>

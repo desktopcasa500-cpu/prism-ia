@@ -11,6 +11,8 @@ import skillsRoutes from './routes/skills.js';
 import modelsRoutes from './routes/models.js';
 import projectsRoutes from './routes/projects.js';
 import filesRoutes from './routes/files.js';
+import uploadsRoutes from './routes/uploads.js';
+import aiRoutes from './routes/ai.js';
 import { pool } from './db/pool.js';
 
 const app = express();
@@ -34,6 +36,8 @@ app.use('/api/skills',skillsRoutes);
 app.use('/api/models',modelsRoutes);
 app.use('/api/projects',projectsRoutes);
 app.use('/api/files',filesRoutes);
+app.use('/api/uploads',uploadsRoutes);
+app.use('/api/ai',aiRoutes);
 
 app.use(express.static(distPath,{index:false}));
 app.get('*',(req,res,next)=>{ if(req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath,'index.html'),error=>{if(error)next(error);});});

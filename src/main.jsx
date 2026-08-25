@@ -7,6 +7,7 @@ import './styles.css';
 import './studio.css';
 import './claude-lamborghini.css';
 import './pixel-landing.css';
+import './editorial-pages.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

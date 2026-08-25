@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: prism-ia
-    runtime: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
-    autoDeploy: true

@@ -15,34 +15,44 @@ export default function Login() {
 
   async function submit(event) {
     event.preventDefault();
-    setBusy(true); setError('');
+    if (busy) return;
+    setBusy(true);
+    setError('');
     try {
-      const result = await api.post('/auth/login', { email: email.trim(), password });
+      const result = await api.post('/auth/login', { email: email.trim().toLowerCase(), password });
+      if (!result.token || !result.user) throw new Error('A resposta do servidor está incompleta.');
       login(result.token, result.user);
       navigate('/chat', { replace: true });
     } catch (err) {
-      setError(err.message || 'Não foi possível entrar.');
-    } finally { setBusy(false); }
+      setError(err.message || 'Não foi possível entrar agora.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="auth-page">
       <section className="auth-side">
         <Link className="brand" to="/"><span className="brand-mark">P</span><span>Prism IA</span></Link>
-        <div><div className="eyebrow">Voltar ao trabalho</div><h1>Entre e continue sua próxima ideia.</h1><p>Suas conversas e projetos ficam ligados à sua conta para que o fluxo continue simples.</p></div>
-        <div className="auth-quote">“A melhor interface é aquela que deixa a pessoa esquecer que está usando uma interface.”</div>
+        <div>
+          <div className="eyebrow">Seu espaço de trabalho</div>
+          <h1>Volte exatamente de onde parou.</h1>
+          <p>Conversas, projetos e contexto ficam reunidos em uma experiência simples, sem transformar seu trabalho em um painel.</p>
+        </div>
+        <div className="auth-quote">Uma boa ferramenta desaparece quando você começa a criar.</div>
       </section>
       <main className="auth-panel">
         <div className="auth-box">
+          <div className="eyebrow">Prism IA</div>
           <h2>Entrar</h2>
-          <p className="lede">Bem-vindo de volta.</p>
+          <p className="lede">Continue seu trabalho.</p>
           <GoogleSignIn onSuccess={() => navigate('/chat', { replace: true })} />
-          <div className="divider">ou use seu email</div>
+          <div className="divider">ou continue com email</div>
           <form className="form-stack" onSubmit={submit}>
-            <div><label className="field-label">Email</label><input className="input" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required /></div>
-            <div><label className="field-label">Senha</label><div className="password-wrap"><input className="input" style={{paddingRight:60}} type={showPassword ? 'text' : 'password'} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" required /><button type="button" className="password-toggle" onClick={()=>setShowPassword(v=>!v)}>{showPassword ? 'Ocultar' : 'Mostrar'}</button></div></div>
-            {error && <div className="notice">{error}</div>}
-            <button className="button button-warm" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
+            <div><label className="field-label" htmlFor="login-email">Email</label><input id="login-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" autoFocus required /></div>
+            <div><label className="field-label" htmlFor="login-password">Senha</label><div className="password-wrap"><input id="login-password" className="input" style={{paddingRight:65}} type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required /><button type="button" className="password-toggle" onClick={() => setShowPassword((value) => !value)}>{showPassword ? 'Ocultar' : 'Mostrar'}</button></div></div>
+            {error && <div className="notice" role="alert">{error}</div>}
+            <button className="button button-warm" disabled={busy}>{busy ? 'Entrando' : 'Entrar'}</button>
           </form>
           <div className="auth-footer">Ainda não tem conta? <Link className="link" to="/register">Criar uma conta</Link></div>
         </div>

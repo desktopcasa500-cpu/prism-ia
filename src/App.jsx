@@ -7,10 +7,11 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Chat from './pages/Chat.jsx';
 import Studio from './pages/Studio.jsx';
+import Settings from './pages/Settings.jsx';
 import { useAuth } from './lib/auth.jsx';
 
 function LoadingScreen() {
-  return <div className="app-loading" role="status" aria-label="Carregando"><div className="loading-wordmark">PRISM</div><div className="loading-line" /></div>;
+  return <div className="app-loading" role="status" aria-label="Carregando Prism IA"><div className="loading-wordmark">PRISM</div><div className="loading-line" /></div>;
 }
 
 function PrivateRoute({ children }) {
@@ -35,6 +36,7 @@ export default function App() {
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
     <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
     <Route path="/studio" element={<PrivateRoute><Studio /></PrivateRoute>} />
+    <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
     <Route path="/workspace" element={<Navigate to="/studio" replace />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;

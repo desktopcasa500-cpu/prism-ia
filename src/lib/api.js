@@ -1,5 +1,8 @@
 const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
-const apiBase = configuredApiUrl || '';
+const apiRoot = configuredApiUrl
+  ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`)
+  : '/api';
+
 let token = localStorage.getItem('prism_token');
 
 function stringifyError(value) {
@@ -16,9 +19,13 @@ export function setAuthToken(value) {
   else localStorage.removeItem('prism_token');
 }
 
+export function getAuthToken() {
+  return token;
+}
+
 function buildUrl(path) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${apiBase}/api${normalizedPath}`;
+  return `${apiRoot}${normalizedPath}`;
 }
 
 async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
@@ -36,7 +43,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      credentials: apiBase ? 'omit' : 'same-origin',
+      credentials: configuredApiUrl ? 'omit' : 'same-origin',
       signal: controller.signal,
     });
 

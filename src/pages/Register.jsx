@@ -15,35 +15,49 @@ export default function Register() {
 
   async function submit(event) {
     event.preventDefault();
-    setBusy(true); setError('');
+    if (busy) return;
+    setBusy(true);
+    setError('');
     try {
-      const result = await api.post('/auth/register', { name: name.trim(), email: email.trim(), password });
+      const cleanName = name.trim().replace(/\s+/g, ' ');
+      const cleanEmail = email.trim().toLowerCase();
+      if (cleanName.length < 2) throw new Error('Digite seu nome.');
+      if (password.length < 6) throw new Error('A senha precisa ter pelo menos 6 caracteres.');
+      const result = await api.post('/auth/register', { name: cleanName, email: cleanEmail, password });
+      if (!result.token || !result.user) throw new Error('A resposta do servidor está incompleta.');
       login(result.token, result.user);
       navigate('/chat', { replace: true });
     } catch (err) {
-      setError(err.message || 'Não foi possível criar sua conta.');
-    } finally { setBusy(false); }
+      setError(err.message || 'Não foi possível criar sua conta agora.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="auth-page">
       <section className="auth-side">
         <Link className="brand" to="/"><span className="brand-mark">P</span><span>Prism IA</span></Link>
-        <div><div className="eyebrow">Seu espaço</div><h1>Comece sem aprender a usar um painel.</h1><p>Crie sua conta e entre direto em uma experiência feita para conversar, construir e voltar ao que importa.</p></div>
-        <div className="auth-quote">Modelos diferentes. Uma experiência só. Menos configuração, mais criação.</div>
+        <div>
+          <div className="eyebrow">Comece pelo trabalho</div>
+          <h1>Uma conta. Um lugar para criar.</h1>
+          <p>Entre direto no chat e use o Studio quando precisar organizar projetos, arquivos e ferramentas.</p>
+        </div>
+        <div className="auth-quote">Menos configuração. Mais espaço para pensar.</div>
       </section>
       <main className="auth-panel">
         <div className="auth-box">
+          <div className="eyebrow">Prism IA</div>
           <h2>Criar conta</h2>
           <p className="lede">Leva menos de um minuto.</p>
           <GoogleSignIn onSuccess={() => navigate('/chat', { replace: true })} />
           <div className="divider">ou crie com email</div>
           <form className="form-stack" onSubmit={submit}>
-            <div><label className="field-label">Nome</label><input className="input" value={name} onChange={(e)=>setName(e.target.value)} autoComplete="name" required /></div>
-            <div><label className="field-label">Email</label><input className="input" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="email" required /></div>
-            <div><label className="field-label">Senha</label><input className="input" type="password" minLength={6} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="new-password" required /></div>
-            {error && <div className="notice">{error}</div>}
-            <button className="button button-warm" disabled={busy}>{busy ? 'Criando…' : 'Criar conta'}</button>
+            <div><label className="field-label" htmlFor="register-name">Nome</label><input id="register-name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" autoFocus required /></div>
+            <div><label className="field-label" htmlFor="register-email">Email</label><input id="register-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></div>
+            <div><label className="field-label" htmlFor="register-password">Senha</label><input id="register-password" className="input" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required /></div>
+            {error && <div className="notice" role="alert">{error}</div>}
+            <button className="button button-warm" disabled={busy}>{busy ? 'Criando' : 'Criar conta'}</button>
           </form>
           <div className="auth-footer">Já tem conta? <Link className="link" to="/login">Entrar</Link></div>
         </div>

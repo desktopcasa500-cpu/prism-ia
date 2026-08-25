@@ -1,114 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../lib/api';
+import { api, getAuthToken } from '../lib/api';
 
-const MODELS = [
-  ['prism-nano-1.0', 'Prism Nano 1.0', 'Rápido'],
-  ['prism-mini-1.0', 'Prism Mini 1.0', 'Geral'],
-  ['prism-tex-1.5', 'Prism Tex 1.5', 'Código'],
-  ['prism-taff-1.0', 'Prism Taff 1.0', 'Avançado'],
-  ['prism-taff-2.0', 'Prism Taff 2.0 Ultra Code', 'Máximo'],
-];
+const MODELS = [['prism-nano-1.0','Prism Nano 1.0','Rápido'],['prism-mini-1.0','Prism Mini 1.0','Geral'],['prism-tex-1.5','Prism Tex 1.5','Código'],['prism-taff-1.0','Prism Taff 1.0','Avançado'],['prism-taff-2.0','Prism Taff 2.0 Ultra Code','Máximo']];
 const THINKING = [['low','Baixo'],['medium','Médio'],['high','Alto'],['max','MAX'],['ultracode','Ultra Code']];
-const STARTER = [
-  { path: 'src', type: 'folder' },
-  { path: 'src/App.jsx', type: 'file', content: '// Comece descrevendo o que você quer construir.\n' },
-  { path: 'src/index.css', type: 'file', content: '' },
-  { path: 'package.json', type: 'file', content: '{\n  "name": "prism-project"\n}\n' },
-];
+const STARTER = [{path:'src',type:'folder',content:''},{path:'src/App.jsx',type:'file',content:'// Descreva o que você quer construir.\n'},{path:'src/index.css',type:'file',content:''},{path:'package.json',type:'file',content:'{\n  "name": "prism-project"\n}\n'}];
 
-function Icon({ children }) { return <span className="codex-icon" aria-hidden="true">{children}</span>; }
-function formatError(error) { return error?.message || 'Não foi possível concluir o pedido.'; }
-function extractBlock(text, language = '') {
-  const source = String(text || '');
-  const marker = '```';
-  let start = source.indexOf(marker);
-  while (start !== -1) {
-    const lineEnd = source.indexOf('\n', start + marker.length);
-    if (lineEnd === -1) return '';
-    const header = source.slice(start + marker.length, lineEnd).trim().toLowerCase();
-    const end = source.indexOf(marker, lineEnd + 1);
-    if (end === -1) return '';
-    if (!language || !header || header === language.toLowerCase() || header.split(/\s+/)[0] === language.toLowerCase()) return source.slice(lineEnd + 1, end).trim();
-    start = source.indexOf(marker, end + marker.length);
-  }
-  return '';
+function formatError(error){return error?.message||'Não foi possível concluir o pedido.';}
+function extractBlock(text,language=''){
+  const source=String(text||''); let start=source.indexOf('```');
+  while(start!==-1){const lineEnd=source.indexOf('\n',start+3); if(lineEnd===-1)return ''; const header=source.slice(start+3,lineEnd).trim().toLowerCase(); const end=source.indexOf('```',lineEnd+1); if(end===-1)return ''; if(!language||!header||header===language.toLowerCase()||header.split(/\s+/)[0]===language.toLowerCase())return source.slice(lineEnd+1,end).trim(); start=source.indexOf('```',end+3);} return '';
 }
-function extractHtml(text) {
-  const block = extractBlock(text, 'html');
-  if (block) return block;
-  return /<!doctype html|<html[\s>]/i.test(String(text || '')) ? text : '';
-}
+function extractHtml(text){const block=extractBlock(text,'html'); if(block)return block; return /<!doctype html|<html[\s>]/i.test(String(text||''))?text:'';}
 
-export default function Codex() {
-  const [model, setModel] = useState('prism-mini-1.0');
-  const [thinking, setThinking] = useState('medium');
-  const [messages, setMessages] = useState([]);
-  const [prompt, setPrompt] = useState('');
-  const [files, setFiles] = useState(STARTER);
-  const [activeFile, setActiveFile] = useState('src/App.jsx');
-  const [code, setCode] = useState(STARTER[1].content);
-  const [preview, setPreview] = useState('');
-  const [tab, setTab] = useState('preview');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [explorerOpen, setExplorerOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
-  const [projectName, setProjectName] = useState('Novo projeto');
-  const [attached, setAttached] = useState([]);
-  const [fileMenu, setFileMenu] = useState(false);
-  const inputRef = useRef(null);
-  const fileRef = useRef(null);
-  const chatEndRef = useRef(null);
+export default function Codex(){
+  const [model,setModel]=useState('prism-mini-1.0'); const [thinking,setThinking]=useState('medium'); const [messages,setMessages]=useState([]); const [prompt,setPrompt]=useState('');
+  const [files,setFiles]=useState(STARTER); const [activeFile,setActiveFile]=useState('src/App.jsx'); const [code,setCode]=useState(STARTER[1].content); const [preview,setPreview]=useState(''); const [tab,setTab]=useState('preview');
+  const [loading,setLoading]=useState(false); const [error,setError]=useState(''); const [projectOpen,setProjectOpen]=useState(false); const [chatOpen,setChatOpen]=useState(true); const [projectId,setProjectId]=useState(null); const [projectName,setProjectName]=useState('Novo projeto'); const [saving,setSaving]=useState(false);
+  const inputRef=useRef(null); const chatEndRef=useRef(null); const saveTimer=useRef(null);
+  const selectedModel=useMemo(()=>MODELS.find(([id])=>id===model)||MODELS[1],[model]); const selectedThinking=useMemo(()=>THINKING.find(([id])=>id===thinking)||THINKING[1],[thinking]);
 
-  const selectedModel = useMemo(() => MODELS.find(([id]) => id === model) || MODELS[1], [model]);
-  const selectedThinking = useMemo(() => THINKING.find(([id]) => id === thinking) || THINKING[1], [thinking]);
+  useEffect(()=>{let alive=true;(async()=>{try{const data=await api.get('/projects');if(!alive)return;if(data.projects?.length){const project=data.projects[0];setProjectId(project.id);setProjectName(project.name);const detail=await api.get(`/projects/${project.id}`);if(!alive)return;if(detail.files?.length){const loaded=detail.files.map(file=>({...file,type:file.kind||'file'}));setFiles(loaded);const first=loaded.find(file=>file.type!=='folder');if(first){setActiveFile(first.path);setCode(first.content||'');}}}else{const created=await api.post('/projects',{name:'Novo projeto'});if(!alive)return;setProjectId(created.project.id);setProjectName(created.project.name);for(const file of STARTER.filter(item=>item.type==='file'))await api.post('/files',{projectId:created.project.id,path:file.path,content:file.content,kind:'file'});}}catch{/* Local mode remains available when the backend is offline. */}})();return()=>{alive=false;};},[]);
+  useEffect(()=>{chatEndRef.current?.scrollIntoView({behavior:'smooth',block:'end'});},[messages,loading]);
+  useEffect(()=>()=>window.clearTimeout(saveTimer.current),[]);
+  useEffect(()=>{const onKey=event=>{if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();send();}if((event.ctrlKey||event.metaKey)&&event.key==='b'){event.preventDefault();setProjectOpen(value=>!value);}};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);});
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, loading]);
-  useEffect(() => {
-    const onKey = (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); send(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === 'b') { event.preventDefault(); setExplorerOpen((v) => !v); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+  function selectFile(file){if(file.type==='folder')return;setActiveFile(file.path);setCode(file.content||'');setTab('code');}
+  function updateCode(value){setCode(value);setFiles(current=>current.map(file=>file.path===activeFile?{...file,content:value}:file));if(projectId){window.clearTimeout(saveTimer.current);saveTimer.current=window.setTimeout(async()=>{const target=files.find(file=>file.path===activeFile);if(!target?.id)return;setSaving(true);try{await api.patch(`/files/${target.id}`,{path:activeFile,content:value});}catch{setError('Não foi possível salvar o arquivo no projeto.');}finally{setSaving(false);}},700);}}
+  async function send(){const text=prompt.trim();if(!text||loading)return;setPrompt('');setError('');setLoading(true);setMessages(current=>[...current,{role:'user',text}]);try{const context=messages.slice(-16).map(message=>`${message.role}: ${message.text}`).join('\n');const projectFiles=files.filter(file=>file.type!=='folder').map(file=>`${file.path}:\n${file.content||''}`).join('\n\n').slice(-80000);const data=await api.post('/ai/generate',{model,thinking,prompt:text,context,project:projectName,files:projectFiles},{timeout:180000});const answer=String(data?.text||data?.response||data?.message||'').trim();if(!answer)throw new Error('A Prism não recebeu uma resposta válida do provedor.');setMessages(current=>[...current,{role:'assistant',text:answer}]);const html=extractHtml(answer);const block=extractBlock(answer);if(html){setPreview(html);setTab('preview');}else if(block)updateCode(block);}catch(err){const message=formatError(err);setError(message);setMessages(current=>[...current,{role:'error',text:message}]);}finally{setLoading(false);}}
+  async function downloadProject(){if(!projectId){setError('Crie ou abra um projeto antes de baixar.');return;}try{const response=await fetch(`/api/projects/${projectId}/download`,{headers:{Authorization:`Bearer ${getAuthToken()}`}});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||'Não foi possível gerar o download.');}const blob=await response.blob();const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${projectName.replace(/[^a-z0-9_-]+/gi,'-')||'prism-project'}.zip`;document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);}catch(err){setError(formatError(err));}}
 
-  function selectFile(file) { if (file.type === 'file') { setActiveFile(file.path); setCode(file.content || ''); } }
-  function addFiles(list) {
-    const incoming = [...list].map((file) => ({ path: file.webkitRelativePath || file.name, type: 'file', content: '' }));
-    if (!incoming.length) return;
-    setFiles((current) => [...current, ...incoming.filter((item) => !current.some((f) => f.path === item.path))]);
-    setAttached((current) => [...current, ...incoming.map((item) => item.path).filter((name) => !current.includes(name))]);
-    setFileMenu(false);
-  }
-  async function send() {
-    const text = prompt.trim();
-    if (!text || loading) return;
-    setPrompt(''); setError(''); setLoading(true); setMessages((current) => [...current, { role: 'user', text }]);
-    try {
-      const context = messages.slice(-16).map((m) => `${m.role}: ${m.text}`).join('\n');
-      const data = await api.post('/ai/generate', { model, thinking, prompt: text, context, project: projectName, files: files.filter((f) => f.type === 'file').map((f) => `${f.path}: ${f.content || ''}`).join('\n\n').slice(-60000) }, { timeout: 120000 });
-      const answer = String(data?.text || data?.response || data?.message || '').trim();
-      if (!answer) throw new Error('A Prism não recebeu uma resposta válida do provedor.');
-      setMessages((current) => [...current, { role: 'assistant', text: answer }]);
-      const html = extractHtml(answer); const block = extractBlock(answer);
-      if (html) { setPreview(html); setTab('preview'); } if (block) setCode(block);
-    } catch (err) { const message = formatError(err); setError(message); setMessages((current) => [...current, { role: 'error', text: message }]); }
-    finally { setLoading(false); }
-  }
-  function resetProject() { setProjectName('Novo projeto'); setFiles(STARTER); setActiveFile('src/App.jsx'); setCode(STARTER[1].content); setPreview(''); setMessages([]); setAttached([]); setError(''); }
-
-  return (
-    <main className="codex-shell">
-      <header className="codex-topbar">
-        <div className="codex-top-left"><button className="codex-ghost-button" onClick={() => setExplorerOpen((v) => !v)} title="Explorador (Ctrl/Cmd+B)"><Icon>☰</Icon></button><div className="codex-wordmark"><span className="codex-mark">P</span><span>Prism</span><b>Codex</b></div><span className="codex-divider" /><button className="codex-project-title" onClick={() => setProjectName((v) => v === 'Novo projeto' ? 'Meu projeto' : 'Novo projeto')}>{projectName}<span>⌄</span></button></div>
-        <div className="codex-top-right"><span className={`codex-save-state ${loading ? 'busy' : ''}`}><span className="codex-dot" />{loading ? 'Trabalhando' : 'Sincronizado'}</span><button className="codex-ghost-button" onClick={() => setChatOpen((v) => !v)} title="Alternar conversa"><Icon>◐</Icon></button><button className="codex-avatar">P</button></div>
-      </header>
-      <div className={`codex-layout ${explorerOpen ? '' : 'no-explorer'} ${chatOpen ? '' : 'no-chat'}`}>
-        {explorerOpen && <aside className="codex-filebar"><div className="codex-filebar-head"><div><span>PROJETO</span><strong>{projectName}</strong></div><button className="codex-mini-button" onClick={() => setFileMenu((v) => !v)} title="Adicionar arquivo">+</button></div>{fileMenu && <div className="codex-file-menu"><button onClick={() => fileRef.current?.click()}>Adicionar arquivos</button><button onClick={() => { resetProject(); setFileMenu(false); }}>Novo projeto</button></div>}<input ref={fileRef} hidden type="file" multiple onChange={(e) => addFiles(e.target.files || [])} /><div className="codex-tree">{files.map((file, index) => <button key={`${file.path}-${index}`} className={`codex-tree-row ${file.type} ${activeFile === file.path ? 'active' : ''}`} onClick={() => selectFile(file)}><span className="tree-glyph">{file.type === 'folder' ? '⌄' : '·'}</span><span>{file.path.split('/').pop()}</span></button>)}</div><div className="codex-filebar-bottom"><button onClick={() => setPrompt('Conecte e analise meu repositório GitHub.')}>GitHub</button><button onClick={() => setPrompt('Analise a estrutura deste projeto e encontre problemas.')}>Analisar projeto</button></div></aside>}
-        <section className="codex-center"><div className="codex-editorbar"><div className="codex-tabs"><div className="codex-tab active"><span className="file-dot" />{activeFile}<span className="tab-close">×</span></div></div><div className="codex-editor-actions"><button onClick={() => navigator.clipboard?.writeText(code)}>Copiar</button><button onClick={() => setCode('')}>Limpar</button></div></div><div className="codex-editor-wrap"><div className="codex-line-numbers">{code.split('\n').map((_, i) => <span key={i}>{i + 1}</span>)}</div><textarea className="codex-editor" spellCheck="false" value={code} onChange={(event) => setCode(event.target.value)} aria-label="Editor de código" /></div><div className="codex-bottom-tabs">{['preview','code','terminal'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'preview' ? 'Preview' : item === 'code' ? 'Código' : 'Terminal'}</button>)}</div><div className="codex-output">{tab === 'preview' && <iframe className="codex-preview-frame" title="Preview do projeto" sandbox="allow-scripts" srcDoc={preview || '<!doctype html><html><body style="margin:0;background:#0d0d0d;color:#777;font:14px system-ui;display:grid;place-items:center;height:100vh"><div>O resultado do seu projeto aparecerá aqui.</div></body></html>'} />}{tab === 'code' && <pre className="codex-code-output">{code || '// Arquivo vazio.'}</pre>}{tab === 'terminal' && <div className="codex-terminal"><span>$</span> Preview e execução ficam disponíveis quando o projeto tiver uma aplicação executável.</div>}</div></section>
-        {chatOpen && <aside className="codex-chat-panel"><div className="codex-chat-head"><div><strong>Prism</strong><span>{selectedModel[1]} · {selectedThinking[1]}</span></div><button className="codex-ghost-button" onClick={() => setMessages([])}>Limpar</button></div><div className="codex-controls"><label>Modelo<select value={model} onChange={(e) => setModel(e.target.value)}>{MODELS.map(([id,label,hint]) => <option value={id} key={id}>{label} — {hint}</option>)}</select></label><label>Pensamento<select value={thinking} onChange={(e) => setThinking(e.target.value)}>{THINKING.map(([id,label]) => <option value={id} key={id}>{label}</option>)}</select></label></div><div className="codex-messages">{!messages.length && <div className="codex-welcome"><div className="welcome-mark">P</div><h1>O que você quer fazer?</h1><p>Peça qualquer coisa. A conversa é o ponto de partida; o projeto aparece quando fizer sentido.</p><div className="codex-suggestions"><button onClick={() => setPrompt('Crie uma landing page premium para uma marca de carros.')}>Criar uma interface</button><button onClick={() => setPrompt('Analise este projeto e encontre os bugs mais importantes.')}>Encontrar problemas</button><button onClick={() => setPrompt('Crie a estrutura de um jogo 3D e explique como executar.')}>Criar um jogo 3D</button></div></div>}{messages.map((message, index) => <article key={`${message.role}-${index}`} className={`codex-message ${message.role}`}><div className="message-label">{message.role === 'user' ? 'Você' : message.role === 'error' ? 'Prism · erro' : 'Prism'}</div><div className="message-body">{message.text}</div></article>)}{loading && <article className="codex-message assistant"><div className="message-label">Prism</div><div className="codex-thinking"><span /><span /><span /> Analisando o pedido</div></article>}<div ref={chatEndRef} /></div><div className="codex-composer-wrap">{attached.length > 0 && <div className="codex-attachments">{attached.map((name) => <button key={name} onClick={() => setAttached((c) => c.filter((x) => x !== name))}>{name} ×</button>)}</div>}{error && <div className="codex-error"><span>{error}</span><button onClick={() => { setError(''); inputRef.current?.focus(); }}>Fechar</button></div>}<div className="codex-composer"><textarea ref={inputRef} value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Descreva o que você quer fazer..." rows={3} /><div className="composer-footer"><button className="attach-button" onClick={() => { setFileMenu((v) => !v); setExplorerOpen(true); }} title="Adicionar contexto">＋</button><span>Enter envia · Shift+Enter nova linha</span><button className="send-button" disabled={loading || !prompt.trim()} onClick={send}>{loading ? '...' : 'Enviar'}</button></div></div><div className="codex-model-status">{selectedModel[1]} <span>·</span> {selectedThinking[1]} <span>·</span> Ctrl/Cmd+Enter</div></div></aside>}
-      </div>
-    </main>
-  );
+  return <main className="codex-shell brutal-codex">
+    <header className="codex-topbar"><div className="codex-top-left"><div className="codex-wordmark"><span className="codex-mark">P</span><span>Prism</span><b>Codex</b></div><span className="codex-divider"/><button className="codex-project-title" onClick={()=>setProjectOpen(value=>!value)}>{projectName}<span>⌄</span></button></div><div className="codex-top-right"><span className={`codex-save-state ${loading||saving?'busy':''}`}><span className="codex-dot"/>{loading?'Trabalhando':saving?'Salvando':'Pronto'}</span><button className={`brutal-action ${projectOpen?'selected':''}`} onClick={()=>setProjectOpen(value=>!value)}>Projeto</button><button className="brutal-action" onClick={downloadProject}>Baixar .ZIP</button><button className={`brutal-action ${chatOpen?'selected':''}`} onClick={()=>setChatOpen(value=>!value)}>Chat</button></div></header>
+    <div className={`codex-layout ${projectOpen?'project-open':'project-closed'} ${chatOpen?'':'no-chat'}`}>
+      <section className="codex-center brutal-workspace"><div className="codex-editorbar brutal-toolbar"><div><span className="workspace-kicker">WORKSPACE</span><strong>{tab==='preview'?'Preview':activeFile}</strong></div><div className="codex-editor-actions"><button onClick={()=>setTab('preview')}>Preview</button><button onClick={()=>setTab('code')}>Código</button><button onClick={()=>setTab('terminal')}>Terminal</button></div></div><div className="codex-output brutal-preview-output">{tab==='preview'&&<iframe className="codex-preview-frame" title="Preview do projeto" sandbox="allow-scripts" srcDoc={preview||'<!doctype html><html><body style="margin:0;background:#f4f2ec;color:#111;font:14px system-ui;display:grid;place-items:center;height:100vh"><div style="max-width:420px;text-align:center"><b style="font-size:18px">Seu projeto aparece aqui.</b><p style="color:#666">Peça à Prism para criar uma interface e o preview será atualizado.</p></div></body></html>'}/>} {tab==='code'&&<div className="brutal-code-view"><div className="codex-line-numbers">{code.split('\n').map((_,index)=><span key={index}>{index+1}</span>)}</div><textarea className="codex-editor" spellCheck="false" value={code} onChange={event=>updateCode(event.target.value)} aria-label="Editor de código"/></div>} {tab==='terminal'&&<div className="codex-terminal"><span>$</span> Prism Codex · ambiente de execução do projeto</div>}</div><div className="brutal-preview-footer"><span>{activeFile}</span><span>{files.filter(file=>file.type!=='folder').length} arquivos</span><span>{saving?'salvando alterações':'alterações sincronizadas'}</span></div></section>
+      {projectOpen&&<aside className="codex-filebar brutal-project-panel"><div className="codex-filebar-head"><div><span>PROJETO</span><strong>{projectName}</strong></div><span className="project-count">{files.length}</span></div><div className="project-panel-actions"><button onClick={()=>setProjectOpen(false)}>Fechar</button><button onClick={downloadProject}>Baixar</button></div><div className="codex-tree">{files.map((file,index)=><button key={`${file.path}-${index}`} className={`codex-tree-row ${file.type} ${activeFile===file.path?'active':''}`} onClick={()=>selectFile(file)}><span className="tree-glyph">{file.type==='folder'?'▾':'—'}</span><span>{file.path}</span></button>)}</div><div className="project-panel-note">Arquivos do projeto ficam isolados na sua conta. Edite e baixe o resultado quando quiser.</div></aside>}
+      {chatOpen&&<aside className="codex-chat-panel brutal-chat-panel"><div className="codex-chat-head"><div><strong>Prism</strong><span>{selectedModel[1]} · {selectedThinking[1]}</span></div><button className="codex-ghost-button" onClick={()=>setMessages([])}>Limpar</button></div><div className="codex-controls"><label>Modelo<select value={model} onChange={event=>setModel(event.target.value)}>{MODELS.map(([id,label,hint])=><option value={id} key={id}>{label} — {hint}</option>)}</select></label><label>Pensamento<select value={thinking} onChange={event=>setThinking(event.target.value)}>{THINKING.map(([id,label])=><option value={id} key={id}>{label}</option>)}</select></label></div><div className="codex-messages">{!messages.length&&<div className="codex-welcome"><div className="welcome-mark">P</div><h1>Construa.</h1><p>Descreva o resultado. A Prism conversa, escreve o projeto e mostra o resultado aqui.</p><div className="codex-suggestions"><button onClick={()=>setPrompt('Crie uma landing page brutalista premium para uma marca de carros.')}>Criar uma interface</button><button onClick={()=>setPrompt('Analise este projeto e encontre os bugs mais importantes.')}>Encontrar problemas</button><button onClick={()=>setPrompt('Crie a estrutura de um jogo 3D e explique como executar.')}>Criar um jogo 3D</button></div></div>}{messages.map((message,index)=><article key={`${message.role}-${index}`} className={`codex-message ${message.role}`}><div className="message-label">{message.role==='user'?'Você':message.role==='error'?'Prism · erro':'Prism'}</div><div className="message-body">{message.text}</div></article>)}{loading&&<article className="codex-message assistant"><div className="message-label">Prism</div><div className="codex-thinking"><span/><span/><span/> trabalhando no pedido</div></article>}<div ref={chatEndRef}/></div><div className="codex-composer-wrap">{error&&<div className="codex-error"><span>{error}</span><button onClick={()=>setError('')}>Fechar</button></div>}<div className="codex-composer"><textarea ref={inputRef} value={prompt} onChange={event=>setPrompt(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}}} placeholder="O que vamos construir?" rows={3}/><div className="composer-footer"><span>Enter envia</span><button className="send-button" disabled={loading||!prompt.trim()} onClick={send}>{loading?'...':'Enviar'}</button></div></div><div className="codex-model-status">{selectedModel[1]} <span>·</span> {selectedThinking[1]}</div></div></aside>}
+    </div>
+  </main>;
 }

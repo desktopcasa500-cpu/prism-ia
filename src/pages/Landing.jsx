@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import PrismScrollStory from '../components/PrismScrollStory.jsx';
+import PrismNews from '../components/PrismNews.jsx';
 
 const quickLinks = [
   ['01', 'Informações', 'O que existe por trás da Prism e como a plataforma organiza o trabalho.', '/informacoes'],
@@ -8,85 +10,14 @@ const quickLinks = [
   ['03', 'Termos', 'Roteamento, motores, créditos, privacidade e limites explicados sem esconder a mecânica.', '/termos'],
 ];
 
-const flow = [
-  ['01', 'VOCÊ', 'Uma ideia, pergunta, arquivo ou projeto entra no sistema.'],
-  ['02', 'PRISM', 'A tarefa é entendida, dividida e encaminhada conforme o que ela realmente precisa.'],
-  ['03', 'MOTORES', 'Os motores adequados trabalham na tarefa, em sequência ou em paralelo quando necessário.'],
-  ['04', 'SÍNTESE', 'Os resultados são comparados, verificados e transformados em uma única entrega.'],
-];
-
 function initials(user) {
   const text = user?.name || user?.email || 'P';
   return text.trim().slice(0, 2).toUpperCase();
 }
 
-function HowItWorks() {
-  const sectionRef = useRef(null);
-  const viewportRef = useRef(null);
-  const trackRef = useRef(null);
-  const [progress, setProgress] = useState(0);
-  const [distance, setDistance] = useState(0);
-
-  useEffect(() => {
-    const measure = () => {
-      const viewport = viewportRef.current;
-      const track = trackRef.current;
-      if (!viewport || !track) return;
-      setDistance(Math.max(0, track.scrollWidth - viewport.clientWidth));
-    };
-
-    const update = () => {
-      const section = sectionRef.current;
-      if (!section) return;
-      const range = Math.max(1, section.offsetHeight - window.innerHeight);
-      const value = Math.min(1, Math.max(0, -section.getBoundingClientRect().top / range));
-      setProgress(value);
-    };
-
-    measure();
-    update();
-    window.addEventListener('resize', measure);
-    window.addEventListener('scroll', update, { passive: true });
-    return () => {
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', update);
-    };
-  }, []);
-
-  return (
-    <section className="home-process" ref={sectionRef}>
-      <div className="process-sticky">
-        <div className="process-top">
-          <span>02 / COMO FUNCIONA</span>
-          <span>{String(Math.round(progress * 100)).padStart(3, '0')}%</span>
-        </div>
-        <div className="process-window" ref={viewportRef}>
-          <div
-            className="process-track"
-            ref={trackRef}
-            style={{ transform: `translate3d(${-distance * progress}px,0,0)` }}
-          >
-            {flow.map(([number, title, text]) => (
-              <article className="process-card" key={number}>
-                <span>{number}</span>
-                <div className="process-line" />
-                <h3>{title}</h3>
-                <p>{text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-        <div className="process-caption">
-          <strong>CONTINUE DESCENDO.</strong>
-          <p>A rolagem vertical controla a sequência horizontal. Você não troca de página: o sistema se revela diante de você.</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function Landing() {
   const { user } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
   const label = user?.name || user?.email?.split('@')[0] || 'Perfil';
 
   return (
@@ -135,7 +66,7 @@ export default function Landing() {
           <p>O trabalho começa como uma conversa. A plataforma transforma o pedido em etapas de raciocínio, código e validação e usa os motores certos para cada uma delas.</p>
         </section>
 
-        <HowItWorks />
+        <PrismScrollStory />
 
         <section className="home-links">
           {quickLinks.map(([number, title, text, href]) => (
@@ -146,6 +77,8 @@ export default function Landing() {
             </Link>
           ))}
         </section>
+
+        <PrismNews />
 
         <section className="home-system">
           <div className="system-label">03 / O SISTEMA</div>

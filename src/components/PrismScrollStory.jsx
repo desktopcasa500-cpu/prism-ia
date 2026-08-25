@@ -59,8 +59,7 @@ export default function PrismScrollStory() {
       if (!section) return;
       const rect = section.getBoundingClientRect();
       const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
-      const next = Math.min(1, Math.max(0, -rect.top / scrollable));
-      setProgress(next);
+      setProgress(Math.min(1, Math.max(0, -rect.top / scrollable)));
     };
 
     measure();
@@ -87,10 +86,10 @@ export default function PrismScrollStory() {
             style={{ transform: `translate3d(${-distance * progress}px, 0, 0)` }}
           >
             <article className="prism-scroll-story__intro">
-              <p className="prism-scroll-story__kicker">A PRIMEIRA COISA QUE VOCÊ VÊ</p>
+              <p className="prism-scroll-story__kicker">A PRIMEIRA COISA DEPOIS DO HERO</p>
               <h2>Da intenção ao resultado.</h2>
-              <p>Role a página. A Prism muda de eixo e mostra o caminho do trabalho, passo a passo.</p>
-              <span className="prism-scroll-story__peek">01 →</span>
+              <p>Role a página. A Prism muda de eixo e mostra o caminho do trabalho enquanto você continua rolando.</p>
+              <span className="prism-scroll-story__peek">PRÓXIMO / 01 →</span>
             </article>
             {stories.map((story) => (
               <article

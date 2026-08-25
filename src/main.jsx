@@ -9,6 +9,7 @@ import './claude-lamborghini.css';
 import './pixel-landing.css';
 import './editorial-pages.css';
 import './prism-chat.css';
+import './auth-premium.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

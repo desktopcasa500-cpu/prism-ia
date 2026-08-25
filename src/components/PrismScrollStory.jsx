@@ -7,28 +7,32 @@ const stories = [
     eyebrow: 'ENTRADA',
     title: 'Você define o trabalho.',
     text: 'A Prism recebe a intenção, o contexto e os arquivos que realmente importam. Nada de formulários para cada detalhe.',
-    mark: 'INPUT'
+    mark: 'INPUT',
+    tone: 'orange'
   },
   {
     index: '02',
-    eyebrow: 'ROTEAMENTO',
-    title: 'O trabalho encontra o motor certo.',
-    text: 'A plataforma seleciona o modelo e a estratégia de execução adequados ao tipo de tarefa, em vez de tratar todo pedido como uma conversa igual.',
-    mark: 'ROUTE'
+    eyebrow: 'SÍNTESE',
+    title: 'Mais de um motor. Uma resposta.',
+    text: 'Modelos diferentes podem participar da mesma tarefa. A Prism combina raciocínio, geração e revisão para chegar a um resultado mais consistente.',
+    mark: 'SYNTHESIS',
+    tone: 'black'
   },
   {
     index: '03',
     eyebrow: 'EXECUÇÃO',
     title: 'A resposta vira trabalho real.',
     text: 'Código, arquivos, alterações e resultados aparecem no mesmo fluxo. O Codex trabalha sobre o projeto, não apenas sobre uma caixa de texto.',
-    mark: 'BUILD'
+    mark: 'BUILD',
+    tone: 'red'
   },
   {
     index: '04',
     eyebrow: 'RESULTADO',
     title: 'Você continua no controle.',
     text: 'Revise, aceite, rejeite, baixe ou continue. A Prism deixa o resultado visível e editável até o último passo.',
-    mark: 'SHIP'
+    mark: 'SHIP',
+    tone: 'cream'
   }
 ];
 
@@ -51,8 +55,7 @@ export default function PrismScrollStory() {
       if (!section) return;
       const rect = section.getBoundingClientRect();
       const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
-      const next = Math.min(1, Math.max(0, -rect.top / scrollable));
-      setProgress(next);
+      setProgress(Math.min(1, Math.max(0, -rect.top / scrollable)));
     };
 
     measure();
@@ -83,8 +86,9 @@ export default function PrismScrollStory() {
               <h2>Da intenção ao resultado.</h2>
               <p>Um sistema de trabalho que mostra o que acontece entre o seu pedido e aquilo que a Prism entrega.</p>
             </article>
+
             {stories.map((story) => (
-              <article className="prism-scroll-story__card" key={story.index}>
+              <article className={`prism-scroll-story__card prism-scroll-story__card--${story.tone}`} key={story.index}>
                 <div className="prism-scroll-story__meta">
                   <span>{story.index}</span>
                   <span>{story.eyebrow}</span>
@@ -93,12 +97,18 @@ export default function PrismScrollStory() {
                   <div className="prism-scroll-story__mark">{story.mark}</div>
                   <h3>{story.title}</h3>
                   <p>{story.text}</p>
+                  {story.tone === 'black' && (
+                    <div className="prism-scroll-story__ticker" aria-hidden="true">
+                      <span>THINK</span><span>WRITE</span><span>REVIEW</span><span>BUILD</span>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}
+
             <article className="prism-scroll-story__end">
-              <span>PRISM IA</span>
-              <strong>Trabalho real. Visível. Editável.</strong>
+              <span>PRISM IA / END OF SEQUENCE</span>
+              <strong>Trabalho real.<br />Visível. Editável.</strong>
             </article>
           </div>
         </div>

@@ -1,3 +1,5 @@
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const apiBase = configuredApiUrl || '';
 let token = localStorage.getItem('prism_token');
 
 function stringifyError(value) {
@@ -14,6 +16,11 @@ export function setAuthToken(value) {
   else localStorage.removeItem('prism_token');
 }
 
+function buildUrl(path) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${apiBase}/api${normalizedPath}`;
+}
+
 async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
@@ -21,7 +28,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(buildUrl(path), {
       method,
       headers: {
         Accept: 'application/json',
@@ -29,7 +36,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      credentials: 'same-origin',
+      credentials: apiBase ? 'omit' : 'same-origin',
       signal: controller.signal,
     });
 
@@ -52,7 +59,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
       throw timeoutError;
     }
     if (error instanceof TypeError) {
-      const networkError = new Error('Não foi possível conectar ao servidor. Verifique sua conexão.');
+      const networkError = new Error('Não foi possível conectar ao servidor. Verifique se o backend da Prism IA está online.');
       networkError.status = 0;
       throw networkError;
     }

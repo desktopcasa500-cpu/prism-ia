@@ -5,9 +5,9 @@ export default function PrismNews() {
   return (
     <section className="prism-news" aria-labelledby="prism-news-title">
       <div className="prism-news__head">
-        <span>PRISM / SINAL</span>
-        <h2 id="prism-news-title">O que está mudando na computação.</h2>
-        <p>Notas editoriais sobre infraestrutura, modelos e sistemas que tornam a IA executável.</p>
+        <span>04 / SINAL</span>
+        <h2 id="prism-news-title">O que está acontecendo na IA.</h2>
+        <p>Notícias verificadas sobre modelos, infraestrutura, chips e sistemas de IA. Sem manchetes inventadas.</p>
       </div>
       <div className="prism-news__grid">
         {aiNews.map((item, index) => (
@@ -17,10 +17,10 @@ export default function PrismNews() {
               <span>{String(index + 1).padStart(2, '0')}</span>
             </div>
             <div className="prism-news__content">
-              <span className="prism-news__category">{item.category}</span>
+              <div className="prism-news__meta"><span>{item.category}</span><time>{item.date}</time></div>
               <h3>{item.title}</h3>
               <p>{item.description}</p>
-              <button type="button">Ler sinal <span>→</span></button>
+              <a href={item.sourceUrl} target="_blank" rel="noreferrer">Fonte: {item.source} <span>↗</span></a>
             </div>
           </article>
         ))}

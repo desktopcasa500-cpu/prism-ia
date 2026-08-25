@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: prism-ia
+    runtime: node
+    buildCommand: yarn install --frozen-lockfile && yarn build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true

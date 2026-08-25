@@ -12,6 +12,7 @@ import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';
 import './codex.css';
+import './prism-identity.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

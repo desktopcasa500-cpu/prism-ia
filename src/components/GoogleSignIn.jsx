@@ -6,24 +6,32 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function GoogleSignIn({ onSuccess }) {
   const hostRef = useRef(null);
+  const successRef = useRef(onSuccess);
   const { login } = useAuth();
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!CLIENT_ID) return;
+  useEffect(() => { successRef.current = onSuccess; }, [onSuccess]);
 
+  useEffect(() => {
+    if (!CLIENT_ID) return undefined;
     let cancelled = false;
+
     const render = () => {
       if (cancelled || !window.google || !hostRef.current) return;
       hostRef.current.innerHTML = '';
       window.google.accounts.id.initialize({
         client_id: CLIENT_ID,
         callback: async (response) => {
+          if (!response?.credential) {
+            setError('O Google não retornou uma credencial válida.');
+            return;
+          }
           setError('');
           try {
             const result = await api.post('/auth/google', { credential: response.credential });
+            if (!result.token || !result.user) throw new Error('A resposta do servidor está incompleta.');
             login(result.token, result.user);
-            onSuccess?.();
+            successRef.current?.();
           } catch (err) {
             setError(err.message || 'Não foi possível entrar com o Google.');
           }
@@ -35,7 +43,7 @@ export default function GoogleSignIn({ onSuccess }) {
       window.google.accounts.id.renderButton(hostRef.current, {
         theme: 'filled_black',
         size: 'large',
-        width: 360,
+        width: Math.min(360, hostRef.current.clientWidth || 360),
         shape: 'rectangular',
         text: 'continue_with',
         logo_alignment: 'left',
@@ -55,13 +63,11 @@ export default function GoogleSignIn({ onSuccess }) {
     script.defer = true;
     script.dataset.googleGsi = 'true';
     script.onload = render;
+    script.onerror = () => setError('Não foi possível carregar o login do Google.');
     document.head.appendChild(script);
     return () => { cancelled = true; };
-  }, [login, onSuccess]);
+  }, [login]);
 
-  if (!CLIENT_ID) {
-    return <div className="notice">Login com Google está pronto no código. Configure <code>VITE_GOOGLE_CLIENT_ID</code> na Vercel para habilitar o botão.</div>;
-  }
-
-  return <div><div ref={hostRef} className="google-wrap" />{error && <div className="notice" style={{marginTop:10}}>{error}</div>}</div>;
+  if (!CLIENT_ID) return <div className="notice">Login com Google indisponível até configurar VITE_GOOGLE_CLIENT_ID.</div>;
+  return <div><div ref={hostRef} className="google-wrap" />{error && <div className="notice" style={{marginTop:10}} role="alert">{error}</div>}</div>;
 }

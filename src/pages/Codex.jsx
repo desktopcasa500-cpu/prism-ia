@@ -8,188 +8,165 @@ const MODELS = [
   ['prism-taff-1.0', 'Prism Taff 1.0', 'Avançado'],
   ['prism-taff-2.0', 'Prism Taff 2.0 Ultra Code', 'Máximo'],
 ];
-
-const THINKING = [
-  ['low', 'Baixo'], ['medium', 'Médio'], ['high', 'Alto'], ['max', 'MAX'], ['ultracode', 'Ultra Code'],
-];
-
-const starterFiles = [
-  { name: 'src', type: 'folder' },
-  { name: 'App.jsx', type: 'file' },
-  { name: 'index.css', type: 'file' },
-  { name: 'package.json', type: 'file' },
+const THINKING = [['low','Baixo'],['medium','Médio'],['high','Alto'],['max','MAX'],['ultracode','Ultra Code']];
+const STARTER = [
+  { path: 'src', type: 'folder' },
+  { path: 'src/App.jsx', type: 'file', content: '// Comece descrevendo o que você quer construir.\n' },
+  { path: 'src/index.css', type: 'file', content: '' },
+  { path: 'package.json', type: 'file', content: '{\n  "name": "prism-project"\n}\n' },
 ];
 
 function Icon({ children }) { return <span className="codex-icon" aria-hidden="true">{children}</span>; }
+function formatError(error) { return error?.message || 'Não foi possível concluir o pedido.'; }
+function extractBlock(text, language = '') {
+  const re = new RegExp(`\\`\\`\\`(?:${language ? language + '|' : ''}[a-z0-9+#.-]*)?\\s*([\\s\\S]*?)\\`\\`\\``, 'i');
+  const match = text.match(re);
+  return match?.[1]?.trim() || '';
+}
+function extractHtml(text) {
+  const block = extractBlock(text, 'html');
+  if (block) return block;
+  return /<!doctype html|<html[\\s>]/i.test(text) ? text : '';
+}
 
 export default function Codex() {
   const [model, setModel] = useState('prism-mini-1.0');
   const [thinking, setThinking] = useState('medium');
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState('');
-  const [files, setFiles] = useState(starterFiles);
-  const [activeFile, setActiveFile] = useState('App.jsx');
-  const [code, setCode] = useState('// Selecione um arquivo para começar\n');
+  const [files, setFiles] = useState(STARTER);
+  const [activeFile, setActiveFile] = useState('src/App.jsx');
+  const [code, setCode] = useState(STARTER[1].content);
   const [preview, setPreview] = useState('');
   const [tab, setTab] = useState('preview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sidebar, setSidebar] = useState(true);
+  const [explorerOpen, setExplorerOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(true);
   const [projectName, setProjectName] = useState('Novo projeto');
-  const [filesOpen, setFilesOpen] = useState(true);
   const [attached, setAttached] = useState([]);
+  const [fileMenu, setFileMenu] = useState(false);
   const inputRef = useRef(null);
+  const fileRef = useRef(null);
   const chatEndRef = useRef(null);
 
   const selectedModel = useMemo(() => MODELS.find(([id]) => id === model) || MODELS[1], [model]);
   const selectedThinking = useMemo(() => THINKING.find(([id]) => id === thinking) || THINKING[1], [thinking]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
-
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, loading]);
   useEffect(() => {
     const onKey = (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); send(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === 'p') { event.preventDefault(); setTab('preview'); }
+      if ((event.ctrlKey || event.metaKey) && event.key === 'b') { event.preventDefault(); setExplorerOpen((v) => !v); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  function selectFile(file) {
+    if (file.type !== 'file') return;
+    setActiveFile(file.path);
+    setCode(file.content || '');
+  }
+
+  function addFiles(list) {
+    const incoming = [...list].map((file) => ({ path: file.webkitRelativePath || file.name, type: 'file', content: '' }));
+    if (!incoming.length) return;
+    setFiles((current) => [...current, ...incoming.filter((item) => !current.some((f) => f.path === item.path))]);
+    setAttached((current) => [...current, ...incoming.map((item) => item.path).filter((name) => !current.includes(name))]);
+    setFileMenu(false);
+  }
+
   async function send() {
     const text = prompt.trim();
     if (!text || loading) return;
-    setPrompt('');
-    setError('');
+    setPrompt(''); setError(''); setLoading(true);
     setMessages((current) => [...current, { role: 'user', text }]);
-    setLoading(true);
     try {
+      const context = messages.slice(-16).map((m) => `${m.role}: ${m.text}`).join('\n');
       const data = await api.post('/ai/generate', {
-        model,
-        thinking,
-        prompt: text,
-        context: messages.slice(-12).map((m) => `${m.role}: ${m.text}`).join('\n'),
+        model, thinking, prompt: text, context,
         project: projectName,
-        files: files.filter((f) => f.type === 'file').map((f) => f.name),
-      }, { timeout: 90_000 });
-      const answer = data?.text || data?.response || data?.message || '';
-      if (!answer.trim()) throw new Error('A Prism recebeu o pedido, mas o provedor não devolveu conteúdo. Tente novamente.');
+        files: files.filter((f) => f.type === 'file').map((f) => `${f.path}: ${f.content || ''}`).join('\n\n').slice(-60000),
+      }, { timeout: 120000 });
+      const answer = String(data?.text || data?.response || data?.message || '').trim();
+      if (!answer) throw new Error('A Prism não recebeu uma resposta válida do provedor.');
       setMessages((current) => [...current, { role: 'assistant', text: answer }]);
       const html = extractHtml(answer);
+      const block = extractBlock(answer);
       if (html) { setPreview(html); setTab('preview'); }
-      const codeBlock = extractCode(answer);
-      if (codeBlock) setCode(codeBlock.code);
+      if (block) setCode(block);
     } catch (err) {
-      const message = err?.message || 'Não foi possível concluir a solicitação.';
+      const message = formatError(err);
       setError(message);
       setMessages((current) => [...current, { role: 'error', text: message }]);
     } finally { setLoading(false); }
   }
 
-  function extractHtml(text) {
-    const match = text.match(/```html\s*([\s\S]*?)```/i);
-    if (match) return match[1];
-    if (/<(?:!doctype|html|body|main|section|div)[\s>]/i.test(text)) return text;
-    return '';
+  function resetProject() {
+    setProjectName('Novo projeto'); setFiles(STARTER); setActiveFile('src/App.jsx'); setCode(STARTER[1].content);
+    setPreview(''); setMessages([]); setAttached([]); setError('');
   }
-
-  function extractCode(text) {
-    const match = text.match(/```(?:jsx|tsx|javascript|js|css|html)?\s*([\s\S]*?)```/i);
-    return match ? { code: match[1].trim() } : null;
-  }
-
-  function handleUpload(event) {
-    const selected = [...(event.target.files || [])];
-    if (!selected.length) return;
-    setAttached((current) => [...current, ...selected.map((file) => file.name)]);
-    const names = selected.map((file) => ({ name: file.name, type: 'file' }));
-    setFiles((current) => [...current, ...names.filter((item) => !current.some((file) => file.name === item.name))]);
-    setPrompt((current) => current || `Analise os arquivos anexados: ${selected.map((file) => file.name).join(', ')}`);
-    event.target.value = '';
-  }
-
-  function removeAttachment(name) { setAttached((current) => current.filter((item) => item !== name)); }
 
   return (
     <main className="codex-shell">
       <header className="codex-topbar">
         <div className="codex-top-left">
-          <button className="codex-ghost-button" onClick={() => setSidebar((value) => !value)} aria-label="Alternar barra lateral"><Icon>≡</Icon></button>
+          <button className="codex-ghost-button" onClick={() => setExplorerOpen((v) => !v)} title="Explorador (Ctrl/Cmd+B)"><Icon>☰</Icon></button>
           <div className="codex-wordmark"><span className="codex-mark">P</span><span>Prism</span><b>Codex</b></div>
           <span className="codex-divider" />
-          <button className="codex-project-title" onClick={() => setProjectName((value) => value === 'Novo projeto' ? 'Meu projeto' : 'Novo projeto')}>{projectName}<span>⌄</span></button>
+          <button className="codex-project-title" onClick={() => setProjectName((v) => v === 'Novo projeto' ? 'Meu projeto' : 'Novo projeto')}>{projectName}<span>⌄</span></button>
         </div>
         <div className="codex-top-right">
-          <span className="codex-save-state"><span className="codex-dot" /> Pronto</span>
-          <button className="codex-ghost-button" title="Atalhos">⌘K</button>
-          <button className="codex-avatar" title="Perfil">P</button>
+          <span className={`codex-save-state ${loading ? 'busy' : ''}`}><span className="codex-dot" />{loading ? 'Trabalhando' : 'Sincronizado'}</span>
+          <button className="codex-ghost-button" onClick={() => setChatOpen((v) => !v)} title="Alternar conversa"><Icon>◐</Icon></button>
+          <button className="codex-avatar">P</button>
         </div>
       </header>
 
-      <div className="codex-layout">
-        {sidebar && (
-          <aside className="codex-filebar">
-            <div className="codex-filebar-head">
-              <span>EXPLORADOR</span>
-              <button className="codex-mini-button" onClick={() => setFilesOpen((value) => !value)}>{filesOpen ? '−' : '+'}</button>
-            </div>
-            <button className="codex-new-project" onClick={() => { setProjectName('Novo projeto'); setMessages([]); setPreview(''); setCode('// Novo projeto\n'); }}><span>+</span> Novo projeto</button>
-            {filesOpen && <div className="codex-tree">
-              {files.map((file, index) => (
-                <button key={`${file.name}-${index}`} className={`codex-tree-row ${activeFile === file.name ? 'active' : ''} ${file.type}`} onClick={() => file.type === 'file' && setActiveFile(file.name)}>
-                  <span className="tree-glyph">{file.type === 'folder' ? '▸' : '·'}</span><span>{file.name}</span>
-                </button>
-              ))}
-            </div>}
-            <div className="codex-filebar-bottom">
-              <button><Icon>⌁</Icon> GitHub</button>
-              <button><Icon>◌</Icon> Configurações</button>
-            </div>
-          </aside>
-        )}
+      <div className={`codex-layout ${explorerOpen ? '' : 'no-explorer'} ${chatOpen ? '' : 'no-chat'}`}>
+        {explorerOpen && <aside className="codex-filebar">
+          <div className="codex-filebar-head"><div><span>PROJETO</span><strong>{projectName}</strong></div><button className="codex-mini-button" onClick={() => setFileMenu((v) => !v)} title="Adicionar arquivo">+</button></div>
+          {fileMenu && <div className="codex-file-menu"><button onClick={() => fileRef.current?.click()}>Adicionar arquivos</button><button onClick={() => { resetProject(); setFileMenu(false); }}>Novo projeto</button></div>}
+          <input ref={fileRef} hidden type="file" multiple onChange={(e) => addFiles(e.target.files || [])} />
+          <div className="codex-tree">
+            {files.map((file, index) => <button key={`${file.path}-${index}`} className={`codex-tree-row ${file.type} ${activeFile === file.path ? 'active' : ''}`} onClick={() => selectFile(file)}>
+              <span className="tree-glyph">{file.type === 'folder' ? '⌄' : '·'}</span><span>{file.path.split('/').pop()}</span>
+            </button>)}
+          </div>
+          <div className="codex-filebar-bottom"><button onClick={() => setPrompt('Conecte e analise meu repositório GitHub.')}>GitHub</button><button onClick={() => setPrompt('Analise a estrutura deste projeto e encontre problemas.')}>Analisar projeto</button></div>
+        </aside>}
 
         <section className="codex-center">
           <div className="codex-editorbar">
-            <div className="codex-tabs">
-              <button className="codex-tab active"><span className="file-dot" />{activeFile}<span className="tab-close">×</span></button>
-            </div>
+            <div className="codex-tabs"><div className="codex-tab active"><span className="file-dot" />{activeFile}<span className="tab-close">×</span></div></div>
             <div className="codex-editor-actions"><button onClick={() => navigator.clipboard?.writeText(code)}>Copiar</button><button onClick={() => setCode('')}>Limpar</button></div>
           </div>
-          <textarea className="codex-editor" spellCheck="false" value={code} onChange={(event) => setCode(event.target.value)} aria-label="Editor de código" />
-          <div className="codex-bottom-tabs">
-            {['preview', 'code', 'terminal'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'preview' ? 'Preview' : item === 'code' ? 'Código' : 'Terminal'}</button>)}
-          </div>
+          <div className="codex-editor-wrap"><div className="codex-line-numbers">{code.split('\n').map((_, i) => <span key={i}>{i + 1}</span>)}</div><textarea className="codex-editor" spellCheck="false" value={code} onChange={(event) => setCode(event.target.value)} aria-label="Editor de código" /></div>
+          <div className="codex-bottom-tabs">{['preview','code','terminal'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item === 'preview' ? 'Preview' : item === 'code' ? 'Código' : 'Terminal'}</button>)}</div>
           <div className="codex-output">
-            {tab === 'preview' && <iframe className="codex-preview-frame" title="Preview do projeto" sandbox="allow-scripts" srcDoc={preview || '<!doctype html><html><body style="margin:0;background:#101010;color:#aaa;font:14px system-ui;display:grid;place-items:center;height:100vh"><div>O preview aparecerá aqui quando a Prism criar uma interface.</div></body></html>'} />}
-            {tab === 'code' && <pre className="codex-code-output">{code || '// Nenhum código no arquivo atual.'}</pre>}
-            {tab === 'terminal' && <div className="codex-terminal"><span>$</span> Prism Codex aguardando um comando...</div>}
+            {tab === 'preview' && <iframe className="codex-preview-frame" title="Preview do projeto" sandbox="allow-scripts" srcDoc={preview || '<!doctype html><html><body style="margin:0;background:#0d0d0d;color:#777;font:14px system-ui;display:grid;place-items:center;height:100vh"><div>O resultado do seu projeto aparecerá aqui.</div></body></html>'} />}
+            {tab === 'code' && <pre className="codex-code-output">{code || '// Arquivo vazio.'}</pre>}
+            {tab === 'terminal' && <div className="codex-terminal"><span>$</span> Preview e execução ficam disponíveis quando o projeto tiver uma aplicação executável.</div>}
           </div>
         </section>
 
-        <aside className="codex-chat-panel">
-          <div className="codex-chat-head">
-            <div><strong>Prism Codex</strong><span>Ambiente de desenvolvimento</span></div>
-            <button className="codex-ghost-button">•••</button>
-          </div>
-          <div className="codex-controls">
-            <label>Modelo<select value={model} onChange={(event) => setModel(event.target.value)}>{MODELS.map(([id, label, hint]) => <option value={id} key={id}>{label} — {hint}</option>)}</select></label>
-            <label>Pensamento<select value={thinking} onChange={(event) => setThinking(event.target.value)}>{THINKING.map(([id, label]) => <option value={id} key={id}>{label}</option>)}</select></label>
-          </div>
+        {chatOpen && <aside className="codex-chat-panel">
+          <div className="codex-chat-head"><div><strong>Prism</strong><span>{selectedModel[1]} · {selectedThinking[1]}</span></div><button className="codex-ghost-button" onClick={() => setMessages([])}>Limpar</button></div>
+          <div className="codex-controls"><label>Modelo<select value={model} onChange={(e) => setModel(e.target.value)}>{MODELS.map(([id,label,hint]) => <option value={id} key={id}>{label} — {hint}</option>)}</select></label><label>Pensamento<select value={thinking} onChange={(e) => setThinking(e.target.value)}>{THINKING.map(([id,label]) => <option value={id} key={id}>{label}</option>)}</select></label></div>
           <div className="codex-messages">
-            {!messages.length && <div className="codex-welcome"><div className="welcome-mark">P</div><h1>O que vamos construir?</h1><p>Descreva o resultado. A Prism cuida do código, dos arquivos e da próxima etapa.</p><div className="codex-suggestions"><button onClick={() => setPrompt('Crie uma landing page premium para uma marca de carros.')}>Landing page</button><button onClick={() => setPrompt('Analise a arquitetura deste projeto e encontre os principais problemas.')}>Analisar projeto</button><button onClick={() => setPrompt('Crie um jogo 3D simples e organize a estrutura do projeto.')}>Jogo 3D</button></div></div>}
-            {messages.map((message, index) => <article key={`${message.role}-${index}`} className={`codex-message ${message.role}`}><div className="message-label">{message.role === 'user' ? 'Você' : message.role === 'error' ? 'Falha' : 'Prism'}</div><div className="message-body">{message.text}</div></article>)}
-            {loading && <article className="codex-message assistant"><div className="message-label">Prism</div><div className="codex-thinking"><span /><span /><span /> Trabalhando no pedido</div></article>}
+            {!messages.length && <div className="codex-welcome"><div className="welcome-mark">P</div><h1>O que você quer fazer?</h1><p>Peça qualquer coisa. A conversa é o ponto de partida; o projeto aparece quando fizer sentido.</p><div className="codex-suggestions"><button onClick={() => setPrompt('Crie uma landing page premium para uma marca de carros.')}>Criar uma interface</button><button onClick={() => setPrompt('Analise este projeto e encontre os bugs mais importantes.')}>Encontrar problemas</button><button onClick={() => setPrompt('Crie a estrutura de um jogo 3D e explique como executar.')}>Criar um jogo 3D</button></div></div>}
+            {messages.map((message, index) => <article key={`${message.role}-${index}`} className={`codex-message ${message.role}`}><div className="message-label">{message.role === 'user' ? 'Você' : message.role === 'error' ? 'Prism · erro' : 'Prism'}</div><div className="message-body">{message.text}</div></article>)}
+            {loading && <article className="codex-message assistant"><div className="message-label">Prism</div><div className="codex-thinking"><span /><span /><span /> Analisando o pedido</div></article>}
             <div ref={chatEndRef} />
           </div>
           <div className="codex-composer-wrap">
-            {attached.length > 0 && <div className="codex-attachments">{attached.map((name) => <button key={name} onClick={() => removeAttachment(name)}>{name} ×</button>)}</div>}
+            {attached.length > 0 && <div className="codex-attachments">{attached.map((name) => <button key={name} onClick={() => setAttached((c) => c.filter((x) => x !== name))}>{name} ×</button>)}</div>}
             {error && <div className="codex-error"><span>{error}</span><button onClick={() => { setError(''); inputRef.current?.focus(); }}>Fechar</button></div>}
-            <div className="codex-composer">
-              <textarea ref={inputRef} value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Diga o que você quer construir..." rows={3} />
-              <div className="composer-footer"><label className="attach-button" title="Adicionar arquivos"><input type="file" multiple onChange={handleUpload} />＋</label><span>Enter envia · Shift+Enter quebra linha</span><button className="send-button" disabled={loading || !prompt.trim()} onClick={send}>{loading ? '...' : 'Enviar'}</button></div>
-            </div>
-            <div className="codex-model-status">{selectedModel[1]} · {selectedThinking[1]} <span>·</span> As respostas podem conter erros; revise código antes de publicar.</div>
+            <div className="codex-composer"><textarea ref={inputRef} value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} placeholder="Descreva o que você quer fazer..." rows={3} /><div className="composer-footer"><button className="attach-button" onClick={() => setFileMenu((v) => !v)} title="Adicionar contexto">＋</button><span>Enter envia · Shift+Enter nova linha</span><button className="send-button" disabled={loading || !prompt.trim()} onClick={send}>{loading ? '...' : 'Enviar'}</button></div></div>
+            <div className="codex-model-status">{selectedModel[1]} <span>·</span> {selectedThinking[1]} <span>·</span> Ctrl/Cmd+Enter</div>
           </div>
-        </aside>
+        </aside>}
       </div>
     </main>
   );

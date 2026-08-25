@@ -2,11 +2,17 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import chatRoutes from './routes/chat.js';
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const distPath = path.resolve(__dirname, '../../dist');
+
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
   .split(',')
   .map((value) => value.trim())
@@ -36,6 +42,17 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/chat', chatRoutes);
+
+// Serve the Vite production build from the same Render service.
+app.use(express.static(distPath, { index: false }));
+
+// React Router fallback for client-side routes. API paths remain JSON 404s.
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  return res.sendFile(path.join(distPath, 'index.html'), (error) => {
+    if (error) next(error);
+  });
+});
 
 app.use((_req, res) => res.status(404).json({ error: 'Endpoint não encontrado' }));
 app.use((err, _req, res, _next) => {

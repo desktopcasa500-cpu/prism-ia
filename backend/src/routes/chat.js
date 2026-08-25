@@ -54,7 +54,11 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     try {
       result = await runOrchestration(content, effort);
     } catch (error) {
-      return res.status(502).json({ error: 'O serviço de geração não respondeu. Tente novamente.' });
+      console.error('Orchestration error:', error);
+      const missingKeys = /não configurada/i.test(error?.message || '');
+      return res.status(missingKeys ? 503 : 502).json({
+        error: missingKeys ? 'Os motores de IA ainda não estão configurados no backend.' : 'O serviço de geração não respondeu. Tente novamente.',
+      });
     }
 
     const text = typeof result?.text === 'string' ? result.text.trim() : '';

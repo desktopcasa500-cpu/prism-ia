@@ -19,9 +19,7 @@ export function setAuthToken(value) {
   else localStorage.removeItem('prism_token');
 }
 
-export function getAuthToken() {
-  return token;
-}
+export function getAuthToken() { return token; }
 
 function buildUrl(path) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -50,7 +48,6 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw }; }
-
     if (!response.ok) {
       const message = stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`;
       const error = new Error(message);
@@ -80,5 +77,6 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
 export const api = {
   get: (path, options) => request('GET', path, undefined, options),
   post: (path, body, options) => request('POST', path, body, options),
+  patch: (path, body, options) => request('PATCH', path, body, options),
   delete: (path, options) => request('DELETE', path, undefined, options),
 };

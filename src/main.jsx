@@ -6,6 +6,7 @@ import { AuthProvider } from './lib/auth.jsx';
 import './styles.css';
 import './studio.css';
 import './studio-fixes.css';
+import './studio-pixel.css';
 import './pixel-landing.css';
 import './editorial-pages.css';
 import './prism-chat.css';

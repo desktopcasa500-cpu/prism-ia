@@ -59,22 +59,18 @@ async function assertSafeUrl(rawUrl) {
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) {
       throw new Error('Endpoint MCP local ou privado bloqueado');
     }
-    try {
-      const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
-      if (addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('Endpoint MCP resolve para endereço privado');
-    } catch (error) {
-      if (error?.message === 'Endpoint MCP resolve para endereço privado') throw error;
+    const addresses = await dns.lookup(hostname, { all: true, verbatim: true }).catch((error) => {
       if (error?.code === 'ENOTFOUND' || error?.code === 'EAI_AGAIN') throw new Error('Não foi possível resolver o endpoint MCP');
-    }
+      throw error;
+    });
+    if (addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('Endpoint MCP resolve para endereço privado');
   }
   return url;
 }
 
 function withTimeout(promise, ms = MCP_TIMEOUT) {
   let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Servidor MCP demorou demais para responder')), ms);
-  });
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Servidor MCP demorou demais para responder')), ms); });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
@@ -106,36 +102,32 @@ function normalizeToolResult(result) {
     if (item?.type === 'resource' && item.resource) return JSON.stringify(item.resource);
     return JSON.stringify(item);
   }).filter(Boolean);
-  const text = parts.join('\n').slice(0, MAX_TOOL_RESULT);
-  return { text, isError: Boolean(result?.isError) };
+  return { text: parts.join('\n').slice(0, MAX_TOOL_RESULT), isError: Boolean(result?.isError) };
 }
 
 async function connectServer(server) {
   const url = await assertSafeUrl(server.endpoint_url);
   const token = decryptSecret(server.auth_token_encrypted);
   const authProvider = token ? { token: async () => token } : undefined;
-  const client = new Client({ name: 'prism-ia', version: '1.0.0' });
-
   let transport;
-  let transportName = 'streamable-http';
+  const client = new Client({ name: 'prism-ia', version: '1.1.1' });
+
   try {
     transport = new StreamableHTTPClientTransport(url, authProvider ? { authProvider } : {});
     await withTimeout(client.connect(transport));
+    return { client, transport, transportName: 'streamable-http' };
   } catch (streamableError) {
     await client.close().catch(() => {});
-    transportName = 'sse';
-    const fallbackClient = new Client({ name: 'prism-ia', version: '1.0.0' });
-    transport = new SSEClientTransport(url, authProvider ? { authProvider } : {});
+    const fallbackClient = new Client({ name: 'prism-ia', version: '1.1.1' });
+    const fallbackTransport = new SSEClientTransport(url, authProvider ? { authProvider } : {});
     try {
-      await withTimeout(fallbackClient.connect(transport));
+      await withTimeout(fallbackClient.connect(fallbackTransport));
+      return { client: fallbackClient, transport: fallbackTransport, transportName: 'sse' };
     } catch (sseError) {
       await fallbackClient.close().catch(() => {});
-      throw new Error(`MCP indisponível: ${streamableError?.message || 'HTTP'}; fallback SSE: ${sseError?.message || 'falhou'}`.slice(0, 800));
+      throw new Error(`MCP indisponível: ${streamableError?.message || 'HTTP'}; fallback SSE: ${sseError?.message || 'falhou'}`.slice(0, 1000));
     }
-    client.close().catch(() => {});
-    return { client: fallbackClient, transport, transportName };
   }
-  return { client, transport, transportName };
 }
 
 async function listAllTools(client) {
@@ -145,7 +137,7 @@ async function listAllTools(client) {
     const result = await withTimeout(client.listTools(cursor ? { cursor } : undefined));
     if (Array.isArray(result?.tools)) tools.push(...result.tools);
     cursor = result?.nextCursor || undefined;
-    if (tools.length > MAX_TOOLS_PER_SERVER) break;
+    if (tools.length >= MAX_TOOLS_PER_SERVER) break;
   } while (cursor);
   return tools.slice(0, MAX_TOOLS_PER_SERVER);
 }
@@ -154,11 +146,7 @@ export async function probeMcpServer(server) {
   const connection = await connectServer(server);
   try {
     const tools = await listAllTools(connection.client);
-    return {
-      ok: true,
-      transport: connection.transportName,
-      tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })),
-    };
+    return { ok: true, transport: connection.transportName, tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })) };
   } finally {
     await connection.client.close().catch(() => {});
   }
@@ -187,21 +175,27 @@ export async function createMcpExecutionContext(userId) {
   }
 
   const servers = [...saved.rows, ...builtIn];
+  const settled = await Promise.allSettled(servers.map(async (server) => ({ server, connection: await connectServer(server) })));
   const connections = [];
   const registry = new Map();
   const errors = [];
 
-  for (const server of servers) {
+  await Promise.all(settled.map(async (entry) => {
+    if (entry.status === 'rejected') {
+      errors.push({ server: 'MCP', message: entry.reason?.message || 'Falha ao conectar ao MCP' });
+      return;
+    }
+    const { server, connection } = entry.value;
     try {
-      const connection = await connectServer(server);
       const rawTools = await listAllTools(connection.client);
       const tools = rawTools.map((tool) => toolDefinition(server, tool));
       tools.forEach((tool) => registry.set(tool.modelName, { ...tool, client: connection.client }));
       connections.push(connection);
     } catch (error) {
-      errors.push({ server: server.name, message: error?.message || 'Falha ao conectar ao MCP' });
+      errors.push({ server: server.name, message: error?.message || 'Falha ao descobrir ferramentas MCP' });
+      await connection.client.close().catch(() => {});
     }
-  }
+  }));
 
   async function execute(modelName, args = {}) {
     const tool = registry.get(modelName);
@@ -214,12 +208,7 @@ export async function createMcpExecutionContext(userId) {
     await Promise.allSettled(connections.map((connection) => connection.client.close()));
   }
 
-  return {
-    tools: [...registry.values()].map(({ client, ...tool }) => tool),
-    execute,
-    close,
-    errors,
-  };
+  return { tools: [...registry.values()].map(({ client, ...tool }) => tool), execute, close, errors };
 }
 
 export async function getMcpServers(userId) {

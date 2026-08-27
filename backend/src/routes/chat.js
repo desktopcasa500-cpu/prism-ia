@@ -79,7 +79,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
 
     let result;
     try {
-      result = await runOrchestration(content, effort, { model }, conversationContext);
+      result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
     } catch (error) {
       console.error('Orchestration error:', error);
       const missingKeys = /não configurada/i.test(error?.message || '');
@@ -98,7 +98,14 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
       [req.params.id, req.userId, text, effort, Number.isFinite(result.tokens) ? result.tokens : 0],
     );
 
-    res.json({ message: saved.rows[0], providers_used: Array.isArray(result.providers) ? result.providers : [], model, effort });
+    res.json({
+      message: saved.rows[0],
+      providers_used: Array.isArray(result.providers) ? result.providers : [],
+      tools_used: Array.isArray(result.tools_used) ? result.tools_used : [],
+      mcp_errors: Array.isArray(result.mcp_errors) ? result.mcp_errors : [],
+      model,
+      effort,
+    });
   } catch (error) { next(error); }
 });
 

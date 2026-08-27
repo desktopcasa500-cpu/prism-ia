@@ -1,0 +1,24 @@
+/* Studio refinement: one page scroll, no nested scrollbar in the middle. */
+.studio-page{height:auto;min-height:100vh;overflow:visible}
+.studio-topbar{position:sticky;top:0}
+.studio-layout{height:auto;min-height:calc(100vh - 64px);align-items:start}
+.studio-nav{position:sticky;top:64px;height:calc(100vh - 64px);min-height:0}
+.studio-content{overflow:visible;min-height:calc(100vh - 64px);padding-bottom:150px}
+.studio-content::-webkit-scrollbar{width:0;height:0}
+.studio-content{scrollbar-width:none}
+body:has(.studio-page){overflow-x:hidden;overflow-y:auto}
+.mcp-card{align-items:center;gap:18px}
+.mcp-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.mcp-tools-button{background:transparent!important;color:#d6c9bc!important}
+.mcp-meta{margin-top:7px;color:#5f5952;font-size:9px;letter-spacing:.03em}
+.connection.error{color:#d47a68}
+.mcp-error{max-width:1150px;margin:0 auto 12px;padding:11px 13px;border:1px solid rgba(212,122,104,.28);background:#211714;color:#d9b4a8;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:15px;font-size:11px}
+.mcp-error button{border:0;background:transparent;color:#a88b7e;cursor:pointer;font-size:10px}
+.mcp-empty{padding:28px;color:#746c63;font-size:11px;text-align:center}
+.mcp-tools-modal{max-width:720px}
+.mcp-tool-list{display:grid;gap:7px;max-height:58vh;overflow:auto;padding:0 20px 20px}
+.mcp-tool-row{border:1px solid rgba(241,235,226,.08);background:#171310;border-radius:10px;padding:12px 13px}
+.mcp-tool-row strong{font:14px ui-monospace,SFMono-Regular,Consolas,monospace;color:#e5d9cd}
+.mcp-tool-row p{margin:6px 0 0;color:#817970;font-size:10px;line-height:1.55}
+@media(max-width:900px){.studio-nav{position:sticky;top:64px;height:calc(100vh - 64px)}.studio-content{padding-bottom:135px}.mcp-actions{justify-content:flex-start}}
+@media(max-width:600px){.studio-topbar{position:sticky}.studio-nav{position:sticky}.mcp-card{display:grid;grid-template-columns:46px 1fr}.mcp-actions{grid-column:1/-1}.mcp-error{align-items:flex-start}.mcp-tool-list{padding:0 14px 14px}}

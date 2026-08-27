@@ -1,13 +1,7 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-
-const initialMcp = [
-  { name: 'Arquivos locais', type: 'filesystem', status: 'Pronto', detail: 'Arquivos e pastas do workspace' },
-  { name: 'GitHub', type: 'github', status: 'Conectar', detail: 'Repositórios, issues e pull requests' },
-  { name: 'Banco de dados', type: 'database', status: 'Conectar', detail: 'Consultas e inspeção de schema' },
-  { name: 'Servidor personalizado', type: 'custom', status: 'Adicionar', detail: 'Endpoint MCP compatível' },
-];
+import { api } from '../lib/api.js';
 
 const skills = [
   ['Construção de jogos', '3D', 'Assets, gameplay, shaders e arquitetura'],
@@ -20,10 +14,32 @@ const skills = [
 
 const files = ['src/App.jsx', 'src/pages/Chat.jsx', 'src/pages/Studio.jsx', 'src/styles.css', 'backend/src/routes/chat.js'];
 
+function getMcpIcon(type) {
+  if (type === 'github') return 'GH';
+  if (type === 'database') return 'DB';
+  if (type === 'filesystem') return 'FS';
+  return 'MCP';
+}
+
+function normalizeMcpServer(server) {
+  return {
+    ...server,
+    status: server.builtin ? 'Configurado' : server.enabled ? 'Ativo' : 'Desativado',
+    detail: server.builtin ? 'Servidor MCP oficial do GitHub' : server.endpoint_url,
+    tool_count: Number.isFinite(server.tool_count) ? server.tool_count : null,
+  };
+}
+
 export default function Studio() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('overview');
-  const [mcp, setMcp] = useState(initialMcp);
+  const [mcp, setMcp] = useState([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpBusy, setMcpBusy] = useState(null);
+  const [mcpModalOpen, setMcpModalOpen] = useState(false);
+  const [mcpForm, setMcpForm] = useState({ name: '', endpoint_url: '', token: '' });
+  const [mcpError, setMcpError] = useState('');
   const [activeSkill, setActiveSkill] = useState(null);
   const [command, setCommand] = useState('');
   const [running, setRunning] = useState(false);
@@ -32,27 +48,112 @@ export default function Studio() {
   const stats = useMemo(() => ({
     files: files.length,
     skills: skills.length,
-    connected: mcp.filter((item) => item.status === 'Pronto').length,
+    connected: mcp.filter((item) => item.status === 'Conectado').length + mcp.filter((item) => item.builtin && item.status === 'Configurado').length,
     credits: user?.plan === 'pro' ? '∞' : '8.420',
   }), [mcp, user]);
 
-  function connect(index) {
-    setMcp((items) => items.map((item, i) => i === index ? { ...item, status: 'Pronto' } : item));
-    setToast('Integração preparada para este workspace.');
+  const showToast = useCallback((message) => {
+    setToast(message);
     window.setTimeout(() => setToast(''), 2200);
+  }, []);
+
+  const loadMcp = useCallback(async () => {
+    setMcpLoading(true);
+    setMcpError('');
+    try {
+      const result = await api.get('/mcp');
+      const servers = Array.isArray(result.servers) ? result.servers.map(normalizeMcpServer) : [];
+      setMcp(servers);
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) { logout(); navigate('/login', { replace: true }); return; }
+      setMcpError(error.message || 'Não foi possível carregar os servidores MCP.');
+    } finally {
+      setMcpLoading(false);
+    }
+  }, [logout, navigate]);
+
+  useEffect(() => { loadMcp(); }, [loadMcp]);
+
+  async function testMcp(server) {
+    if (server.builtin) {
+      showToast('O GitHub MCP está disponível para a IA quando as credenciais do servidor estiverem configuradas.');
+      return;
+    }
+    setMcpBusy(server.id);
+    setMcpError('');
+    try {
+      const result = await api.post(`/mcp/${encodeURIComponent(server.id)}/test`, {} , { timeout: 60_000 });
+      setMcp((items) => items.map((item) => item.id === server.id ? { ...item, status: 'Conectado', tool_count: result.tool_count, transport: result.transport } : item));
+      showToast(`${server.name}: ${result.tool_count} ferramenta${result.tool_count === 1 ? '' : 's'} disponível${result.tool_count === 1 ? '' : 'is'}.`);
+    } catch (error) {
+      setMcp((items) => items.map((item) => item.id === server.id ? { ...item, status: 'Erro' } : item));
+      setMcpError(error.message || 'O servidor MCP não respondeu.');
+    } finally {
+      setMcpBusy(null);
+    }
   }
 
-  function runCommand(event) {
+  async function deleteMcp(server) {
+    if (server.builtin || mcpBusy) return;
+    if (!window.confirm(`Remover “${server.name}” deste workspace?`)) return;
+    setMcpBusy(server.id);
+    try {
+      await api.delete(`/mcp/${encodeURIComponent(server.id)}`);
+      setMcp((items) => items.filter((item) => item.id !== server.id));
+      showToast('Servidor MCP removido.');
+    } catch (error) {
+      setMcpError(error.message || 'Não foi possível remover o servidor.');
+    } finally {
+      setMcpBusy(null);
+    }
+  }
+
+  async function addMcp(event) {
     event.preventDefault();
-    if (!command.trim()) return;
+    if (mcpBusy) return;
+    setMcpBusy('new');
+    setMcpError('');
+    try {
+      const result = await api.post('/mcp', mcpForm, { timeout: 60_000 });
+      const server = normalizeMcpServer({ ...result.server, status: 'Conectado', tool_count: result.tool_count, transport: result.transport });
+      setMcp((items) => [server, ...items.filter((item) => item.id !== server.id)]);
+      setMcpForm({ name: '', endpoint_url: '', token: '' });
+      setMcpModalOpen(false);
+      showToast(`${server.name}: conexão verificada.`);
+    } catch (error) {
+      setMcpError(error.message || 'Não foi possível adicionar o servidor MCP.');
+    } finally {
+      setMcpBusy(null);
+    }
+  }
+
+  async function runCommand(event) {
+    event.preventDefault();
+    const content = command.trim();
+    if (!content || running) return;
     setRunning(true);
-    window.setTimeout(() => { setRunning(false); setToast('Tarefa adicionada ao fluxo do Prism.'); setCommand(''); window.setTimeout(() => setToast(''), 2200); }, 900);
+    setMcpError('');
+    try {
+      const model = localStorage.getItem('prism-model') || 'prism-mini-1.0';
+      const effort = localStorage.getItem('prism-effort') || 'medium';
+      const created = await api.post('/chat/sessions', { title: content.replace(/\s+/g, ' ').slice(0, 64) });
+      const sessionId = created.session?.id;
+      if (!sessionId) throw new Error('Não foi possível iniciar o workspace de conversa.');
+      await api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { content, model, effort }, { timeout: 180_000 });
+      setCommand('');
+      navigate('/chat');
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) { logout(); navigate('/login', { replace: true }); return; }
+      showToast(error.message || 'Não foi possível executar o comando.');
+    } finally {
+      setRunning(false);
+    }
   }
 
   return (
     <div className="studio-page">
       <header className="studio-topbar">
-        <div className="studio-brand"><Link to="/chat" className="brand"><span className="brand-mark">P</span><span>Prism</span></Link><span className="studio-divider">/</span><span>Studio</span></div>
+        <div className="studio-brand"><Link to="/chat" className="brand"><span className="brand-mark" aria-hidden="true"><span /></span><span>Prism</span></Link><span className="studio-divider">/</span><span>Studio</span></div>
         <div className="studio-top-actions"><span className="studio-status"><i /> workspace pessoal</span><Link className="button" to="/chat">Voltar ao chat</Link></div>
       </header>
 
@@ -71,16 +172,24 @@ export default function Studio() {
           <section className="studio-heading"><div><div className="eyebrow">Prism workspace</div><h1>{tab === 'overview' ? 'Seu espaço de criação.' : tab === 'mcp' ? 'Conecte o que o Prism precisa.' : tab === 'skills' ? 'Skills que entram quando fazem sentido.' : tab === 'artifacts' ? 'Coisas que o Prism construiu.' : 'Workspace'}</h1><p>Um ambiente para conversar, construir, testar e organizar projetos sem transformar tudo em um painel técnico.</p></div><div className="studio-orb"><span>01</span><b>PRISM</b></div></section>
 
           {tab === 'overview' && <>
-            <div className="metric-grid"><Metric value={stats.files} label="arquivos no contexto" /><Metric value={stats.skills} label="skills disponíveis" /><Metric value={stats.connected} label="integrações conectadas" /><Metric value={stats.credits} label="créditos restantes" /></div>
-            <div className="studio-grid two"><Panel title="Continue de onde parou"><div className="resume-card"><div className="resume-icon">↗</div><div><strong>Reconstrução do Prism IA</strong><p>Revisar arquitetura, corrigir deploy e preparar a próxima versão.</p><span>Atualizado há poucos minutos</span></div><button className="button button-warm" onClick={() => setTab('files')}>Abrir</button></div></Panel><Panel title="Atalhos"><div className="shortcut-grid"><Shortcut keyName="⌘ K" text="Comando rápido" /><Shortcut keyName="⌘ P" text="Abrir arquivo" /><Shortcut keyName="⌘ J" text="Nova conversa" /><Shortcut keyName="⌘ ⇧ M" text="Gerenciar MCP" /></div></Panel></div>
+            <div className="metric-grid"><Metric value={stats.files} label="arquivos no contexto" /><Metric value={stats.skills} label="skills disponíveis" /><Metric value={stats.connected} label="integrações ativas" /><Metric value={stats.credits} label="créditos restantes" /></div>
+            <div className="studio-grid two"><Panel title="Continue de onde parou"><div className="resume-card"><div className="resume-icon">↗</div><div><strong>Reconstrução do Prism IA</strong><p>Revisar arquitetura, corrigir deploy e preparar a próxima versão.</p><span>Atualizado há poucos minutos</span></div><button className="button button-warm" onClick={() => setTab('files')}>Abrir</button></div></Panel><Panel title="Atalhos"><div className="shortcut-grid"><Shortcut keyName="⌘ K" text="Comando rápido" /><Shortcut keyName="⌘ P" text="Abrir arquivo" /><Shortcut keyName="⌘ J" text="Nova conversa" /><Shortcut keyName="⌘ ⇧ M" text="Gerenciar MCP" onClick={() => setTab('mcp')} /></div></Panel></div>
             <Panel title="Fluxo de trabalho"><div className="flow"><Flow n="01" title="Conversa" text="Defina o que quer construir." /><Flow n="02" title="Planejamento" text="Prism separa o trabalho em etapas." /><Flow n="03" title="Execução" text="Skills e ferramentas entram no momento certo." /><Flow n="04" title="Artifact" text="O resultado fica editável e versionado." /></div></Panel>
           </>}
 
-          {tab === 'files' && <Panel title="Explorer"><div className="file-tree">{files.map((file, index) => <button key={file} className="file-row" onClick={() => setToast(`Abrindo ${file}`)}><span>{index === 0 ? '◆' : '◇'}</span>{file}<small>{index === 0 ? 'principal' : 'JSX'}</small></button>)}</div><div className="code-preview"><div className="code-bar"><span>App.jsx</span><span>React · 128 linhas</span></div><pre>{`import { Routes, Route } from 'react-router-dom';\n\nexport default function App() {\n  return (\n    <Routes>\n      <Route path="/chat" element={<Chat />} />\n      <Route path="/studio" element={<Studio />} />\n    </Routes>\n  );\n}`}</pre></div></Panel>}
+          {tab === 'files' && <Panel title="Explorer"><div className="file-tree">{files.map((file, index) => <button key={file} className="file-row" onClick={() => showToast(`Abrindo ${file}`)}><span>{index === 0 ? '◆' : '◇'}</span>{file}<small>{index === 0 ? 'principal' : 'JSX'}</small></button>)}</div><div className="code-preview"><div className="code-bar"><span>App.jsx</span><span>React · 128 linhas</span></div><pre>{`import { Routes, Route } from 'react-router-dom';\n\nexport default function App() {\n  return (\n    <Routes>\n      <Route path="/chat" element={<Chat />} />\n      <Route path="/studio" element={<Studio />} />\n    </Routes>\n  );\n}`}</pre></div></Panel>}
 
-          {tab === 'skills' && <div className="skill-grid">{skills.map(([name, category, description]) => <article className={`skill-card ${activeSkill === name ? 'active' : ''}`} key={name} onClick={() => setActiveSkill(name)}><div className="skill-glyph">{name.slice(0, 1)}</div><div><small>{category}</small><h3>{name}</h3><p>{description}</p></div><button className="skill-action">{activeSkill === name ? 'Ativa' : 'Usar'}</button></article>)}</div>}
+          {tab === 'skills' && <div className="skill-grid">{skills.map(([name, category, description]) => <article className={`skill-card ${activeSkill === name ? 'active' : ''}`} key={name} onClick={() => setActiveSkill(name)}><div className="skill-glyph">{name.slice(0, 1)}</div><div><small>{category}</small><h3>{name}</h3><p>{description}</p></div><button className="skill-action" onClick={(event) => { event.stopPropagation(); setActiveSkill(name); }}>{activeSkill === name ? 'Ativa' : 'Usar'}</button></article>)}</div>}
 
-          {tab === 'mcp' && <><div className="mcp-intro"><div><span className="eyebrow">Model Context Protocol</span><h2>Ferramentas externas, dentro do fluxo.</h2><p>O Prism organiza servidores MCP por projeto. A interface abaixo gerencia o catálogo; credenciais e endpoints reais ficam no ambiente seguro do servidor.</p></div><button className="button button-warm" onClick={() => connect(3)}>+ Adicionar servidor</button></div><div className="mcp-list">{mcp.map((item, index) => <article className="mcp-card" key={item.name}><div className="mcp-symbol">{item.type === 'github' ? 'GH' : item.type === 'database' ? 'DB' : item.type === 'filesystem' ? 'FS' : 'MCP'}</div><div className="mcp-main"><div><h3>{item.name}</h3><p>{item.detail}</p></div><span className={`connection ${item.status === 'Pronto' ? 'ready' : ''}`}>{item.status}</span></div><button className="button" onClick={() => connect(index)}>{item.status === 'Pronto' ? 'Configurar' : 'Conectar'}</button></article>)}</div></>}
+          {tab === 'mcp' && <>
+            <div className="mcp-intro"><div><span className="eyebrow">Model Context Protocol</span><h2>Ferramentas externas, dentro do fluxo.</h2><p>Os servidores abaixo são conexões reais do workspace. Quando a solicitação exigir dados ou ações externas, o Prism pode chamar as ferramentas MCP disponíveis e usar o retorno na resposta.</p></div><button className="button button-warm" onClick={() => { setMcpError(''); setMcpModalOpen(true); }}>Adicionar servidor</button></div>
+            {mcpError && <div className="mcp-error" role="alert"><span>{mcpError}</span><button onClick={() => setMcpError('')}>Fechar</button></div>}
+            <div className="mcp-list">
+              {mcpLoading && <div className="mcp-empty">Carregando conexões...</div>}
+              {!mcpLoading && !mcp.length && <div className="mcp-empty">Nenhum servidor MCP conectado a este workspace.</div>}
+              {!mcpLoading && mcp.map((item) => <article className="mcp-card" key={item.id}><div className="mcp-symbol">{getMcpIcon(item.type)}</div><div className="mcp-main"><div><h3>{item.name}</h3><p>{item.detail}</p><div className="mcp-meta">{item.tool_count != null ? `${item.tool_count} ferramenta${item.tool_count === 1 ? '' : 's'}` : 'Ferramentas verificadas durante a conexão'}{item.transport ? ` · ${item.transport}` : ''}</div></div><span className={`connection ${item.status === 'Conectado' || item.status === 'Configurado' ? 'ready' : item.status === 'Erro' ? 'error' : ''}`}>{item.status}</span></div><div className="mcp-actions"><button className="button" onClick={() => testMcp(item)} disabled={mcpBusy === item.id || item.builtin}>{mcpBusy === item.id ? 'Testando...' : item.builtin ? 'Disponível' : 'Testar conexão'}</button>{!item.builtin && <button className="mcp-remove" onClick={() => deleteMcp(item)} disabled={mcpBusy && mcpBusy !== item.id}>Remover</button>}</div></article>)}
+            </div>
+          </>}
 
           {tab === 'artifacts' && <div className="artifact-grid"><Artifact title="Prism Landing" type="Site" meta="React · 18 arquivos" /><Artifact title="Tanque 3D" type="Jogo" meta="Three.js · 42 assets" /><Artifact title="Research notes" type="Documento" meta="12 fontes · 8 páginas" /><Artifact title="Dashboard" type="Interface" meta="React · 24 componentes" /></div>}
 
@@ -88,16 +197,18 @@ export default function Studio() {
 
           {tab === 'activity' && <Panel title="Linha do tempo"><div className="timeline">{['Workspace criado','Skill Code Review ativada','GitHub conectado','Artifact Prism Landing atualizado','Conversa iniciada'].map((item, i) => <div className="timeline-row" key={item}><span>0{i + 1}</span><div><strong>{item}</strong><small>{i + 1} min atrás · Prism</small></div></div>)}</div></Panel>}
 
-          <form className="studio-command" onSubmit={runCommand}><span>⌘</span><input value={command} onChange={(e) => setCommand(e.target.value)} placeholder="Diga ao Prism o que fazer neste workspace…" /><button className="button button-warm" disabled={running}>{running ? 'Executando…' : 'Executar'}</button></form>
-          {toast && <div className="studio-toast">{toast}</div>}
+          <form className="studio-command" onSubmit={runCommand}><span>⌘</span><input value={command} onChange={(e) => setCommand(e.target.value)} placeholder="Diga ao Prism o que fazer neste workspace..." disabled={running} /><button className="button button-warm" disabled={running || !command.trim()}>{running ? 'Executando...' : 'Executar'}</button></form>
         </main>
       </div>
+
+      {mcpModalOpen && <div className="mcp-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMcpModalOpen(false); }}><form className="mcp-modal" onSubmit={addMcp}><div className="mcp-modal-head"><div><div className="eyebrow">Novo servidor</div><h2>Adicionar MCP</h2><p>A conexão é testada antes de ficar salva no workspace.</p></div><button type="button" className="mcp-modal-close" onClick={() => setMcpModalOpen(false)} aria-label="Fechar">×</button></div><label>Nome<input value={mcpForm.name} onChange={(event) => setMcpForm((form) => ({ ...form, name: event.target.value }))} placeholder="Meu servidor" autoFocus /></label><label>Endpoint MCP<input value={mcpForm.endpoint_url} onChange={(event) => setMcpForm((form) => ({ ...form, endpoint_url: event.target.value }))} placeholder="https://exemplo.com/mcp" inputMode="url" /></label><label>Bearer token <span>opcional</span><input type="password" value={mcpForm.token} onChange={(event) => setMcpForm((form) => ({ ...form, token: event.target.value }))} placeholder="Token do servidor" /></label><div className="mcp-modal-actions"><button type="button" className="button" onClick={() => setMcpModalOpen(false)}>Cancelar</button><button className="button button-warm" disabled={mcpBusy === 'new'}>{mcpBusy === 'new' ? 'Conectando...' : 'Conectar e salvar'}</button></div></form></div>}
+      {toast && <div className="studio-toast">{toast}</div>}
     </div>
   );
 }
 
 function Metric({ value, label }) { return <div className="metric"><strong>{value}</strong><span>{label}</span></div>; }
 function Panel({ title, children }) { return <section className="studio-panel"><div className="panel-head"><h2>{title}</h2><span>Prism</span></div>{children}</section>; }
-function Shortcut({ keyName, text }) { return <button className="shortcut"><kbd>{keyName}</kbd><span>{text}</span></button>; }
+function Shortcut({ keyName, text, onClick }) { return <button className="shortcut" onClick={onClick}><kbd>{keyName}</kbd><span>{text}</span></button>; }
 function Flow({ n, title, text }) { return <div className="flow-item"><span>{n}</span><div><strong>{title}</strong><p>{text}</p></div></div>; }
 function Artifact({ title, type, meta }) { return <article className="artifact-card"><div className="artifact-thumb"><span>{type}</span><b>PR</b></div><small>{type}</small><h3>{title}</h3><p>{meta}</p><button className="button">Abrir artifact</button></article>; }

@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS github_connections (
   UNIQUE(user_id)
 );
 
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  endpoint_url TEXT NOT NULL,
+  auth_token_encrypted TEXT,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS usage (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -93,4 +105,5 @@ CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_files_user ON project_files(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
+CREATE INDEX IF NOT EXISTS idx_mcp_servers_user ON mcp_servers(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_user_created ON usage(user_id, created_at DESC);

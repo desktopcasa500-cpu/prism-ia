@@ -41,6 +41,7 @@ function isPrivateIp(address) {
   }
   if (net.isIP(address) === 6) {
     const normalized = address.toLowerCase();
+    if (normalized.startsWith('::ffff:')) return isPrivateIp(normalized.slice(7));
     return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80:');
   }
   return false;
@@ -56,36 +57,24 @@ async function assertSafeUrl(rawUrl) {
   }
   if (process.env.MCP_ALLOW_PRIVATE_HOSTS !== 'true') {
     const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-    if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) {
-      throw new Error('Endpoint MCP local ou privado bloqueado');
-    }
-    try {
-      const addresses = await dns.lookup(hostname, { all: true, verbatim: true });
-      if (addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('Endpoint MCP resolve para endereço privado');
-    } catch (error) {
-      if (error?.message === 'Endpoint MCP resolve para endereço privado') throw error;
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) throw new Error('Endpoint MCP local ou privado bloqueado');
+    const addresses = await dns.lookup(hostname, { all: true, verbatim: true }).catch((error) => {
       if (error?.code === 'ENOTFOUND' || error?.code === 'EAI_AGAIN') throw new Error('Não foi possível resolver o endpoint MCP');
-    }
+      throw error;
+    });
+    if (addresses.some((entry) => isPrivateIp(entry.address))) throw new Error('Endpoint MCP resolve para endereço privado');
   }
   return url;
 }
 
 function withTimeout(promise, ms = MCP_TIMEOUT) {
   let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Servidor MCP demorou demais para responder')), ms);
-  });
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Servidor MCP demorou demais para responder')), ms); });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-function shortId(id) {
-  return String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) || 'server';
-}
-
-function sanitizeToolName(name) {
-  const clean = String(name || 'tool').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
-  return clean || 'tool';
-}
+function shortId(id) { return String(id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10) || 'server'; }
+function sanitizeToolName(name) { return String(name || 'tool').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48) || 'tool'; }
 
 function toolDefinition(server, tool) {
   const modelName = `mcp_${shortId(server.id)}_${sanitizeToolName(tool.name)}`.slice(0, 64);
@@ -106,36 +95,30 @@ function normalizeToolResult(result) {
     if (item?.type === 'resource' && item.resource) return JSON.stringify(item.resource);
     return JSON.stringify(item);
   }).filter(Boolean);
-  const text = parts.join('\n').slice(0, MAX_TOOL_RESULT);
-  return { text, isError: Boolean(result?.isError) };
+  return { text: parts.join('\n').slice(0, MAX_TOOL_RESULT), isError: Boolean(result?.isError) };
 }
 
 async function connectServer(server) {
   const url = await assertSafeUrl(server.endpoint_url);
   const token = decryptSecret(server.auth_token_encrypted);
   const authProvider = token ? { token: async () => token } : undefined;
-  const client = new Client({ name: 'prism-ia', version: '1.0.0' });
-
-  let transport;
-  let transportName = 'streamable-http';
+  const client = new Client({ name: 'prism-ia', version: '1.1.1' });
   try {
-    transport = new StreamableHTTPClientTransport(url, authProvider ? { authProvider } : {});
+    const transport = new StreamableHTTPClientTransport(url, authProvider ? { authProvider } : {});
     await withTimeout(client.connect(transport));
+    return { client, transport, transportName: 'streamable-http', serverName: server.name };
   } catch (streamableError) {
     await client.close().catch(() => {});
-    transportName = 'sse';
-    const fallbackClient = new Client({ name: 'prism-ia', version: '1.0.0' });
-    transport = new SSEClientTransport(url, authProvider ? { authProvider } : {});
+    const fallbackClient = new Client({ name: 'prism-ia', version: '1.1.1' });
+    const fallbackTransport = new SSEClientTransport(url, authProvider ? { authProvider } : {});
     try {
-      await withTimeout(fallbackClient.connect(transport));
+      await withTimeout(fallbackClient.connect(fallbackTransport));
+      return { client: fallbackClient, transport: fallbackTransport, transportName: 'sse', serverName: server.name };
     } catch (sseError) {
       await fallbackClient.close().catch(() => {});
-      throw new Error(`MCP indisponível: ${streamableError?.message || 'HTTP'}; fallback SSE: ${sseError?.message || 'falhou'}`.slice(0, 800));
+      throw new Error(`MCP indisponível: ${streamableError?.message || 'HTTP'}; fallback SSE: ${sseError?.message || 'falhou'}`.slice(0, 1000));
     }
-    client.close().catch(() => {});
-    return { client: fallbackClient, transport, transportName };
   }
-  return { client, transport, transportName };
 }
 
 async function listAllTools(client) {
@@ -145,7 +128,7 @@ async function listAllTools(client) {
     const result = await withTimeout(client.listTools(cursor ? { cursor } : undefined));
     if (Array.isArray(result?.tools)) tools.push(...result.tools);
     cursor = result?.nextCursor || undefined;
-    if (tools.length > MAX_TOOLS_PER_SERVER) break;
+    if (tools.length >= MAX_TOOLS_PER_SERVER) break;
   } while (cursor);
   return tools.slice(0, MAX_TOOLS_PER_SERVER);
 }
@@ -154,53 +137,39 @@ export async function probeMcpServer(server) {
   const connection = await connectServer(server);
   try {
     const tools = await listAllTools(connection.client);
-    return {
-      ok: true,
-      transport: connection.transportName,
-      tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })),
-    };
+    return { ok: true, transport: connection.transportName, tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })) };
   } finally {
     await connection.client.close().catch(() => {});
   }
 }
 
 export async function createMcpExecutionContext(userId) {
-  const saved = await pool.query(
-    `SELECT id, name, endpoint_url, auth_token_encrypted, enabled
-       FROM mcp_servers
-      WHERE user_id = $1 AND enabled = TRUE
-      ORDER BY created_at ASC`,
-    [userId],
-  );
-
-  const builtIn = [];
+  const saved = await pool.query(`SELECT id, name, endpoint_url, auth_token_encrypted, enabled FROM mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC`, [userId]);
+  const servers = [...saved.rows];
   const githubToken = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
-  if (githubToken) {
-    builtIn.push({
-      id: 'builtin-github',
-      name: 'GitHub',
-      endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
-      auth_token_encrypted: encryptSecret(githubToken),
-      enabled: true,
-      builtin: true,
-    });
-  }
+  if (githubToken) servers.push({ id: 'builtin-github', name: 'GitHub', endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/', auth_token_encrypted: encryptSecret(githubToken), enabled: true, builtin: true });
 
-  const servers = [...saved.rows, ...builtIn];
+  const results = await Promise.all(servers.map(async (server) => {
+    try { return { server, connection: await connectServer(server) }; }
+    catch (error) { return { server, error }; }
+  }));
+  const toolResults = await Promise.all(results.map(async (entry) => {
+    if (entry.error) return entry;
+    try { return { ...entry, rawTools: await listAllTools(entry.connection.client) }; }
+    catch (error) { await entry.connection.client.close().catch(() => {}); return { ...entry, error }; }
+  }));
+
   const connections = [];
   const registry = new Map();
   const errors = [];
-
-  for (const server of servers) {
-    try {
-      const connection = await connectServer(server);
-      const rawTools = await listAllTools(connection.client);
-      const tools = rawTools.map((tool) => toolDefinition(server, tool));
-      tools.forEach((tool) => registry.set(tool.modelName, { ...tool, client: connection.client }));
-      connections.push(connection);
-    } catch (error) {
-      errors.push({ server: server.name, message: error?.message || 'Falha ao conectar ao MCP' });
+  for (const entry of toolResults) {
+    if (entry.error) {
+      errors.push({ server: entry.server?.name || 'MCP', message: entry.error?.message || 'Falha ao conectar ao MCP' });
+      continue;
     }
+    const tools = (entry.rawTools || []).map((tool) => toolDefinition(entry.server, tool));
+    tools.forEach((tool) => registry.set(tool.modelName, { ...tool, client: entry.connection.client }));
+    connections.push(entry.connection);
   }
 
   async function execute(modelName, args = {}) {
@@ -210,25 +179,11 @@ export async function createMcpExecutionContext(userId) {
     return normalizeToolResult(result);
   }
 
-  async function close() {
-    await Promise.allSettled(connections.map((connection) => connection.client.close()));
-  }
-
-  return {
-    tools: [...registry.values()].map(({ client, ...tool }) => tool),
-    execute,
-    close,
-    errors,
-  };
+  async function close() { await Promise.allSettled(connections.map((connection) => connection.client.close())); }
+  return { tools: [...registry.values()].map(({ client, ...tool }) => tool), execute, close, errors };
 }
 
 export async function getMcpServers(userId) {
-  const result = await pool.query(
-    `SELECT id, name, endpoint_url, enabled, created_at, updated_at
-       FROM mcp_servers
-      WHERE user_id = $1
-      ORDER BY created_at DESC`,
-    [userId],
-  );
+  const result = await pool.query(`SELECT id, name, endpoint_url, enabled, created_at, updated_at FROM mcp_servers WHERE user_id = $1 ORDER BY created_at DESC`, [userId]);
   return result.rows;
 }

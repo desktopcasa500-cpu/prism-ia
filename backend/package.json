@@ -1,12 +1,13 @@
 {
   "name": "prism-ia-backend",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "migrate": "node src/db/migrate.js"
+    "migrate": "node src/db/migrate.js",
+    "check": "node --check src/app.js && node --check src/routes/chat.js && node --check src/routes/mcp.js && node --check src/services/mcp.js && node --check src/services/orchestrator.js && node --check src/services/skills.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -16,7 +17,8 @@
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "google-auth-library": "^10.5.0",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.12.0"
+    "jsonwebtoken": "^9.0.0",
+    "pg": "^8.12.0",
+    "zod": "^3.25.76"
   }
 }

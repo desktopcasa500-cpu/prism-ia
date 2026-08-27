@@ -141,7 +141,11 @@ export default function Chat() {
       setInput('');
       const result = await api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { content, effort, model }, { timeout: 180000 });
       if (!result.message) throw new Error('O servidor não retornou uma resposta válida.');
-      setMessages((items) => [...items, result.message]);
+      setMessages((items) => [...items, {
+        ...result.message,
+        tools_used: Array.isArray(result.tools_used) ? result.tools_used : [],
+        mcp_errors: Array.isArray(result.mcp_errors) ? result.mcp_errors : [],
+      }]);
       setSessions((items) => items.map((item) => item.id === sessionId && item.title === 'Nova conversa' ? { ...item, title: content.replace(/\s+/g, ' ').slice(0, 64) } : item));
     } catch (e) { if (!handleAuthError(e)) setError(e.message || 'Não foi possível concluir a solicitação.'); }
     finally { setSending(false); requestAnimationFrame(() => textareaRef.current?.focus()); }
@@ -193,7 +197,7 @@ export default function Chat() {
       </header>
 
       <section className="messages" aria-live="polite">
-        {!messages.length && !loadingMessages ? <div className="empty-chat"><div className="empty-mark" aria-hidden="true"><span /><span /><span /><span /></div><p className="empty-kicker">PRISM IA</p><h1>O que vamos fazer?</h1><p>Comece com uma pergunta, uma ideia ou um problema. A Prism mantém o contexto e usa o modelo escolhido.</p><div className="prompt-suggestions"><button onClick={() => setInput('Transforme esta ideia em um plano de projeto completo.')}>Planejar um projeto</button><button onClick={() => setInput('Revise meu código e encontre os problemas mais importantes.')}>Revisar código</button><button onClick={() => setInput('Explique este conceito de forma simples.')}>Explicar algo</button></div></div> : loadingMessages ? <div className="message-loading" aria-label="Carregando conversa"><span /> <span /> <span /></div> : messages.map((message) => <article className={`message ${message.role === 'user' ? 'user' : 'assistant'}`} key={message.id}><div className="message-meta">{message.role === 'user' ? 'Você' : 'Prism'}</div><div className="message-content">{message.content}</div></article>)}
+        {!messages.length && !loadingMessages ? <div className="empty-chat"><div className="empty-mark" aria-hidden="true"><span /><span /><span /><span /></div><p className="empty-kicker">PRISM IA</p><h1>O que vamos fazer?</h1><p>Comece com uma pergunta, uma ideia ou um problema. A Prism mantém o contexto e usa o modelo escolhido.</p><div className="prompt-suggestions"><button onClick={() => setInput('Transforme esta ideia em um plano de projeto completo.')}>Planejar um projeto</button><button onClick={() => setInput('Revise meu código e encontre os problemas mais importantes.')}>Revisar código</button><button onClick={() => setInput('Explique este conceito de forma simples.')}>Explicar algo</button></div></div> : loadingMessages ? <div className="message-loading" aria-label="Carregando conversa"><span /> <span /> <span /></div> : messages.map((message) => <article className={`message ${message.role === 'user' ? 'user' : 'assistant'}`} key={message.id}><div className="message-meta">{message.role === 'user' ? 'Você' : 'Prism'}</div><div className="message-content">{message.content}</div>{message.role === 'assistant' && Array.isArray(message.tools_used) && message.tools_used.length > 0 && <div className="message-tools"><span>Ferramentas usadas</span>{message.tools_used.map((tool, index) => <b key={`${tool.server || tool.kind}-${tool.tool || index}`}>{tool.server || tool.kind}{tool.tool ? ` · ${tool.tool}` : ''}</b>)}</div>}</article>)}
         {sending && <div className="message assistant"><div className="message-meta">Prism</div><div className="thinking"><span /><span /><span /></div></div>}
         <div ref={bottomRef} />
       </section>

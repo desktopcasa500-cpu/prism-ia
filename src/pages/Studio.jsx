@@ -24,7 +24,7 @@ function getMcpIcon(type) {
 function normalizeMcpServer(server) {
   return {
     ...server,
-    status: server.builtin ? 'Configurado' : server.enabled ? 'Ativo' : 'Desativado',
+    status: server.status || (server.builtin ? 'Configurado' : server.enabled ? 'Ativo' : 'Desativado'),
     detail: server.builtin ? 'Servidor MCP oficial do GitHub' : server.endpoint_url,
     tool_count: Number.isFinite(server.tool_count) ? server.tool_count : null,
   };
@@ -38,6 +38,8 @@ export default function Studio() {
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpBusy, setMcpBusy] = useState(null);
   const [mcpModalOpen, setMcpModalOpen] = useState(false);
+  const [mcpToolsModal, setMcpToolsModal] = useState(null);
+  const [mcpToolsLoading, setMcpToolsLoading] = useState(false);
   const [mcpForm, setMcpForm] = useState({ name: '', endpoint_url: '', token: '' });
   const [mcpError, setMcpError] = useState('');
   const [activeSkill, setActiveSkill] = useState(null);
@@ -75,21 +77,38 @@ export default function Studio() {
   useEffect(() => { loadMcp(); }, [loadMcp]);
 
   async function testMcp(server) {
-    if (server.builtin) {
-      showToast('O GitHub MCP está disponível para a IA quando as credenciais do servidor estiverem configuradas.');
-      return;
-    }
     setMcpBusy(server.id);
     setMcpError('');
     try {
-      const result = await api.post(`/mcp/${encodeURIComponent(server.id)}/test`, {} , { timeout: 60_000 });
-      setMcp((items) => items.map((item) => item.id === server.id ? { ...item, status: 'Conectado', tool_count: result.tool_count, transport: result.transport } : item));
+      const result = await api.post(`/mcp/${encodeURIComponent(server.id)}/test`, {}, { timeout: 60_000 });
+      setMcp((items) => items.map((item) => item.id === server.id ? {
+        ...item,
+        status: 'Conectado',
+        tool_count: result.tool_count,
+        transport: result.transport,
+      } : item));
       showToast(`${server.name}: ${result.tool_count} ferramenta${result.tool_count === 1 ? '' : 's'} disponível${result.tool_count === 1 ? '' : 'is'}.`);
     } catch (error) {
       setMcp((items) => items.map((item) => item.id === server.id ? { ...item, status: 'Erro' } : item));
       setMcpError(error.message || 'O servidor MCP não respondeu.');
     } finally {
       setMcpBusy(null);
+    }
+  }
+
+  async function viewMcpTools(server) {
+    setMcpToolsLoading(true);
+    setMcpToolsModal({ name: server.name, tools: [], transport: server.transport || '' });
+    setMcpError('');
+    try {
+      const result = await api.get(`/mcp/${encodeURIComponent(server.id)}/tools`);
+      setMcpToolsModal({ name: server.name, tools: Array.isArray(result.tools) ? result.tools : [], transport: result.transport || '' });
+      setMcp((items) => items.map((item) => item.id === server.id ? { ...item, status: 'Conectado', tool_count: result.tools?.length || 0, transport: result.transport } : item));
+    } catch (error) {
+      setMcpToolsModal(null);
+      setMcpError(error.message || 'Não foi possível carregar as ferramentas deste MCP.');
+    } finally {
+      setMcpToolsLoading(false);
     }
   }
 
@@ -182,12 +201,12 @@ export default function Studio() {
           {tab === 'skills' && <div className="skill-grid">{skills.map(([name, category, description]) => <article className={`skill-card ${activeSkill === name ? 'active' : ''}`} key={name} onClick={() => setActiveSkill(name)}><div className="skill-glyph">{name.slice(0, 1)}</div><div><small>{category}</small><h3>{name}</h3><p>{description}</p></div><button className="skill-action" onClick={(event) => { event.stopPropagation(); setActiveSkill(name); }}>{activeSkill === name ? 'Ativa' : 'Usar'}</button></article>)}</div>}
 
           {tab === 'mcp' && <>
-            <div className="mcp-intro"><div><span className="eyebrow">Model Context Protocol</span><h2>Ferramentas externas, dentro do fluxo.</h2><p>Os servidores abaixo são conexões reais do workspace. Quando a solicitação exigir dados ou ações externas, o Prism pode chamar as ferramentas MCP disponíveis e usar o retorno na resposta.</p></div><button className="button button-warm" onClick={() => { setMcpError(''); setMcpModalOpen(true); }}>Adicionar servidor</button></div>
+            <div className="mcp-intro"><div><span className="eyebrow">Model Context Protocol</span><h2>Ferramentas externas, dentro do fluxo.</h2><p>O Prism conecta servidores MCP reais, descobre as ferramentas publicadas por eles e entrega essas ferramentas ao modelo. Quando uma ferramenta corresponde ao pedido, a IA pode executá-la e usar o resultado antes de responder.</p></div><button className="button button-warm" onClick={() => { setMcpError(''); setMcpModalOpen(true); }}>Adicionar servidor</button></div>
             {mcpError && <div className="mcp-error" role="alert"><span>{mcpError}</span><button onClick={() => setMcpError('')}>Fechar</button></div>}
             <div className="mcp-list">
               {mcpLoading && <div className="mcp-empty">Carregando conexões...</div>}
               {!mcpLoading && !mcp.length && <div className="mcp-empty">Nenhum servidor MCP conectado a este workspace.</div>}
-              {!mcpLoading && mcp.map((item) => <article className="mcp-card" key={item.id}><div className="mcp-symbol">{getMcpIcon(item.type)}</div><div className="mcp-main"><div><h3>{item.name}</h3><p>{item.detail}</p><div className="mcp-meta">{item.tool_count != null ? `${item.tool_count} ferramenta${item.tool_count === 1 ? '' : 's'}` : 'Ferramentas verificadas durante a conexão'}{item.transport ? ` · ${item.transport}` : ''}</div></div><span className={`connection ${item.status === 'Conectado' || item.status === 'Configurado' ? 'ready' : item.status === 'Erro' ? 'error' : ''}`}>{item.status}</span></div><div className="mcp-actions"><button className="button" onClick={() => testMcp(item)} disabled={mcpBusy === item.id || item.builtin}>{mcpBusy === item.id ? 'Testando...' : item.builtin ? 'Disponível' : 'Testar conexão'}</button>{!item.builtin && <button className="mcp-remove" onClick={() => deleteMcp(item)} disabled={mcpBusy && mcpBusy !== item.id}>Remover</button>}</div></article>)}
+              {!mcpLoading && mcp.map((item) => <article className="mcp-card" key={item.id}><div className="mcp-symbol">{getMcpIcon(item.type)}</div><div className="mcp-main"><div><h3>{item.name}</h3><p>{item.detail}</p><div className="mcp-meta">{item.tool_count != null ? `${item.tool_count} ferramenta${item.tool_count === 1 ? '' : 's'}` : 'Ferramentas ainda não verificadas'}{item.transport ? ` · ${item.transport}` : ''}</div></div><span className={`connection ${item.status === 'Conectado' || item.status === 'Configurado' ? 'ready' : item.status === 'Erro' ? 'error' : ''}`}>{item.status}</span></div><div className="mcp-actions"><button className="button" onClick={() => testMcp(item)} disabled={mcpBusy === item.id}>{mcpBusy === item.id ? 'Testando...' : 'Testar conexão'}</button><button className="button mcp-tools-button" onClick={() => viewMcpTools(item)} disabled={mcpBusy === item.id || mcpToolsLoading}>Ferramentas</button>{!item.builtin && <button className="mcp-remove" onClick={() => deleteMcp(item)} disabled={Boolean(mcpBusy && mcpBusy !== item.id)}>Remover</button>}</div></article>)}
             </div>
           </>}
 
@@ -202,6 +221,8 @@ export default function Studio() {
       </div>
 
       {mcpModalOpen && <div className="mcp-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMcpModalOpen(false); }}><form className="mcp-modal" onSubmit={addMcp}><div className="mcp-modal-head"><div><div className="eyebrow">Novo servidor</div><h2>Adicionar MCP</h2><p>A conexão é testada antes de ficar salva no workspace.</p></div><button type="button" className="mcp-modal-close" onClick={() => setMcpModalOpen(false)} aria-label="Fechar">×</button></div><label>Nome<input value={mcpForm.name} onChange={(event) => setMcpForm((form) => ({ ...form, name: event.target.value }))} placeholder="Meu servidor" autoFocus /></label><label>Endpoint MCP<input value={mcpForm.endpoint_url} onChange={(event) => setMcpForm((form) => ({ ...form, endpoint_url: event.target.value }))} placeholder="https://exemplo.com/mcp" inputMode="url" /></label><label>Bearer token <span>opcional</span><input type="password" value={mcpForm.token} onChange={(event) => setMcpForm((form) => ({ ...form, token: event.target.value }))} placeholder="Token do servidor" /></label><div className="mcp-modal-actions"><button type="button" className="button" onClick={() => setMcpModalOpen(false)}>Cancelar</button><button className="button button-warm" disabled={mcpBusy === 'new'}>{mcpBusy === 'new' ? 'Conectando...' : 'Conectar e salvar'}</button></div></form></div>}
+
+      {mcpToolsModal && <div className="mcp-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMcpToolsModal(null); }}><section className="mcp-modal mcp-tools-modal"><div className="mcp-modal-head"><div><div className="eyebrow">Ferramentas descobertas</div><h2>{mcpToolsModal.name}</h2><p>{mcpToolsLoading ? 'Consultando o servidor agora...' : `${mcpToolsModal.tools.length} ferramenta${mcpToolsModal.tools.length === 1 ? '' : 's'} publicada${mcpToolsModal.tools.length === 1 ? '' : 's'}${mcpToolsModal.transport ? ` · ${mcpToolsModal.transport}` : ''}.`}</p></div><button type="button" className="mcp-modal-close" onClick={() => setMcpToolsModal(null)} aria-label="Fechar">×</button></div><div className="mcp-tool-list">{mcpToolsLoading ? <div className="mcp-empty">Lendo tools/list...</div> : mcpToolsModal.tools.length ? mcpToolsModal.tools.map((tool) => <article className="mcp-tool-row" key={tool.name}><strong>{tool.name}</strong><p>{tool.description || 'Sem descrição publicada pelo servidor.'}</p></article>) : <div className="mcp-empty">O servidor respondeu, mas não publicou ferramentas.</div>}</div></section></div>}
       {toast && <div className="studio-toast">{toast}</div>}
     </div>
   );

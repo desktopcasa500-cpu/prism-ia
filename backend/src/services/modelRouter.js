@@ -13,7 +13,7 @@ export function getModelProfile(model = 'prism-mini-1.0') {
 }
 
 export function validateThinking(model, effort) {
-  return ALL_EFFORTS.includes(effort) && Boolean(getModelProfile(model));
+  return Boolean(MODEL_PROFILES[model]) && ALL_EFFORTS.includes(effort) && MODEL_PROFILES[model].effort.includes(effort);
 }
 
 export function normalizeEffort(effort = 'medium') {

@@ -17,7 +17,13 @@ router.post('/generate', async (req, res) => {
     if (prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo' });
     if (!validateThinking(model, thinking)) return res.status(400).json({ error: 'Configuração de modelo inválida' });
 
-    const result = await runOrchestration(prompt, thinking, { ...getModelProfile(model), id: model }, context);
+    const result = await runOrchestration(
+      prompt,
+      thinking,
+      { ...getModelProfile(model), id: model },
+      context,
+      req.userId,
+    );
     res.json({ model, thinking, ...result });
   } catch (error) {
     console.error('AI generation error:', error);

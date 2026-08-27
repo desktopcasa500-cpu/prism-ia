@@ -20,5 +20,8 @@ body:has(.studio-page){overflow-x:hidden;overflow-y:auto}
 .mcp-tool-row{border:1px solid rgba(241,235,226,.08);background:#171310;border-radius:10px;padding:12px 13px}
 .mcp-tool-row strong{font:14px ui-monospace,SFMono-Regular,Consolas,monospace;color:#e5d9cd}
 .mcp-tool-row p{margin:6px 0 0;color:#817970;font-size:10px;line-height:1.55}
+.message-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:13px;padding-top:9px;border-top:1px solid rgba(241,235,226,.08);font-size:9px;color:#756d64}
+.message-tools span{letter-spacing:.08em;text-transform:uppercase;margin-right:2px}
+.message-tools b{font-weight:500;color:#b5a79a;background:#201b17;border:1px solid rgba(241,235,226,.08);padding:4px 6px;border-radius:5px}
 @media(max-width:900px){.studio-nav{position:sticky;top:64px;height:calc(100vh - 64px)}.studio-content{padding-bottom:135px}.mcp-actions{justify-content:flex-start}}
 @media(max-width:600px){.studio-topbar{position:sticky}.studio-nav{position:sticky}.mcp-card{display:grid;grid-template-columns:46px 1fr}.mcp-actions{grid-column:1/-1}.mcp-error{align-items:flex-start}.mcp-tool-list{padding:0 14px 14px}}

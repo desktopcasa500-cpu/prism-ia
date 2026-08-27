@@ -20,10 +20,20 @@ function effortInstruction(effort) {
   })[effort] || 'Analise o pedido com cuidado e entregue uma resposta completa.';
 }
 
-function systemPrompt(model, effort, hasTools, toolKinds) {
+function needsExternalTool(prompt) {
+  return /\b(mcp|use o mcp|use mcp|github|gitHub|pesquise|pesquisa|buscar|busque|procure|consulte|consulta|dados externos|servidor|reposit[oó]rio|repo|issues?|pull requests?|arquivos? do projeto|banco de dados|database)\b/i.test(String(prompt || ''));
+}
+
+function systemPrompt(model, effort, hasTools, toolKinds, requireExternalTool = false) {
   const profile = getModelProfile(model);
   const toolInstruction = hasTools
-    ? `Ferramentas reais disponíveis: ${toolKinds.join(', ')}. Use Skills para trabalhos especializados e MCP para dados ou ações externas. Não diga que uma ação foi feita sem executar a ferramenta e obter um resultado.`
+    ? [
+        `Ferramentas reais disponíveis: ${toolKinds.join(', ')}.`,
+        'Use Skills para trabalhos especializados e MCP para dados ou ações externas.',
+        'Se existir uma ferramenta MCP que corresponda ao pedido, USE-A antes de responder. Não substitua uma ferramenta MCP disponível por memória, suposição ou uma resposta genérica.',
+        requireExternalTool ? 'Este pedido indica uma ação externa. Você DEVE chamar pelo menos uma ferramenta MCP compatível antes de produzir a resposta final.' : '',
+        'Não diga que uma ação foi feita sem executar a ferramenta e obter um resultado.',
+      ].filter(Boolean).join('\n')
     : 'Nenhuma ferramenta externa está disponível nesta execução. Não invente integrações.';
   return [
     'Você é a Prism IA, uma assistente geral e engenheira de software quando o pedido envolve tecnologia.',
@@ -153,6 +163,7 @@ async function callGemini(prompt, model, effort, execution, tools) {
   const profile = getModelProfile(model);
   const geminiModel = process.env.GEMINI_MODEL || profile.gemini || profile.defaultModel || 'gemini-3.6-flash';
   const declaredTools = tools.length ? geminiTools(tools) : undefined;
+  const requireTool = needsExternalTool(prompt) && tools.some((tool) => tool.kind === 'mcp');
   const contents = [{ role: 'user', parts: [{ text: prompt }] }];
   const toolsUsed = [];
   let totalTokens = 0;
@@ -162,7 +173,7 @@ async function callGemini(prompt, model, effort, execution, tools) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt(model, effort, Boolean(tools.length), tools.length ? ['Skills', 'MCP'] : []) }] },
+        systemInstruction: { parts: [{ text: systemPrompt(model, effort, Boolean(tools.length), tools.length ? ['Skills', 'MCP'] : [], requireTool) }] },
         contents,
         ...(declaredTools ? { tools: declaredTools } : {}),
         generationConfig: { temperature: effort === 'low' ? 0.35 : 0.2 },
@@ -193,10 +204,11 @@ async function callGemini(prompt, model, effort, execution, tools) {
 
 async function callOpenAiCompatible(url, key, provider, prompt, model, effort, execution, tools, providerModel, extraHeaders = {}) {
   const messages = [
-    { role: 'system', content: systemPrompt(model, effort, Boolean(tools.length), tools.length ? ['Skills', 'MCP'] : []) },
+    { role: 'system', content: systemPrompt(model, effort, Boolean(tools.length), tools.length ? ['Skills', 'MCP'] : [], needsExternalTool(prompt) && tools.some((tool) => tool.kind === 'mcp')) },
     { role: 'user', content: prompt },
   ];
   const declaredTools = tools.length ? openAiTools(tools) : undefined;
+  const requireTool = needsExternalTool(prompt) && tools.some((tool) => tool.kind === 'mcp');
   const toolsUsed = [];
   let totalTokens = 0;
 
@@ -207,7 +219,7 @@ async function callOpenAiCompatible(url, key, provider, prompt, model, effort, e
       body: JSON.stringify({
         model: providerModel,
         messages,
-        ...(declaredTools ? { tools: declaredTools, tool_choice: 'auto' } : {}),
+        ...(declaredTools ? { tools: declaredTools, tool_choice: requireTool ? 'required' : 'auto' } : {}),
         temperature: effort === 'low' ? 0.35 : 0.2,
         ...(provider === 'groq' ? { reasoning_effort: ['low', 'medium', 'high'].includes(effort) ? effort : 'high' } : {}),
       }),

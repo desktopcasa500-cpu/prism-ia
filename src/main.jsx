@@ -7,6 +7,7 @@ import './styles.css';
 import './studio.css';
 import './studio-fixes.css';
 import './studio-pixel.css';
+import './studio-overrides.css';
 import './pixel-landing.css';
 import './editorial-pages.css';
 import './prism-chat.css';

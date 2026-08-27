@@ -14,6 +14,19 @@ function normalizeEndpoint(value) {
   return String(value || '').trim().slice(0, 2048);
 }
 
+function builtinGithubServer() {
+  const token = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) return null;
+  return {
+    id: 'builtin-github',
+    name: 'GitHub',
+    endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
+    auth_token_encrypted: encryptSecret(token),
+    enabled: true,
+    builtin: true,
+  };
+}
+
 async function ownsServer(id, userId) {
   const result = await pool.query(
     'SELECT id, name, endpoint_url, auth_token_encrypted, enabled, created_at, updated_at FROM mcp_servers WHERE id = $1 AND user_id = $2',
@@ -22,13 +35,18 @@ async function ownsServer(id, userId) {
   return result.rows[0] || null;
 }
 
+async function resolveServer(id, userId) {
+  if (id === 'builtin-github') return builtinGithubServer();
+  return ownsServer(id, userId);
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const servers = await getMcpServers(req.userId);
-    const githubConfigured = Boolean(process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN);
+    const github = builtinGithubServer();
     res.json({
       servers: [
-        ...(githubConfigured ? [{ id: 'builtin-github', name: 'GitHub', endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/', enabled: true, builtin: true }] : []),
+        ...(github ? [{ id: github.id, name: github.name, endpoint_url: github.endpoint_url, enabled: true, builtin: true }] : []),
         ...servers.map((server) => ({ ...server, builtin: false })),
       ],
     });
@@ -70,25 +88,27 @@ router.post('/', async (req, res, next) => {
       [req.userId, name, endpointUrl, candidate.auth_token_encrypted],
     );
 
-    res.status(201).json({ server: result.rows[0], transport: probe.transport, tool_count: probe.tools.length });
+    res.status(201).json({ server: result.rows[0], transport: probe.transport, tool_count: probe.tools.length, tools: probe.tools });
   } catch (error) { next(error); }
 });
 
 router.post('/:id/test', async (req, res, next) => {
   try {
-    const server = await ownsServer(req.params.id, req.userId);
+    const server = await resolveServer(req.params.id, req.userId);
     if (!server) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
     const result = await probeMcpServer(server);
-    res.json({ ok: true, transport: result.transport, tool_count: result.tools.length, tools: result.tools });
-  } catch (error) { res.status(422).json({ ok: false, error: error?.message || 'Falha ao testar o servidor MCP.' }); }
+    res.json({ ok: true, server: result.server, transport: result.transport, tool_count: result.tools.length, tools: result.tools });
+  } catch (error) {
+    res.status(422).json({ ok: false, error: error?.message || 'Falha ao testar o servidor MCP.' });
+  }
 });
 
 router.get('/:id/tools', async (req, res, next) => {
   try {
-    const server = await ownsServer(req.params.id, req.userId);
+    const server = await resolveServer(req.params.id, req.userId);
     if (!server) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
     const result = await probeMcpServer(server);
-    res.json({ transport: result.transport, tools: result.tools });
+    res.json({ server: result.server, transport: result.transport, tools: result.tools });
   } catch (error) { next(error); }
 });
 

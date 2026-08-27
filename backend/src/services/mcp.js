@@ -98,19 +98,27 @@ function normalizeToolResult(result) {
   return { text: parts.join('\n').slice(0, MAX_TOOL_RESULT), isError: Boolean(result?.isError) };
 }
 
+function transportOptions(token) {
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  return {
+    authProvider: token ? { token: async () => token } : undefined,
+    requestInit: { headers },
+  };
+}
+
 async function connectServer(server) {
   const url = await assertSafeUrl(server.endpoint_url);
   const token = decryptSecret(server.auth_token_encrypted);
-  const authProvider = token ? { token: async () => token } : undefined;
-  const client = new Client({ name: 'prism-ia', version: '1.1.1' });
+  const options = transportOptions(token);
+  const client = new Client({ name: 'prism-ia', version: '1.2.0' });
   try {
-    const transport = new StreamableHTTPClientTransport(url, authProvider ? { authProvider } : {});
+    const transport = new StreamableHTTPClientTransport(url, options);
     await withTimeout(client.connect(transport));
     return { client, transport, transportName: 'streamable-http', serverName: server.name };
   } catch (streamableError) {
     await client.close().catch(() => {});
-    const fallbackClient = new Client({ name: 'prism-ia', version: '1.1.1' });
-    const fallbackTransport = new SSEClientTransport(url, authProvider ? { authProvider } : {});
+    const fallbackClient = new Client({ name: 'prism-ia', version: '1.2.0' });
+    const fallbackTransport = new SSEClientTransport(url, options);
     try {
       await withTimeout(fallbackClient.connect(fallbackTransport));
       return { client: fallbackClient, transport: fallbackTransport, transportName: 'sse', serverName: server.name };
@@ -137,7 +145,16 @@ export async function probeMcpServer(server) {
   const connection = await connectServer(server);
   try {
     const tools = await listAllTools(connection.client);
-    return { ok: true, transport: connection.transportName, tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })) };
+    return {
+      ok: true,
+      transport: connection.transportName,
+      server: connection.serverName,
+      tools: tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description || '',
+        inputSchema: tool.inputSchema || { type: 'object' },
+      })),
+    };
   } finally {
     await connection.client.close().catch(() => {});
   }
@@ -147,7 +164,14 @@ export async function createMcpExecutionContext(userId) {
   const saved = await pool.query(`SELECT id, name, endpoint_url, auth_token_encrypted, enabled FROM mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC`, [userId]);
   const servers = [...saved.rows];
   const githubToken = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
-  if (githubToken) servers.push({ id: 'builtin-github', name: 'GitHub', endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/', auth_token_encrypted: encryptSecret(githubToken), enabled: true, builtin: true });
+  if (githubToken) servers.push({
+    id: 'builtin-github',
+    name: 'GitHub',
+    endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
+    auth_token_encrypted: encryptSecret(githubToken),
+    enabled: true,
+    builtin: true,
+  });
 
   const results = await Promise.all(servers.map(async (server) => {
     try { return { server, connection: await connectServer(server) }; }
@@ -156,7 +180,10 @@ export async function createMcpExecutionContext(userId) {
   const toolResults = await Promise.all(results.map(async (entry) => {
     if (entry.error) return entry;
     try { return { ...entry, rawTools: await listAllTools(entry.connection.client) }; }
-    catch (error) { await entry.connection.client.close().catch(() => {}); return { ...entry, error }; }
+    catch (error) {
+      await entry.connection.client.close().catch(() => {});
+      return { ...entry, error };
+    }
   }));
 
   const connections = [];
@@ -175,12 +202,21 @@ export async function createMcpExecutionContext(userId) {
   async function execute(modelName, args = {}) {
     const tool = registry.get(modelName);
     if (!tool) throw new Error(`Ferramenta MCP não encontrada: ${modelName}`);
-    const result = await withTimeout(tool.client.callTool({ name: tool.toolName, arguments: args && typeof args === 'object' ? args : {} }));
+    const safeArgs = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
+    const result = await withTimeout(tool.client.callTool({ name: tool.toolName, arguments: safeArgs }));
     return normalizeToolResult(result);
   }
 
-  async function close() { await Promise.allSettled(connections.map((connection) => connection.client.close())); }
-  return { tools: [...registry.values()].map(({ client, ...tool }) => tool), execute, close, errors };
+  async function close() {
+    await Promise.allSettled(connections.map((connection) => connection.client.close()));
+  }
+
+  return {
+    tools: [...registry.values()].map(({ client, ...tool }) => tool),
+    execute,
+    close,
+    errors,
+  };
 }
 
 export async function getMcpServers(userId) {

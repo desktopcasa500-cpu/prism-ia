@@ -22,5 +22,4 @@ import './prism-original-pages.css';
 import './chat-codex-polish.css';
 import './codex-intro.css';
 import './codex-rebuild.css';
-import './plans-panel.css';
 ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><AuthProvider><App/></AuthProvider></BrowserRouter></React.StrictMode>);

@@ -2,213 +2,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import PrismCodexIntro from '../components/PrismCodexIntro.jsx';
 
-const MODELS = [
-  ['prism-nano-1.0', 'Prism Nano 1.0'],
-  ['prism-mini-1.0', 'Prism Mini 1.0'],
-  ['prism-tex-1.5', 'Prism Tex 1.5'],
-  ['prism-taff-1.0', 'Prism Taff 1.0'],
-  ['prism-taff-2.0', 'Prism Taff 2.0'],
-];
+const MODELS = [['prism-nano-1.0','Prism Nano 1.0'],['prism-mini-1.0','Prism Mini 1.0'],['prism-tex-1.5','Prism Tex 1.5'],['prism-taff-1.0','Prism Taff 1.0'],['prism-taff-2.0','Prism Taff 2.0']];
 const INTRO_KEY = 'prism_codex_intro_seen';
-const STARTER = [
-  { path: 'src', type: 'folder', content: '' },
-  { path: 'src/App.jsx', type: 'file', content: "export default function App() {\n  return <main>Comece a construir.</main>;\n}\n" },
-  { path: 'src/index.css', type: 'file', content: '' },
-  { path: 'package.json', type: 'file', content: '{\n  "name": "prism-project"\n}\n' },
-];
+const STARTER = [{path:'src',type:'folder',content:''},{path:'src/App.jsx',type:'file',content:"export default function App() {\n  return <main>Comece a construir.</main>;\n}\n"},{path:'src/index.css',type:'file',content:''},{path:'package.json',type:'file',content:'{\n  "name": "prism-project"\n}\n'}];
 
-function languageFromPath(path = '') {
-  const ext = path.split('.').pop()?.toLowerCase();
-  return { js: 'JavaScript', jsx: 'JSX', ts: 'TypeScript', tsx: 'TSX', css: 'CSS', html: 'HTML', json: 'JSON', md: 'Markdown', py: 'Python' }[ext] || 'Text';
-}
+function languageFromPath(path=''){const ext=path.split('.').pop()?.toLowerCase();return {js:'JavaScript',jsx:'JSX',ts:'TypeScript',tsx:'TSX',css:'CSS',html:'HTML',json:'JSON',md:'Markdown',py:'Python'}[ext]||'Text';}
+function buildPreview(projectFiles){const files=projectFiles.filter(f=>f.type!=='folder');const htmlFile=files.find(f=>(/(^|\/)index\.html$/i).test(f.path))||files.find(f=>/\.html$/i.test(f.path));const css=files.filter(f=>/\.css$/i.test(f.path)).map(f=>f.content||'').join('\n');const js=files.filter(f=>/\.(js|mjs)$/i.test(f.path)).map(f=>f.content||'').join('\n');if(htmlFile){let html=htmlFile.content||'';if(css&&!/<style[\s>]/i.test(html))html=html.replace(/<\/head>/i,`<style>${css}</style></head>`);if(js&&!/<script[\s>]/i.test(html))html=html.replace(/<\/body>/i,`<script>${js.replace(/<\/script/gi,'<\\/script')}</script></body>`);return html;}const jsx=files.find(f=>/\.(jsx|tsx)$/i.test(f.path));if(!jsx)return '';const source=jsx.content||'';return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script><script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><style>${css}</style></head><body><div id="root"></div><script type="text/babel">${source.replace(/import[\s\S]*?;\s*/g,'').replace(/export default /g,'').replace(/<\/script/gi,'<\\/script')}\nconst root=ReactDOM.createRoot(document.getElementById('root'));root.render(typeof App!=='undefined'?React.createElement(App):React.createElement('div',null,'Preview pronto.'));</script></body></html>`;}
+function simpleDiff(before='',after=''){const a=String(before).split('\n'),b=String(after).split('\n'),rows=[];for(let i=0;i<Math.max(a.length,b.length);i+=1){if(a[i]===b[i])rows.push({type:'same',text:a[i]??''});else{if(a[i]!==undefined)rows.push({type:'remove',text:a[i]});if(b[i]!==undefined)rows.push({type:'add',text:b[i]});}}return rows;}
 
-function buildPreview(projectFiles) {
-  const files = projectFiles.filter((file) => file.type !== 'folder');
-  const htmlFile = files.find((file) => /(^|\/)index\.html$/i.test(file.path)) || files.find((file) => /\.html$/i.test(file.path));
-  const css = files.filter((file) => /\.css$/i.test(file.path)).map((file) => file.content || '').join('\n');
-  const js = files.filter((file) => /\.(js|mjs)$/i.test(file.path)).map((file) => file.content || '').join('\n');
-  if (htmlFile) {
-    let html = htmlFile.content || '';
-    if (css && !/<style[\s>]/i.test(html)) html = html.replace(/<\/head>/i, `<style>${css}</style></head>`);
-    if (js && !/<script[\s>]/i.test(html)) html = html.replace(/<\/body>/i, `<script>${js.replace(/<\/script/gi, '<\\/script')}</script></body>`);
-    return html;
-  }
-  const jsx = files.find((file) => /\.(jsx|tsx)$/i.test(file.path));
-  if (!jsx) return '';
-  const source = jsx.content || '';
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script><script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><style>${css}</style></head><body><div id="root"></div><script type="text/babel">${source.replace(/import[\s\S]*?;\s*/g, '').replace(/export default /g, '').replace(/<\/script/gi, '<\\/script')}\nconst root=ReactDOM.createRoot(document.getElementById('root')); root.render(typeof App !== 'undefined' ? React.createElement(App) : React.createElement('div',null,'Preview pronto.'));</script></body></html>`;
-}
+export default function Codex(){
+  const [showIntro,setShowIntro]=useState(()=>localStorage.getItem(INTRO_KEY)!=='1');
+  const [model,setModel]=useState('prism-taff-2.0');
+  const [files,setFiles]=useState(STARTER);const [activeFile,setActiveFile]=useState('src/App.jsx');const [code,setCode]=useState(STARTER[1].content);const [baseCode,setBaseCode]=useState(STARTER[1].content);const [preview,setPreview]=useState('');const [messages,setMessages]=useState([]);const [prompt,setPrompt]=useState('');const [tab,setTab]=useState('preview');const [projectOpen,setProjectOpen]=useState(true);const [chatOpen,setChatOpen]=useState(true);const [search,setSearch]=useState('');const [loading,setLoading]=useState(false);const [saving,setSaving]=useState(false);const [error,setError]=useState('');const [projectId,setProjectId]=useState(null);const [projectName,setProjectName]=useState('Novo projeto');const [autoStart,setAutoStart]=useState(false);const saveTimer=useRef(null);const endRef=useRef(null);
 
-function simpleDiff(before = '', after = '') {
-  const left = String(before).split('\n');
-  const right = String(after).split('\n');
-  const rows = [];
-  const length = Math.max(left.length, right.length);
-  for (let index = 0; index < length; index += 1) {
-    const a = left[index]; const b = right[index];
-    if (a === b) rows.push({ type: 'same', line: index + 1, text: a ?? '' });
-    else {
-      if (a !== undefined) rows.push({ type: 'remove', line: index + 1, text: a });
-      if (b !== undefined) rows.push({ type: 'add', line: index + 1, text: b });
-    }
-  }
-  return rows;
-}
-
-function parseArtifacts(text) {
-  const result = [];
-  const pattern = /<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi;
-  let match;
-  while ((match = pattern.exec(String(text || '')))) result.push({ path: match[1].trim(), content: match[2].replace(/^\n/, '').replace(/\n$/, '') });
-  return result;
-}
-
-export default function Codex() {
-  const [showIntro, setShowIntro] = useState(() => localStorage.getItem(INTRO_KEY) !== '1');
-  const [model, setModel] = useState('prism-taff-2.0');
-  const [files, setFiles] = useState(STARTER);
-  const [activeFile, setActiveFile] = useState('src/App.jsx');
-  const [code, setCode] = useState(STARTER[1].content);
-  const [baseCode, setBaseCode] = useState(STARTER[1].content);
-  const [preview, setPreview] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [prompt, setPrompt] = useState('');
-  const [tab, setTab] = useState('preview');
-  const [projectOpen, setProjectOpen] = useState(true);
-  const [chatOpen, setChatOpen] = useState(true);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [projectId, setProjectId] = useState(null);
-  const [projectName, setProjectName] = useState('Novo projeto');
-  const [autoStart, setAutoStart] = useState(false);
-  const saveTimer = useRef(null);
-  const endRef = useRef(null);
-
-  const loadProject = useCallback(async () => {
-    const data = await api.get('/projects');
-    if (!data.projects?.length) {
-      const created = await api.post('/projects', { name: 'Novo projeto' });
-      setProjectId(created.project.id); setProjectName(created.project.name);
-      for (const file of STARTER.filter((item) => item.type === 'file')) await api.post('/files', { projectId: created.project.id, path: file.path, content: file.content, kind: 'file' });
-      setFiles(STARTER); setPreview(buildPreview(STARTER));
-      return;
-    }
-    const project = data.projects[0];
-    const detail = await api.get(`/projects/${project.id}`);
-    const loaded = detail.files?.length ? detail.files.map((file) => ({ ...file, type: file.kind || 'file' })) : STARTER;
-    const first = loaded.find((file) => file.type !== 'folder') || STARTER[1];
-    setProjectId(project.id); setProjectName(project.name); setFiles(loaded); setActiveFile(first.path); setCode(first.content || ''); setBaseCode(first.content || ''); setPreview(buildPreview(loaded));
-  }, []);
-
-  useEffect(() => { loadProject().catch((err) => setError(err.message || 'Não foi possível carregar o projeto.')); }, [loadProject]);
-  useEffect(() => () => window.clearTimeout(saveTimer.current), []);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
-
-  function selectFile(file) {
-    if (file.type === 'folder') return;
-    setActiveFile(file.path); setCode(file.content || ''); setBaseCode(file.content || ''); setTab('code');
-  }
-
-  function updateCode(value) {
-    setCode(value);
-    setFiles((current) => current.map((file) => file.path === activeFile ? { ...file, content: value } : file));
-    window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(async () => {
-      const target = files.find((file) => file.path === activeFile);
-      if (!target?.id) return;
-      setSaving(true);
-      try { await api.patch(`/files/${target.id}`, { path: activeFile, content: value }); setBaseCode(value); setPreview(buildPreview(files.map((file) => file.path === activeFile ? { ...file, content: value } : file))); }
-      catch (err) { setError(err.message || 'Não foi possível salvar o arquivo.'); }
-      finally { setSaving(false); }
-    }, 650);
-  }
-
-  async function sendRequest(text, selectedModel = model) {
-    const value = String(text || '').trim();
-    if (!value || loading) return;
-    setPrompt(''); setError(''); setLoading(true); setMessages((current) => [...current, { role: 'user', text: value }]);
-    try {
-      const context = messages.slice(-10).map((item) => `${item.role}: ${item.text}`).join('\n');
-      const data = await api.post('/ai/generate', { model: selectedModel, thinking: 'ultracode', prompt: value, context, projectId }, { timeout: 180000 });
-      const changed = [...(data.files_created || []), ...(data.files_changed || [])];
-      const artifacts = parseArtifacts(data.text);
-      if (artifacts.length && projectId) {
-        for (const artifact of artifacts) {
-          const existing = files.find((file) => file.path === artifact.path);
-          if (existing?.id) await api.patch(`/files/${existing.id}`, { path: artifact.path, content: artifact.content });
-          else await api.post('/files', { projectId, path: artifact.path, content: artifact.content, kind: 'file' });
-        }
-      }
-      await loadProject();
-      const toolRows = Array.isArray(data.tools_used) ? data.tools_used.filter((item) => item?.tool).map((item) => `${item.kind === 'mcp' ? 'MCP' : item.server || 'Prism'} · ${item.tool}`) : [];
-      setMessages((current) => [...current, { role: 'assistant', text: data.text || 'O agente concluiu o trabalho.', files: changed, tools: toolRows }]);
-    } catch (err) {
-      setError(err.message || 'Não foi possível concluir o pedido.');
-      setMessages((current) => [...current, { role: 'error', text: err.message || 'Não foi possível concluir o pedido.' }]);
-    } finally { setLoading(false); }
-  }
-
-  const filteredFiles = useMemo(() => files.filter((file) => !search.trim() || file.path.toLowerCase().includes(search.trim().toLowerCase())), [files, search]);
-  const diff = useMemo(() => simpleDiff(baseCode, code), [baseCode, code]);
-  const selectedLabel = MODELS.find(([id]) => id === model)?.[1] || model;
-
-  function finishIntro() {
-    localStorage.setItem(INTRO_KEY, '1');
-    setShowIntro(false); setModel('prism-taff-2.0'); setAutoStart(true);
-  }
-
-  useEffect(() => {
-    if (!showIntro && autoStart && projectId && !loading) {
-      setAutoStart(false);
-      const timer = window.setTimeout(() => sendRequest('Create a website for selling my clothes.', 'prism-taff-2.0'), 280);
-      return () => window.clearTimeout(timer);
-    }
-  }, [showIntro, autoStart, projectId, loading]);
-
-  return <>
-    {showIntro && <PrismCodexIntro onComplete={finishIntro} />}
-    <main className={`pcx-shell ${projectOpen ? '' : 'pcx-no-project'} ${chatOpen ? '' : 'pcx-no-chat'}`}>
-      <header className="pcx-topbar">
-        <div className="pcx-brand"><span className="pcx-mark">P</span><span>Prism</span><b>Codex</b></div>
-        <button className="pcx-project-title" onClick={() => setProjectOpen((value) => !value)}>{projectName}<span>⌄</span></button>
-        <div className="pcx-top-actions"><span className={`pcx-sync ${loading || saving ? 'busy' : ''}`}><i />{loading ? 'Trabalhando' : saving ? 'Salvando' : 'Pronto'}</span><button onClick={() => setProjectOpen((value) => !value)}>Projeto</button><button onClick={() => setChatOpen((value) => !value)}>Chat</button></div>
-      </header>
-
-      <div className="pcx-layout">
-        {projectOpen && <aside className="pcx-project">
-          <div className="pcx-panel-head"><div><small>PROJETO</small><strong>{projectName}</strong></div><span>{files.filter((file) => file.type !== 'folder').length}</span></div>
-          <label className="pcx-search"><span>/</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar arquivo" /></label>
-          <div className="pcx-tree">{filteredFiles.map((file) => <button key={file.path} className={`pcx-tree-row ${file.type} ${activeFile === file.path ? 'active' : ''}`} onClick={() => selectFile(file)}><span>{file.type === 'folder' ? '▾' : '·'}</span>{file.path}</button>)}</div>
-          <button className="pcx-replay" onClick={() => { localStorage.removeItem(INTRO_KEY); setShowIntro(true); }}>Reproduzir introdução</button>
-        </aside>}
-
-        <section className="pcx-workspace">
-          <div className="pcx-workbar"><div><small>WORKSPACE</small><strong>{tab === 'preview' ? 'Preview' : tab === 'diff' ? `Diff · ${activeFile}` : tab === 'terminal' ? 'Terminal' : activeFile}</strong></div><nav><button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}>Preview</button><button className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}>Código</button><button className={tab === 'diff' ? 'active' : ''} onClick={() => setTab('diff')}>Diff</button><button className={tab === 'terminal' ? 'active' : ''} onClick={() => setTab('terminal')}>Terminal</button></nav></div>
-          <div className="pcx-output">
-            {tab === 'preview' && <iframe className="pcx-preview" title="Preview real do projeto" sandbox="allow-scripts" srcDoc={preview || '<!doctype html><html><body style="margin:0;display:grid;place-items:center;height:100vh;font:14px system-ui;background:#f3f1ea;color:#151515"><p>O preview será atualizado quando o projeto tiver uma página executável.</p></body></html>'} />}
-            {tab === 'code' && <div className="pcx-editor"><div className="pcx-lines">{code.split('\n').map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={code} onChange={(event) => updateCode(event.target.value)} spellCheck="false" aria-label={`Editor ${activeFile}`} /></div>}
-            {tab === 'diff' && <div className="pcx-diff">{diff.map((row, index) => <div key={`${row.type}-${index}`} className={`pcx-diff-row ${row.type}`}><span>{row.type === 'add' ? '+' : row.type === 'remove' ? '−' : ' '}</span><code>{row.text || ' '}</code></div>)}</div>}
-            {tab === 'terminal' && <div className="pcx-terminal"><div className="pcx-terminal-title">TERMINAL</div><p>Nenhum executor de terminal está conectado a este workspace.</p><span>O Codex não simula comandos. Quando um executor real estiver disponível, os comandos e seus resultados aparecerão aqui.</span></div>}
-          </div>
-          <footer className="pcx-status"><span>{activeFile}</span><span>{languageFromPath(activeFile)}</span><span>{saving ? 'sincronizando' : 'sincronizado'}</span><span>{files.length} itens</span></footer>
-        </section>
-
-        {chatOpen && <aside className="pcx-chat">
-          <div className="pcx-chat-head"><div><small>AGENTE</small><strong>Prism</strong></div><select value={model} onChange={(event) => setModel(event.target.value)} aria-label="Modelo">{MODELS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></div>
-          <div className="pcx-messages">
-            {!messages.length && <div className="pcx-empty"><div className="pcx-empty-mark">P</div><h1>Construa.</h1><p>Descreva o que precisa. O Codex analisa o projeto real, altera os arquivos e atualiza o workspace.</p></div>}
-            {messages.map((message, index) => <article className={`pcx-message ${message.role}`} key={`${message.role}-${index}`}><small>{message.role === 'user' ? 'VOCÊ' : message.role === 'error' ? 'PRISM · ERRO' : 'PRISM'}</small><p>{message.text}</p>{message.files?.length > 0 && <div className="pcx-file-results"><b>Arquivos</b>{message.files.map((file) => <button key={file} onClick={() => { const target = files.find((item) => item.path === file); if (target) selectFile(target); }}>{file}</button>)}</div>}{message.tools?.length > 0 && <div className="pcx-tools"><b>Ferramentas</b>{message.tools.map((tool) => <span key={tool}>{tool}</span>)}</div>}</article>)}
-            {loading && <article className="pcx-message assistant"><small>PRISM</small><div className="pcx-working"><i /><i /><i /> trabalhando no projeto</div></article>}
-            <div ref={endRef} />
-          </div>
-          <div className="pcx-composer-wrap">
-            {error && <div className="pcx-error"><span>{error}</span><button onClick={() => setError('')}>Fechar</button></div>}
-            <div className="pcx-composer"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendRequest(prompt); } }} placeholder="Descreva o que vamos construir..." rows={3}/><div><span>{selectedLabel}</span><button disabled={loading || !prompt.trim()} onClick={() => sendRequest(prompt)}>Enviar</button></div></div>
-          </div>
-        </aside>}
-      </div>
-    </main>
-  </>;
+  const loadProject=useCallback(async()=>{const data=await api.get('/projects');if(!data.projects?.length){const created=await api.post('/projects',{name:'Novo projeto'});setProjectId(created.project.id);setProjectName(created.project.name);for(const file of STARTER.filter(x=>x.type==='file'))await api.post('/files',{projectId:created.project.id,path:file.path,content:file.content,kind:'file'});setFiles(STARTER);setPreview(buildPreview(STARTER));return;}const project=data.projects[0];const detail=await api.get(`/projects/${project.id}`);const loaded=detail.files?.length?detail.files.map(file=>({...file,type:file.kind||'file'})):STARTER;const first=loaded.find(f=>f.type!=='folder')||STARTER[1];setProjectId(project.id);setProjectName(project.name);setFiles(loaded);setActiveFile(first.path);setCode(first.content||'');setBaseCode(first.content||'');setPreview(buildPreview(loaded));},[]);
+  useEffect(()=>{loadProject().catch(err=>setError(err.message||'Não foi possível carregar o projeto.'));},[loadProject]);useEffect(()=>()=>window.clearTimeout(saveTimer.current),[]);useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[messages,loading]);
+  function selectFile(file){if(file.type==='folder')return;setActiveFile(file.path);setCode(file.content||'');setBaseCode(file.content||'');setTab('code');}
+  function updateCode(value){setCode(value);setFiles(current=>current.map(file=>file.path===activeFile?{...file,content:value}:file));window.clearTimeout(saveTimer.current);saveTimer.current=window.setTimeout(async()=>{const target=files.find(file=>file.path===activeFile);if(!target?.id)return;setSaving(true);try{await api.patch(`/files/${target.id}`,{path:activeFile,content:value});setBaseCode(value);setPreview(buildPreview(files.map(file=>file.path===activeFile?{...file,content:value}:file)));}catch(err){setError(err.message||'Não foi possível salvar o arquivo.');}finally{setSaving(false);}},650);}
+  const sendRequest=useCallback(async(text,selectedModel=model)=>{const value=String(text||'').trim();if(!value||loading)return;setPrompt('');setError('');setLoading(true);setMessages(current=>[...current,{role:'user',text:value}]);try{const context=messages.slice(-10).map(item=>`${item.role}: ${item.text}`).join('\n');const data=await api.post('/ai/generate',{model:selectedModel,thinking:'ultracode',prompt:value,context,projectId},{timeout:180000});const changed=[...(data.files_created||[]),...(data.files_changed||[])];await loadProject();const tools=Array.isArray(data.tools_used)?data.tools_used.filter(item=>item?.tool).map(item=>`${item.kind==='mcp'?'MCP':item.server||'Prism'} · ${item.tool}`):[];setMessages(current=>[...current,{role:'assistant',text:data.text||'O agente concluiu o trabalho.',files:changed,tools}]);}catch(err){setError(err.message||'Não foi possível concluir o pedido.');setMessages(current=>[...current,{role:'error',text:err.message||'Não foi possível concluir o pedido.'}]);}finally{setLoading(false);}},[loading,messages,projectId,loadProject,model]);
+  const filteredFiles=useMemo(()=>files.filter(file=>!search.trim()||file.path.toLowerCase().includes(search.trim().toLowerCase())),[files,search]);const diff=useMemo(()=>simpleDiff(baseCode,code),[baseCode,code]);const selectedLabel=MODELS.find(x=>x[0]===model)?.[1]||model;
+  const finishIntro=useCallback(()=>{localStorage.setItem(INTRO_KEY,'1');setShowIntro(false);setModel('prism-taff-2.0');setAutoStart(true);},[]);
+  useEffect(()=>{if(!showIntro&&autoStart&&projectId&&!loading){setAutoStart(false);const timer=window.setTimeout(()=>sendRequest('Create a website for selling my clothes.','prism-taff-2.0'),280);return()=>window.clearTimeout(timer);}},[showIntro,autoStart,projectId,loading,sendRequest]);
+  return <>{showIntro&&<PrismCodexIntro onComplete={finishIntro}/>}<main className={`pcx-shell ${projectOpen?'':'pcx-no-project'} ${chatOpen?'':'pcx-no-chat'}`}><header className="pcx-topbar"><div className="pcx-brand"><span className="pcx-mark">P</span><span>Prism</span><b>Codex</b></div><button className="pcx-project-title" onClick={()=>setProjectOpen(v=>!v)}>{projectName}<span>⌄</span></button><div className="pcx-top-actions"><span className={`pcx-sync ${loading||saving?'busy':''}`}><i />{loading?'Trabalhando':saving?'Salvando':'Pronto'}</span><button onClick={()=>setProjectOpen(v=>!v)}>Projeto</button><button onClick={()=>setChatOpen(v=>!v)}>Chat</button></div></header><div className="pcx-layout">
+    {projectOpen&&<aside className="pcx-project"><div className="pcx-panel-head"><div><small>PROJETO</small><strong>{projectName}</strong></div><span>{files.filter(f=>f.type!=='folder').length}</span></div><label className="pcx-search"><span>/</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar arquivo"/></label><div className="pcx-tree">{filteredFiles.map(file=><button key={file.path} className={`pcx-tree-row ${file.type} ${activeFile===file.path?'active':''}`} onClick={()=>selectFile(file)}><span>{file.type==='folder'?'▾':'·'}</span>{file.path}</button>)}</div><button className="pcx-replay" onClick={()=>{localStorage.removeItem(INTRO_KEY);setShowIntro(true);}}>Reproduzir introdução</button></aside>}
+    <section className="pcx-workspace"><div className="pcx-workbar"><div><small>WORKSPACE</small><strong>{tab==='preview'?'Preview':tab==='diff'?`Diff · ${activeFile}`:tab==='terminal'?'Terminal':activeFile}</strong></div><nav><button className={tab==='preview'?'active':''} onClick={()=>setTab('preview')}>Preview</button><button className={tab==='code'?'active':''} onClick={()=>setTab('code')}>Código</button><button className={tab==='diff'?'active':''} onClick={()=>setTab('diff')}>Diff</button><button className={tab==='terminal'?'active':''} onClick={()=>setTab('terminal')}>Terminal</button></nav></div><div className="pcx-output">{tab==='preview'&&<iframe className="pcx-preview" title="Preview real do projeto" sandbox="allow-scripts" srcDoc={preview||'<!doctype html><html><body style="margin:0;display:grid;place-items:center;height:100vh;font:14px system-ui;background:#f3f1ea;color:#151515"><p>O preview será atualizado quando o projeto tiver uma página executável.</p></body></html>'}/>} {tab==='code'&&<div className="pcx-editor"><div className="pcx-lines">{code.split('\n').map((_,i)=><span key={i}>{i+1}</span>)}</div><textarea value={code} onChange={e=>updateCode(e.target.value)} spellCheck="false" aria-label={`Editor ${activeFile}`}/></div>} {tab==='diff'&&<div className="pcx-diff">{diff.map((row,i)=><div key={`${row.type}-${i}`} className={`pcx-diff-row ${row.type}`}><span>{row.type==='add'?'+':row.type==='remove'?'−':' '}</span><code>{row.text||' '}</code></div>)}</div>} {tab==='terminal'&&<div className="pcx-terminal"><div className="pcx-terminal-title">TERMINAL</div><p>Nenhum executor de terminal está conectado a este workspace.</p><span>O Codex não simula comandos. Quando um executor real estiver disponível, os comandos e resultados aparecerão aqui.</span></div>}</div><footer className="pcx-status"><span>{activeFile}</span><span>{languageFromPath(activeFile)}</span><span>{saving?'sincronizando':'sincronizado'}</span><span>{files.length} itens</span></footer></section>
+    {chatOpen&&<aside className="pcx-chat"><div className="pcx-chat-head"><div><small>AGENTE</small><strong>Prism</strong></div><select value={model} onChange={e=>setModel(e.target.value)} aria-label="Modelo">{MODELS.map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></div><div className="pcx-messages">{!messages.length&&<div className="pcx-empty"><div className="pcx-empty-mark">P</div><h1>Construa.</h1><p>Descreva o que precisa. O Codex analisa o projeto real, altera os arquivos e atualiza o workspace.</p></div>}{messages.map((message,index)=><article className={`pcx-message ${message.role}`} key={`${message.role}-${index}`}><small>{message.role==='user'?'VOCÊ':message.role==='error'?'PRISM · ERRO':'PRISM'}</small><p>{message.text}</p>{message.files?.length>0&&<div className="pcx-file-results"><b>Arquivos</b>{message.files.map(file=><button key={file} onClick={()=>{const target=files.find(item=>item.path===file);if(target)selectFile(target);}}>{file}</button>)}</div>}{message.tools?.length>0&&<div className="pcx-tools"><b>Ferramentas</b>{message.tools.map(tool=><span key={tool}>{tool}</span>)}</div>}</article>)}{loading&&<article className="pcx-message assistant"><small>PRISM</small><div className="pcx-working"><i/><i/><i/> trabalhando no projeto</div></article>}<div ref={endRef}/></div><div className="pcx-composer-wrap">{error&&<div className="pcx-error"><span>{error}</span><button onClick={()=>setError('')}>Fechar</button></div>}<div className="pcx-composer"><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendRequest(prompt);}}} placeholder="Descreva o que vamos construir..." rows={3}/><div><span>{selectedLabel}</span><button disabled={loading||!prompt.trim()} onClick={()=>sendRequest(prompt)}>Enviar</button></div></div></div></aside>}
+  </div></main></>;
 }

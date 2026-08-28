@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 
 const PROMPT = 'Create a website for selling my clothes.';
 const INTRO_KEY = 'prism_codex_intro_seen';
+const DURATION = 17_200;
 
 export default function PrismCodexIntro({ onComplete }) {
   const [typed, setTyped] = useState('');
-  const [modelReady, setModelReady] = useState(false);
+  const [phase, setPhase] = useState('title');
 
   useEffect(() => {
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -15,50 +16,92 @@ export default function PrismCodexIntro({ onComplete }) {
       return undefined;
     }
 
-    let index = 0;
-    const typeTimer = window.setInterval(() => {
-      index += 1;
-      setTyped(PROMPT.slice(0, index));
-      if (index >= PROMPT.length) {
-        window.clearInterval(typeTimer);
-        window.setTimeout(() => setModelReady(true), 520);
-      }
-    }, 42);
+    const timers = [];
+    const later = (fn, ms) => { const id = window.setTimeout(fn, ms); timers.push(id); return id; };
 
-    const completeTimer = window.setTimeout(() => {
+    later(() => setPhase('glitch'), 2850);
+    later(() => setPhase('editorial'), 3300);
+    later(() => setPhase('split'), 6100);
+    later(() => setPhase('star'), 8050);
+    later(() => setPhase('prism'), 8750);
+    later(() => setPhase('codex'), 10800);
+    later(() => setPhase('all'), 12850);
+    later(() => setPhase('greeting'), 13950);
+    later(() => setPhase('composer'), 15100);
+    later(() => setPhase('models'), 16250);
+    later(() => {
       localStorage.setItem(INTRO_KEY, '1');
       onComplete({ prompt: PROMPT, model: 'prism-taff-2.0' });
-    }, 18_900);
+    }, DURATION);
 
-    return () => {
-      window.clearInterval(typeTimer);
-      window.clearTimeout(completeTimer);
-    };
+    return () => timers.forEach((id) => window.clearTimeout(id));
   }, [onComplete]);
 
-  return <section className="prism-codex-intro" aria-label="Introdução do Prism Codex">
-    <div className="intro-grain" aria-hidden="true" />
-    <div className="intro-scene intro-scene-title"><div className="intro-prism-word">PRISM AI</div></div>
-    <div className="intro-scene intro-scene-editorial" aria-hidden="true">
-      <div className="intro-editorial-line intro-editorial-a"><span>FABLE 5</span><span>OPENAI</span><span>MODELOS</span></div>
-      <div className="intro-editorial-line intro-editorial-b"><span>INFERENCE</span><span>DATA CENTERS</span><span>AGENTS</span></div>
-      <div className="intro-editorial-line intro-editorial-c"><span>COMPUTE</span><span>CONTEXT</span><span>ORCHESTRATION</span></div>
-    </div>
-    <div className="intro-columns" aria-hidden="true">
-      <div className="intro-column intro-column-top"><span>SUPERIOR</span><strong>MODELS / INFERENCE</strong><i /></div>
-      <div className="intro-column intro-column-bottom"><span>INFERIOR</span><strong>AGENTS / COMPUTE</strong><i /></div>
-    </div>
-    <div className="intro-star" aria-hidden="true"><i /><b /><em /><span /></div>
-    <div className="intro-explosion" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /></div>
-    <div className="intro-scene intro-scene-codex">
-      <div className="intro-prism-small">PRISM AI</div><div className="intro-codex-word">CODEX</div><div className="intro-all-in-one">ALL IN ONE</div>
-    </div>
-    <div className="intro-scene intro-scene-chat">
-      <div className="intro-chat-greeting">good morning, programmer</div>
-      <div className="intro-composer"><span className="intro-composer-text">{typed}<i className={typed ? 'typing-caret' : ''} /></span><div className={`intro-model-picker ${modelReady ? 'ready' : ''}`}><span>Prism Taff 2.0</span><b>⌄</b></div></div>
-    </div>
-    <div className="intro-model-popover" aria-hidden={!modelReady}><span>Prism Nano 1.0</span><span>Prism Mini 1.0</span><span>Prism Tex 1.5</span><span>Prism Taff 1.0</span><strong>Prism Taff 2.0</strong></div>
-  </section>;
+  useEffect(() => {
+    if (phase !== 'composer' && phase !== 'models') return undefined;
+    let index = 0;
+    setTyped('');
+    const id = window.setInterval(() => {
+      index += 1;
+      setTyped(PROMPT.slice(0, index));
+      if (index >= PROMPT.length) window.clearInterval(id);
+    }, 34);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  return (
+    <section className={`prism-codex-intro intro-${phase}`} aria-label="Introdução do Prism Codex">
+      <div className="intro-frame" aria-hidden="true">
+        <span className="frame-index">00 / 06</span><span className="frame-rule" /><span className="frame-meta">PRISM / CODEX</span>
+      </div>
+      <div className="intro-noise" aria-hidden="true" />
+      <div className="intro-vignette" aria-hidden="true" />
+
+      <div className="intro-title-scene" aria-hidden="true">
+        <div className="title-kicker">PRISM / ARTIFICIAL INTELLIGENCE</div>
+        <div className="intro-prism-word" data-text="PRISM AI">PRISM AI</div>
+        <div className="title-coordinate">-23.5505 / -46.6333</div>
+      </div>
+
+      <div className="intro-editorial" aria-hidden="true">
+        <div className="editorial-top"><span>FABLE 5</span><b>OPENAI</b><span>MODELS</span><span>01—04</span></div>
+        <div className="editorial-hero"><small>THE MACHINE</small><strong>INTELLIGENCE<br />IS A MATERIAL.</strong><em>PRISM RESEARCH / 2026</em></div>
+        <div className="editorial-bottom"><span>INFERENCE</span><span>AGENTS</span><span>COMPUTE</span><span>ORCHESTRATION</span></div>
+      </div>
+
+      <div className="intro-split" aria-hidden="true">
+        <div className="split-half split-top"><div><small>01 / MODELS</small><strong>MODELS<br />INFERENCE</strong></div><span className="split-number">A</span></div>
+        <div className="split-half split-bottom"><div><small>02 / SYSTEMS</small><strong>AGENTS<br />COMPUTE</strong></div><span className="split-number">B</span></div>
+      </div>
+
+      <div className="intro-star-wrap" aria-hidden="true">
+        <div className="intro-star"><i /><i /><i /><i /><i /><i /></div>
+        <div className="star-core" />
+        <span className="star-label">PRISM</span>
+      </div>
+      <div className="intro-burst" aria-hidden="true">{Array.from({ length: 18 }, (_, index) => <i key={index} style={{ '--i': index }} />)}</div>
+
+      <div className="intro-codex-scene" aria-hidden="true">
+        <div className="codex-prism">PRISM <span>AI</span></div>
+        <div className="codex-word">CODEX</div>
+        <div className="codex-line"><span>BUILD / RUN / REVIEW</span><b>ALL IN ONE</b><span>001</span></div>
+      </div>
+
+      <div className="intro-chat-scene">
+        <div className="greeting">good morning, <span>programmer</span></div>
+        <div className="intro-real-composer">
+          <div className="composer-top"><span>PRISM CODEX</span><span>NEW PROJECT / 001</span></div>
+          <div className="composer-prompt">{typed}<i className="caret" /></div>
+          <div className="composer-bottom"><span>↳ describe what you want to build</span><span className="composer-model">Prism Taff 2.0 <b>↗</b></span></div>
+        </div>
+        <div className="intro-models" aria-hidden="true">
+          <span>Prism Nano 1.0</span><span>Prism Mini 1.0</span><span>Prism Tex 1.5</span><span>Prism Taff 1.0</span><strong>Prism Taff 2.0</strong>
+        </div>
+      </div>
+
+      <div className="intro-corner-mark" aria-hidden="true"><span>PRISM</span><b>CODEX</b><i /></div>
+    </section>
+  );
 }
 
 export { INTRO_KEY };

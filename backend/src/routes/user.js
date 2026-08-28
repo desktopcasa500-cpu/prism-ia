@@ -14,6 +14,19 @@ router.get('/me', async (req, res) => {
   res.json({ user: result.rows[0] });
 });
 
+router.patch('/me', async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  if (!name) return res.status(400).json({ error: 'O nome não pode ficar vazio.' });
+  if (name.length > 80) return res.status(400).json({ error: 'O nome deve ter no máximo 80 caracteres.' });
+
+  const result = await pool.query(
+    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, email, name, plan, created_at',
+    [name, req.userId]
+  );
+  if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+  res.json({ user: result.rows[0] });
+});
+
 router.get('/me/stats', async (req, res) => {
   const [sessions, messages, tokens] = await Promise.all([
     pool.query('SELECT COUNT(*)::int AS count FROM sessions WHERE user_id = $1', [req.userId]),

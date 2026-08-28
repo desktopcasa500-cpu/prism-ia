@@ -14,7 +14,7 @@ function parseArtifacts(text) {
   const pattern = /<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi;
   let match;
 
-  while ((match = pattern.exec(String(text || '')) !== null)) {
+  while ((match = pattern.exec(String(text || ''))) !== null) {
     const path = match[1].trim().replace(/^\/+/, '');
     if (!path || path.includes('..') || path.length > 500) continue;
 
@@ -111,16 +111,7 @@ function buildProjectPrompt(prompt, project, files) {
   ].join('\n\n');
 }
 
-async function executeGeneration({
-  model,
-  thinking,
-  prompt,
-  context,
-  projectId,
-  userId,
-  onPhase,
-  onArtifact,
-}) {
+async function executeGeneration({ model, thinking, prompt, context, projectId, userId, onPhase, onArtifact }) {
   const workspace = await loadProjectContext(projectId, userId);
 
   onPhase?.({

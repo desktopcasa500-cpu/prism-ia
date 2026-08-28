@@ -82,6 +82,38 @@ function buildProjectPrompt(prompt, project, files) {
   ].join('\n\n');
 }
 
+async function executeGeneration({ model, thinking, prompt, context, projectId, userId, onPhase }) {
+  const workspace = await loadProjectContext(projectId, userId);
+  onPhase?.({ phase: 'analyzing', label: 'Analisando o projeto', detail: `${workspace.files.filter((file) => file.kind !== 'folder').length} arquivos no workspace` });
+  const agentPrompt = workspace.project ? buildProjectPrompt(prompt, workspace.project, workspace.files) : prompt;
+  onPhase?.({ phase: 'planning', label: 'Preparando a implementação', detail: 'Definindo as alterações necessárias antes de editar' });
+  const result = await runOrchestration(
+    agentPrompt,
+    thinking,
+    { ...getModelProfile(model), id: model },
+    context,
+    userId,
+  );
+  onPhase?.({ phase: 'reviewing', label: 'Revisando a resposta do agente', detail: 'Verificando arquivos e resultados produzidos' });
+  const artifacts = parseArtifacts(result.text);
+  const persisted = await persistArtifacts(projectId, userId, artifacts);
+  onPhase?.({ phase: 'updating', label: 'Atualizando o workspace', detail: `${artifacts.length} arquivo(s) retornado(s) pelo agente` });
+  const cleanedText = String(result.text || '')
+    .replace(/<file\s+path=["'][^"']+["']\s*>[\s\S]*?<\/file>/gi, '')
+    .replace(/<prism:summary>([\s\S]*?)<\/prism:summary>/gi, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return {
+    model,
+    thinking,
+    ...result,
+    text: cleanedText || (artifacts.length ? 'Alterações aplicadas ao projeto real.' : result.text),
+    project_id: projectId,
+    files_changed: persisted.filesChanged,
+    files_created: persisted.filesCreated,
+  };
+}
+
 router.post('/generate', async (req, res) => {
   try {
     const model = req.body?.model || 'prism-mini-1.0';
@@ -94,38 +126,60 @@ router.post('/generate', async (req, res) => {
     if (prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo' });
     if (!validateThinking(model, thinking)) return res.status(400).json({ error: 'Configuração de modelo inválida' });
 
-    const workspace = await loadProjectContext(projectId, req.userId);
-    const agentPrompt = workspace.project ? buildProjectPrompt(prompt, workspace.project, workspace.files) : prompt;
-    const result = await runOrchestration(
-      agentPrompt,
-      thinking,
-      { ...getModelProfile(model), id: model },
-      context,
-      req.userId,
-    );
-
-    const artifacts = parseArtifacts(result.text);
-    const persisted = await persistArtifacts(projectId, req.userId, artifacts);
-    const cleanedText = String(result.text || '')
-      .replace(/<file\s+path=["'][^"']+["']\s*>[\s\S]*?<\/file>/gi, '')
-      .replace(/<prism:summary>([\s\S]*?)<\/prism:summary>/gi, '$1')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    res.json({
-      model,
-      thinking,
-      ...result,
-      text: cleanedText || (artifacts.length ? 'Alterações aplicadas ao projeto real.' : result.text),
-      project_id: projectId,
-      files_changed: persisted.filesChanged,
-      files_created: persisted.filesCreated,
-    });
+    const result = await executeGeneration({ model, thinking, prompt, context, projectId, userId: req.userId });
+    res.json(result);
   } catch (error) {
     console.error('AI generation error:', error);
     const message = error?.message || 'O serviço de IA não respondeu.';
     const status = error?.status || (/não está configurada|Nenhuma chave/i.test(message) ? 503 : 502);
     res.status(status).json({ error: message });
+  }
+});
+
+router.post('/generate/stream', async (req, res) => {
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  let closed = false;
+  const heartbeat = setInterval(() => {
+    if (!closed) res.write(`: heartbeat ${Date.now()}\n\n`);
+  }, 1500);
+  const send = (payload) => { if (!closed) res.write(`data: ${JSON.stringify(payload)}\n\n`); };
+
+  try {
+    const model = req.body?.model || 'prism-mini-1.0';
+    const thinking = normalizeEffort(req.body?.thinking || 'medium');
+    const prompt = String(req.body?.prompt || '').trim();
+    const context = String(req.body?.context || '').slice(-30_000);
+    const projectId = req.body?.projectId ? String(req.body.projectId) : null;
+
+    if (!prompt) throw Object.assign(new Error('Prompt vazio'), { status: 400 });
+    if (prompt.length > 50_000) throw Object.assign(new Error('Pedido muito longo'), { status: 413 });
+    if (!validateThinking(model, thinking)) throw Object.assign(new Error('Configuração de modelo inválida'), { status: 400 });
+
+    send({ type: 'phase', phase: 'received', label: 'Pedido recebido', detail: 'Preparando o agente' });
+    const startedAt = Date.now();
+    const result = await executeGeneration({
+      model,
+      thinking,
+      prompt,
+      context,
+      projectId,
+      userId: req.userId,
+      onPhase: (phase) => send({ type: 'phase', ...phase, elapsedMs: Date.now() - startedAt }),
+    });
+    send({ type: 'phase', phase: 'completed', label: 'Trabalho concluído', detail: 'O workspace recebeu o resultado do agente', elapsedMs: Date.now() - startedAt });
+    send({ type: 'result', data: result });
+  } catch (error) {
+    console.error('AI streaming generation error:', error);
+    send({ type: 'error', message: error?.message || 'O serviço de IA não respondeu.' });
+  } finally {
+    closed = true;
+    clearInterval(heartbeat);
+    res.end();
   }
 });
 

@@ -25,4 +25,15 @@ import './codex-rebuild.css';
 import './prism-polish.css';
 import './prism-codex-edit-v2.css';
 import './chat-codex-v3.css';
-ReactDOM.createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><AuthProvider><App/></AuthProvider></BrowserRouter></React.StrictMode>);
+import './prism-codex-sequence.css';
+import './prism-production-polish.css';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+);

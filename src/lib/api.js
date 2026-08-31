@@ -18,7 +18,6 @@ export function setAuthToken(value) {
   if (token) localStorage.setItem('prism_token', token);
   else localStorage.removeItem('prism_token');
 }
-
 export function getAuthToken() { return token; }
 
 function buildUrl(path) {
@@ -31,26 +30,19 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   const timer = window.setTimeout(() => controller.abort(), timeout);
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
-
   try {
     const response = await fetch(buildUrl(path), {
       method,
-      headers: {
-        Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: configuredApiUrl ? 'omit' : 'same-origin',
       signal: controller.signal,
     });
-
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw }; }
     if (!response.ok) {
-      const message = stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`;
-      const error = new Error(message);
+      const error = new Error(stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`);
       error.status = response.status;
       error.payload = data;
       throw error;
@@ -58,6 +50,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
     return data;
   } catch (error) {
     if (error.name === 'AbortError') {
+      if (signal?.aborted) throw error;
       const timeoutError = new Error('A solicitação demorou demais. Tente novamente.');
       timeoutError.status = 408;
       throw timeoutError;
@@ -82,11 +75,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
   try {
     const response = await fetch(buildUrl(path), {
       method: 'POST',
-      headers: {
-        Accept: 'text/event-stream',
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
       credentials: configuredApiUrl ? 'omit' : 'same-origin',
       signal: controller.signal,
@@ -95,8 +84,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
       const raw = await response.text();
       let data = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch { data = { error: raw }; }
-      const message = stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`;
-      const error = new Error(message);
+      const error = new Error(stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`);
       error.status = response.status;
       throw error;
     }
@@ -123,6 +111,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
     return finalData || {};
   } catch (error) {
     if (error.name === 'AbortError') {
+      if (signal?.aborted) throw error;
       const timeoutError = new Error('A execução demorou demais. Tente novamente.');
       timeoutError.status = 408;
       throw timeoutError;

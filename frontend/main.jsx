@@ -31,6 +31,7 @@ import './prism-production-polish.css';
 import './prism-codex-intro-v3.css';
 import './prism-brutalist-overhaul.css';
 import './prism-calm-chat-overhaul.css';
+import './prism-calm-v2.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

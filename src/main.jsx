@@ -28,6 +28,7 @@ import './prism-codex-edit-v2.css';
 import './chat-codex-v3.css';
 import './prism-codex-sequence.css';
 import './prism-production-polish.css';
+import './prism-codex-intro-v3.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

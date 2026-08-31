@@ -1,0 +1,8 @@
+Prism Codex cinematic edit imagery sources:
+- Unsplash: Jakub Żerdzicki — “Hands typing on a keyboard with computer screens”
+- Pexels: cottonbro studio — “Hands typing code on a laptop in a dark room with multiple monitors.”
+- Pexels: Raddy — “A programmer typing code on a laptop in a dimly lit room, focusing on screen.”
+- Unsplash: code editor / software-development photography used as a visual background.
+- Unsplash: dark keyboard / hands photography used as a visual background.
+
+The application uses the remote image URLs at runtime. Check each provider's current license and hotlink/usage terms before commercial redistribution or self-hosting the image assets.

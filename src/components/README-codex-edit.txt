@@ -1,1 +1,0 @@
-Prism Codex opening is implemented in PrismCodexIntroEditV2.jsx using remote Unsplash/Pexels photography, with cinematic cuts, zooms, overlays, editorial typography, and a final Codex reveal.

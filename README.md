@@ -1,56 +1,38 @@
 # Prism IA
 
-Plataforma web da Prism IA com React/Vite no frontend, Express no backend, autenticação JWT, PostgreSQL e orquestração de provedores de IA.
+Prism IA é uma plataforma de engenharia de software com React/Vite no frontend, Express no backend, autenticação JWT, PostgreSQL e orquestração de provedores de IA.
 
-## Arquitetura de produção
+## Produção no Render
 
-- **Vercel:** frontend estático (`dist`).
-- **Render:** Web Service Node/Express que executa a API e pode servir o build também.
-- **Render PostgreSQL:** banco usado pelo backend do Render.
-- O frontend não acessa o PostgreSQL diretamente.
+O projeto pode ser executado como **um único Web Service Node no Render**. O serviço constrói o frontend e o backend serve o conteúdo de `dist` junto com a API.
 
-## Variáveis do Render Web Service
+O `render.yaml` usa:
 
-Configure no Web Service do Render:
+```text
+Build: npm install && npm run build
+Start: npm start
+Health check: /api/health
+```
+
+O PostgreSQL deve ser um banco do Render. O backend nunca deve expor credenciais do banco ao navegador.
+
+## Variáveis do Render
+
+Configure no Web Service:
 
 ```text
 DATABASE_URL=<Internal Database URL do PostgreSQL do Render>
 JWT_SECRET=<segredo longo e aleatório>
 JWT_EXPIRES_IN=7d
-FRONTEND_ORIGIN=<URL pública do frontend na Vercel>
 GOOGLE_CLIENT_ID=<Client ID do Google, se o login Google for usado>
 GEMINI_API_KEY=<chave, se usada>
 GROQ_API_KEY=<chave, se usada>
 OPENROUTER_NVIDIA_API_KEY=<chave, se usada>
 NVIDIA_BUILDER_API_KEY=<chave, se usada>
+MCP_ENCRYPTION_KEY=<chave longa e aleatória, se MCP persistido for usado>
 ```
 
-Para o PostgreSQL no mesmo Render, prefira a **Internal Database URL**. Não coloque a senha ou a URL real no Git.
-
-## Variável da Vercel
-
-No projeto do frontend na Vercel, configure:
-
-```text
-VITE_API_URL=https://SEU-WEB-SERVICE.onrender.com
-```
-
-Use exatamente a URL pública do **Web Service** do Render, sem `/api` no final.
-
-Assim o fluxo fica:
-
-```text
-Vercel (frontend)
-      |
-      | HTTPS /api/...
-      v
-Render Web Service
-      |
-      +---- PostgreSQL
-      +---- Gemini / Groq / OpenRouter
-```
-
-A Vercel não precisa ter `DATABASE_URL` nessa arquitetura porque ela não executa mais a API da Prism IA.
+Como frontend e API são servidos pelo mesmo Web Service, o frontend usa `/api` por padrão e normalmente não precisa de `VITE_API_URL`.
 
 ## Desenvolvimento
 
@@ -60,7 +42,13 @@ npm run build
 npm start
 ```
 
-Para desenvolvimento local, use `backend/.env.example` como referência e execute a migração com:
+Para executar apenas o frontend em desenvolvimento:
+
+```bash
+npm run dev
+```
+
+Para executar o banco localmente, use `backend/.env.example` como referência e rode:
 
 ```bash
 npm run migrate

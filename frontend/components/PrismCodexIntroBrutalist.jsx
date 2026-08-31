@@ -1,0 +1,116 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+export const INTRO_KEY = 'prism_codex_intro_seen';
+const PROMPT = 'Crie um site de roupas que pareça uma marca de verdade.';
+const MODEL = 'Prism Taff 2.0';
+const DURATION = 18000;
+const PHASES = ['RECEIVE','ANALYZE','PLAN','BUILD','REVIEW','SHIP'];
+
+const clamp=(n,a=0,b=1)=>Math.max(a,Math.min(b,n));
+const smooth=(n)=>{const t=clamp(n);return t*t*(3-2*t)};
+const between=(time,start,end)=>clamp((time-start)/(end-start));
+
+function BootMark(){
+  return <div className="pbr-mark" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/></div>;
+}
+function TypeLine({text,progress}){return <span>{text.slice(0,Math.floor(text.length*clamp(progress)))}<i className="pbr-caret"/></span>}
+
+export default function PrismCodexIntroBrutalist({onComplete}){
+  const reduced=useMemo(()=>window.matchMedia?.('(prefers-reduced-motion: reduce)').matches??false,[]);
+  const [time,setTime]=useState(0);
+  const [agentState,setAgentState]=useState('idle');
+  const doneRef=useRef(false);
+  const sentRef=useRef(false);
+  const frameRef=useRef(0);
+
+  const complete=()=>{if(doneRef.current)return;doneRef.current=true;localStorage.setItem(INTRO_KEY,'1');onComplete?.({prompt:PROMPT,model:MODEL});};
+
+  useEffect(()=>{
+    if(reduced){complete();return undefined;}
+    const onKey=(e)=>{if(e.key==='Escape')complete()};
+    const onAgent=(e)=>setAgentState(e.detail?.state||'idle');
+    window.addEventListener('keydown',onKey);
+    window.addEventListener('prism:codex-agent-state',onAgent);
+    const start=performance.now();
+    const tick=(now)=>{const next=Math.min(now-start,DURATION);setTime(next);if(next<DURATION)frameRef.current=requestAnimationFrame(tick);else complete()};
+    frameRef.current=requestAnimationFrame(tick);
+    return()=>{cancelAnimationFrame(frameRef.current);window.removeEventListener('keydown',onKey);window.removeEventListener('prism:codex-agent-state',onAgent)};
+  },[reduced]);
+
+  useEffect(()=>{
+    if(reduced||sentRef.current||time<15100)return;
+    sentRef.current=true;
+    window.dispatchEvent(new CustomEvent('prism:codex-autostart',{detail:{prompt:PROMPT,model:'prism-taff-2.0',thinking:'ultracode'}}));
+  },[time,reduced]);
+
+  const intro=between(time,0,2600);
+  const statement=between(time,2200,4700);
+  const architecture=between(time,4300,7300);
+  const codex=between(time,6900,9800);
+  const request=between(time,9400,12400);
+  const model=between(time,11600,14000);
+  const agent=between(time,13400,18000);
+  const requestType=smooth(between(time,10000,11800));
+  const promptProgress=between(time,10100,11600);
+  const activePhase=Math.min(PHASES.length-1,Math.floor(Math.max(0,(time-13600))/650));
+  const live=['started','streaming','completed'].includes(agentState);
+
+  return <section className="prism-brutalist-intro" aria-label="Apresentação do Prism Codex">
+    <div className="pbr-noise"/><div className="pbr-grid"/><div className="pbr-scanline"/>
+    <header className="pbr-header"><span>PRISM IA / CODEX</span><span>INTRO 004 / 018</span><button onClick={complete}>SKIP <b>ESC</b></button></header>
+    <div className="pbr-corners"><i/><i/><i/><i/></div>
+    <div className="pbr-progress"><i style={{width:`${clamp(time/DURATION)*100}%`}}/></div>
+
+    <div className="pbr-scene pbr-intro-scene" style={{opacity:intro,transform:`translateY(${(1-smooth(intro))*22}px)`}}>
+      <div className="pbr-index">001 / SYSTEM</div><BootMark/><div className="pbr-word">PRISM</div><div className="pbr-sidecopy">COMPUTE<br/>BECOMES<br/><b>WORK.</b></div>
+    </div>
+
+    <div className="pbr-scene pbr-statement" style={{opacity:statement,transform:`translateY(${(1-smooth(statement))*35}px)`}}>
+      <div className="pbr-statement-kicker">NOT A CHAT WINDOW</div>
+      <h1>DESCRIBE.<br/><em>DECIDE.</em><br/>BUILD.</h1>
+      <div className="pbr-statement-note">Conversação, raciocínio, arquivos e execução no mesmo espaço.</div>
+    </div>
+
+    <div className="pbr-scene pbr-architecture" style={{opacity:architecture}}>
+      <div className="pbr-arch-head"><span>THE INTERFACE IS THE SYSTEM</span><b>002 / ARCHITECTURE</b></div>
+      <div className="pbr-arch-grid">
+        <article className="pbr-arch-card"><small>01</small><strong>CHAT</strong><span>CONTEXT / REASONING</span><div className="pbr-lines">{Array.from({length:9},(_,i)=><i key={i} style={{'--n':i}}/>)}</div></article>
+        <article className="pbr-arch-card pbr-arch-dark"><small>02</small><strong>CODEX</strong><span>FILES / PREVIEW</span><div className="pbr-code-mini"><b>src/App.jsx</b><i>return &lt;System /&gt;</i><i>ship();</i></div></article>
+        <article className="pbr-arch-card"><small>03</small><strong>AGENT</strong><span>TOOLS / EXECUTION</span><div className="pbr-agent-bars"><i/><i/><i/><i/></div></article>
+      </div>
+      <div className="pbr-arch-foot"><span>PRISM / HUMAN × MACHINE</span><span>NO DECORATION WITHOUT PURPOSE</span></div>
+    </div>
+
+    <div className="pbr-scene pbr-codex-scene" style={{opacity:codex,transform:`scale(${.93+smooth(codex)*.07})`}}>
+      <div className="pbr-codex-overline">003 / DEVELOPMENT ENVIRONMENT</div>
+      <div className="pbr-codex-word">CODEX</div>
+      <div className="pbr-codex-under">ONE PROMPT / MANY FILES / ONE WORKSPACE</div>
+      <div className="pbr-codex-cross pbr-x1"/><div className="pbr-codex-cross pbr-x2"/>
+    </div>
+
+    <div className="pbr-scene pbr-request-scene" style={{opacity:request,transform:`translateY(${(1-smooth(request))*18}px)`}}>
+      <div className="pbr-request-left"><span>004 / INPUT</span><h2>NO COMMAND<br/><em>LINE NEEDED.</em></h2><p>Você descreve o resultado. O Codex decide a sequência de trabalho.</p></div>
+      <div className="pbr-request-window" style={{transform:`translateY(${(1-requestType)*70}px) scale(${.92+.08*request})`,opacity:requestType}}>
+        <header><span>PRISM CODEX</span><b>NEW BUILD / 001</b></header>
+        <main><div className="pbr-prompt-label">BUILD REQUEST</div><div className="pbr-prompt"><TypeLine text={PROMPT} progress={promptProgress}/></div></main>
+        <footer><span>CONTEXT · FILES · PREVIEW</span><b>↗ SEND TO CODEX</b></footer>
+      </div>
+    </div>
+
+    <div className="pbr-scene pbr-model-scene" style={{opacity:model,transform:`translateX(${(1-smooth(model))*45}px)`}}>
+      <div className="pbr-model-rail"><div className="pbr-model-title">MODEL / ROUTING</div><div className="pbr-model-selected"><span>05</span><strong>{MODEL}</strong><em>MAX</em></div><div className="pbr-model-caption">ORCHESTRATION MODE · ULTRACODE</div></div>
+      <div className="pbr-model-note">A melhor interface desaparece quando a arquitetura está certa.</div>
+    </div>
+
+    <div className="pbr-scene pbr-agent-scene" style={{opacity:agent}}>
+      <div className="pbr-agent-header"><span>005 / AGENT ONLINE</span><b>{live?'WORKING':'STARTING'}</b></div>
+      <div className="pbr-agent-layout">
+        <div className="pbr-agent-title"><small>PRISM TAFF 2.0</small><strong>ANALYZE<br/><em>→</em> BUILD<br/><em>→</em> REVIEW</strong><span>workspace · files · preview · execution</span></div>
+        <div className="pbr-agent-console"><div className="pbr-console-top"><span>RUN / LIVE</span><b>{(time/1000).toFixed(1)}s</b></div><div className="pbr-phase-list">{PHASES.map((phase,index)=><div key={phase} className={`${index<activePhase?'done':''} ${index===activePhase?'active':''}`}><span>0{index+1}</span><b>{phase}</b><i/></div>)}</div><div className="pbr-console-bottom"><span>REAL EXECUTION PATH</span><strong>CODEX READY</strong></div></div>
+      </div>
+      <div className="pbr-agent-foot"><span>{agentState==='failed'?'BACKEND UNAVAILABLE':'AGENT CONNECTED'}</span><span>PRISM / CODEX</span></div>
+    </div>
+
+    <footer className="pbr-footer"><span>PRISM CODEX — ORIGINAL PRESENTATION</span><span>{String(Math.floor(time/1000)).padStart(2,'0')} / 18</span></footer>
+  </section>;
+}

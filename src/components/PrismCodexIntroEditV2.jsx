@@ -15,7 +15,6 @@ const PHOTOS = [
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 const easeOut = (value) => 1 - (1 - clamp(value)) ** 3;
 const easeIn = (value) => clamp(value) ** 3;
-const easeInOut = (value) => { const t = clamp(value); return t < 0.5 ? 8 * t ** 4 : 1 - ((-2 * t + 2) ** 4) / 2; };
 
 function preloadImages() {
   return Promise.all(PHOTOS.map((photo) => new Promise((resolve) => {
@@ -34,7 +33,9 @@ function Letters({ text, className = '', mode = 'in' }) {
 export default function PrismCodexIntroEditV2({ onComplete }) {
   const [time, setTime] = useState(0);
   const [ready, setReady] = useState(false);
+  const [agentState, setAgentState] = useState('idle');
   const doneRef = useRef(false);
+  const agentStartedRef = useRef(false);
   const rafRef = useRef(0);
   const startRef = useRef(0);
   const reduced = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, []);
@@ -63,9 +64,17 @@ export default function PrismCodexIntroEditV2({ onComplete }) {
       rafRef.current = requestAnimationFrame(tick);
     });
     const onKeyDown = (event) => { if (event.key === 'Escape') complete(); };
+    const onAgentState = (event) => setAgentState(event.detail?.state || 'idle');
     window.addEventListener('keydown', onKeyDown);
-    return () => { cancelled = true; cancelAnimationFrame(rafRef.current); window.removeEventListener('keydown', onKeyDown); };
+    window.addEventListener('prism:codex-agent-state', onAgentState);
+    return () => { cancelled = true; cancelAnimationFrame(rafRef.current); window.removeEventListener('keydown', onKeyDown); window.removeEventListener('prism:codex-agent-state', onAgentState); };
   }, [reduced]);
+
+  useEffect(() => {
+    if (time < 25_280 || agentStartedRef.current) return;
+    agentStartedRef.current = true;
+    window.dispatchEvent(new CustomEvent('prism:codex-autostart', { detail: { prompt: PROMPT, model: 'prism-taff-2.0', thinking: 'ultracode' } }));
+  }, [time]);
 
   const introOut = clamp((time - 3000) / 720);
   const editorialIn = clamp((time - 3720) / 820);
@@ -74,7 +83,6 @@ export default function PrismCodexIntroEditV2({ onComplete }) {
   const starIn = clamp((time - 7820) / 500);
   const starBurst = clamp((time - 8320) / 680);
   const prismIn = clamp((time - 9000) / 420);
-  const prismHold = clamp((time - 9420) / 2580);
   const codexIn = clamp((time - 12_000) / 620);
   const codexDrop = clamp((time - 15_620) / 460);
   const codexCenter = clamp((time - 18_080) / 640);
@@ -84,36 +92,24 @@ export default function PrismCodexIntroEditV2({ onComplete }) {
   const modelMenu = clamp((time - 23_460) / 760);
   const selected = clamp((time - 24_660) / 440);
   const agent = clamp((time - 25_280) / 1280);
-
   const promptProgress = clamp((time - 22_540) / 1250);
   const promptCount = Math.floor(PROMPT.length * promptProgress);
-  const selectedModel = MODELS[MODELS.length - 1];
   const image = PHOTOS[Math.min(Math.floor(time / 5200), PHOTOS.length - 1)];
   const overall = `${clamp(time / DURATION) * 100}%`;
+  const showAgent = agentState === 'started' || agentState === 'streaming' || agentState === 'completed';
 
   return (
     <section className={`prism-codex-edit ${ready ? 'is-ready' : 'is-loading'}`} aria-label="Apresentação cinematográfica do Prism Codex">
       <div className="pce-photo pce-photo--a" style={{ backgroundImage: `url(${image.src})`, backgroundPosition: image.position }} />
       <div className="pce-photo pce-photo--b" style={{ backgroundImage: `url(${PHOTOS[(Math.floor(time / 5200) + 1) % PHOTOS.length].src})`, opacity: clamp((time % 5200) / 900) * 0.62 }} />
-      <div className="pce-image-grade" />
-      <div className="pce-noise" />
-      <div className="pce-scanline" />
+      <div className="pce-image-grade" /><div className="pce-noise" /><div className="pce-scanline" />
       <div className="pce-flash" style={{ opacity: starBurst > 0 && starBurst < 1 ? Math.sin(starBurst * Math.PI) * 0.9 : 0 }} />
-
       <header className="pce-ui"><span>PRISM IA / CODEX</span><span>ORIGINAL EDIT · 001</span></header>
-      <div className="pce-rule pce-rule--top" />
-      <div className="pce-rule pce-rule--bottom"><i style={{ width: overall }} /></div>
+      <div className="pce-rule pce-rule--top" /><div className="pce-rule pce-rule--bottom"><i style={{ width: overall }} /></div>
       <button className="pce-skip" type="button" onClick={complete}>Pular <b>ESC</b></button>
 
-      <div className="pce-stage pce-stage--title" style={{ opacity: 1 - introOut, transform: `scale(${1 + introOut * 0.08})` }}>
-        <Letters text="PRISM AI" className="pce-title-script" />
-        <span className="pce-title-caption">ARTIFICIAL INTELLIGENCE / COMPUTATIONAL SYSTEMS</span>
-      </div>
-
-      <div className="pce-stage pce-stage--glitch" style={{ opacity: introOut, pointerEvents: 'none' }}>
-        <Letters text="PRISM AI" className="pce-glitch-word" mode="out" />
-        <i className="pce-glitch-slice pce-glitch-slice--1" /><i className="pce-glitch-slice pce-glitch-slice--2" /><i className="pce-glitch-slice pce-glitch-slice--3" />
-      </div>
+      <div className="pce-stage pce-stage--title" style={{ opacity: 1 - introOut, transform: `scale(${1 + introOut * 0.08})` }}><Letters text="PRISM AI" className="pce-title-script" /><span className="pce-title-caption">ARTIFICIAL INTELLIGENCE / COMPUTATIONAL SYSTEMS</span></div>
+      <div className="pce-stage pce-stage--glitch" style={{ opacity: introOut, pointerEvents: 'none' }}><Letters text="PRISM AI" className="pce-glitch-word" mode="out" /><i className="pce-glitch-slice pce-glitch-slice--1" /><i className="pce-glitch-slice pce-glitch-slice--2" /><i className="pce-glitch-slice pce-glitch-slice--3" /></div>
 
       <div className="pce-stage pce-editorial" style={{ opacity: editorialIn, transform: `translateY(${(1 - easeOut(editorialIn)) * 45}px)` }}>
         <div className="pce-editorial-top"><span>PRISM RESEARCH / SYSTEMS</span><b>01 / EDIT</b></div>
@@ -138,7 +134,6 @@ export default function PrismCodexIntroEditV2({ onComplete }) {
       </div>
 
       <div className="pce-stage pce-prism-again" style={{ opacity: prismIn * (1 - morph), transform: `scale(${.82 + prismIn * .18})` }}><Letters text="PRISM AI" className="pce-prism-script" /></div>
-
       <div className="pce-stage pce-codex-stage" style={{ opacity: codexIn, transform: `translateY(${(1 - easeOut(codexIn)) * -50}px)` }}><div className="pce-codex-word">CODEX</div><small>PRISM AI / DEVELOPMENT SYSTEM</small></div>
 
       <div className="pce-stage pce-codex-lock" style={{ opacity: codexDrop }}>
@@ -152,28 +147,15 @@ export default function PrismCodexIntroEditV2({ onComplete }) {
         <div className="pce-morph-logo" style={{ opacity: clamp((morph - .36) / .64), transform: `scale(${.72 + morph * .28})` }}><span>✦</span><b>PRISM</b></div>
       </div>
 
-      <div className="pce-stage pce-chat-sequence" style={{ opacity: greeting, transform: `translateY(${(1 - easeOut(greeting)) * 35}px)` }}>
-        <div className="pce-greeting"><span>good morning,</span><strong>programmer</strong></div>
-      </div>
+      <div className="pce-stage pce-chat-sequence" style={{ opacity: greeting, transform: `translateY(${(1 - easeOut(greeting)) * 35}px)` }}><div className="pce-greeting"><span>good morning,</span><strong>programmer</strong></div></div>
+      <div className="pce-stage pce-composer-sequence" style={{ opacity: composer, transform: `translateY(${(1 - easeOut(composer)) * 22}px) scale(${.98 + composer * .02})` }}><div className="pce-real-composer"><div className="pce-composer-head"><span>PRISM CODEX</span><b>NEW PROJECT / 001</b></div><div className="pce-composer-text">{PROMPT.slice(0, promptCount)}<i /></div><div className="pce-composer-foot"><span>DESCRIBE WHAT YOU WANT TO BUILD</span><b>Prism Taff 2.0 ↗</b></div></div></div>
 
-      <div className="pce-stage pce-composer-sequence" style={{ opacity: composer, transform: `translateY(${(1 - easeOut(composer)) * 22}px) scale(${.98 + composer * .02})` }}>
-        <div className="pce-real-composer">
-          <div className="pce-composer-head"><span>PRISM CODEX</span><b>NEW PROJECT / 001</b></div>
-          <div className="pce-composer-text">{PROMPT.slice(0, promptCount)}<i /></div>
-          <div className="pce-composer-foot"><span>DESCRIBE WHAT YOU WANT TO BUILD</span><b>Prism Taff 2.0 ↗</b></div>
-        </div>
-      </div>
-
-      <div className="pce-stage pce-model-menu" style={{ opacity: modelMenu, transform: `translateY(${(1 - easeOut(modelMenu)) * 18}px)` }}>
-        <div className="pce-menu-head">MODELOS</div>
-        {MODELS.map((model, index) => <div className={`pce-model-row ${index === 4 && selected > .2 ? 'selected' : ''}`} key={model} style={{ '--delay': `${index * .045}s` }}><span>{String(index + 1).padStart(2, '0')}</span><b>{model}</b>{index === 4 && selected > .2 ? <i>✓</i> : null}</div>)}
-      </div>
+      <div className="pce-stage pce-model-menu" style={{ opacity: modelMenu, transform: `translateY(${(1 - easeOut(modelMenu)) * 18}px)` }}><div className="pce-menu-head">MODELOS</div>{MODELS.map((model, index) => <div className={`pce-model-row ${index === 4 && selected > .2 ? 'selected' : ''}`} key={model} style={{ '--delay': `${index * .045}s` }}><span>{String(index + 1).padStart(2, '0')}</span><b>{model}</b>{index === 4 && selected > .2 ? <i>✓</i> : null}</div>)}</div>
 
       <div className="pce-stage pce-agent-sequence" style={{ opacity: agent }}>
-        <div className="pce-agent-photo" style={{ backgroundImage: `url(${PHOTOS[0].src})` }} />
-        <div className="pce-agent-grade" />
-        <div className="pce-agent-content"><span>PRISM TAFF 2.0 / AGENT ONLINE</span><strong>ANALYZE → BUILD → REVIEW</strong><small>workspace · files · preview · real execution path</small></div>
-        <div className="pce-agent-status"><i /> WORKING</div>
+        <div className="pce-agent-photo" style={{ backgroundImage: `url(${PHOTOS[0].src})` }} /><div className="pce-agent-grade" />
+        <div className="pce-agent-content"><span>PRISM TAFF 2.0 / {showAgent ? 'AGENT ONLINE' : 'STARTING AGENT'}</span><strong>ANALYZE → BUILD → REVIEW</strong><small>{agentState === 'failed' ? 'Backend indisponível para iniciar o agente.' : 'workspace · files · preview · real execution path'}</small></div>
+        <div className={`pce-agent-status ${agentState}`}><i /> {agentState === 'failed' ? 'UNAVAILABLE' : agentState === 'completed' ? 'DONE' : showAgent ? 'WORKING' : 'STARTING'}</div>
       </div>
 
       <div className="pce-foot"><span>{image.credit}</span><span>{Math.round(time / 1000).toString().padStart(2, '0')}s / 30s</span></div>

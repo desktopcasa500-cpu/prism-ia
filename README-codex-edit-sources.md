@@ -1,0 +1,1 @@
+Prism Codex opening edit imagery sources are referenced in the implementation comments.

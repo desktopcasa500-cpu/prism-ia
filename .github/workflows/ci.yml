@@ -2,9 +2,12 @@ name: Prism IA CI
 
 on:
   push:
-    branches: [main, studio-polish-mcp-skills-final]
+    branches:
+      - main
+      - 'prism-*'
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   validate:

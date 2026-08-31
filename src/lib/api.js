@@ -26,9 +26,14 @@ function buildUrl(path) {
   return `${apiRoot}${normalizedPath}`;
 }
 
+function isCallerAbort(error, signal) {
+  return signal?.aborted || error?.name === 'AbortError';
+}
+
 async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeout);
+  let timedOut = false;
+  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
 
@@ -57,7 +62,8 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
     }
     return data;
   } catch (error) {
-    if (error.name === 'AbortError') {
+    if (isCallerAbort(error, signal)) {
+      if (signal?.aborted && !timedOut) throw Object.assign(new DOMException('A solicitação foi cancelada.', 'AbortError'), { code: 'USER_ABORT' });
       const timeoutError = new Error('A solicitação demorou demais. Tente novamente.');
       timeoutError.status = 408;
       throw timeoutError;
@@ -76,7 +82,8 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
 
 async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } = {}) {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeout);
+  let timedOut = false;
+  const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
@@ -113,7 +120,8 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
       for (const chunk of chunks) {
         const line = chunk.split('\n').find((item) => item.startsWith('data:'));
         if (!line) continue;
-        const event = JSON.parse(line.slice(5).trim());
+        let event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch { continue; }
         onEvent?.(event);
         if (event.type === 'result') finalData = event.data;
         if (event.type === 'error') throw new Error(event.message || 'A execução falhou.');
@@ -122,7 +130,8 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
     }
     return finalData || {};
   } catch (error) {
-    if (error.name === 'AbortError') {
+    if (isCallerAbort(error, signal)) {
+      if (signal?.aborted && !timedOut) throw Object.assign(new DOMException('A execução foi cancelada.', 'AbortError'), { code: 'USER_ABORT' });
       const timeoutError = new Error('A execução demorou demais. Tente novamente.');
       timeoutError.status = 408;
       throw timeoutError;

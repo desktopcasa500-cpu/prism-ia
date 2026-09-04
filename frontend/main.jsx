@@ -18,7 +18,6 @@ import './prism-identity.css';
 import './prism-original-pages.css';
 import './prism-polish.css';
 import './pages/prism-codex-final.css';
-import './lib/codex-autostart.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

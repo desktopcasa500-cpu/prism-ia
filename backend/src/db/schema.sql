@@ -31,8 +31,17 @@ CREATE TABLE IF NOT EXISTS messages (
   content TEXT NOT NULL,
   effort TEXT NOT NULL DEFAULT 'medium',
   tokens_used INTEGER NOT NULL DEFAULT 0,
+  provider TEXT,
+  model_id TEXT,
+  thinking_summary TEXT NOT NULL DEFAULT '',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS provider TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS model_id TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS thinking_summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,6 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON sessions(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_messages_provider ON messages(session_id, provider, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
 CREATE INDEX IF NOT EXISTS idx_project_files_project ON project_files(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_files_user ON project_files(user_id);

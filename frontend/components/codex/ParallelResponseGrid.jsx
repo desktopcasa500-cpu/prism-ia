@@ -1,30 +1,51 @@
 import ThinkingPanel from './ThinkingPanel.jsx';
 
-const STATUS = {
-  running: 'GERANDO',
-  completed: 'PRONTO',
-  error: 'FALHOU',
-  rejected: 'FALHOU',
-  cancelled: 'CANCELADO',
-};
+const LABELS = { running: 'Gerando', fulfilled: 'Pronto', rejected: 'Falhou', error: 'Falhou' };
 
-export default function ParallelResponseGrid({ runs = {}, models = [] }) {
-  return <section className="cx-grid" aria-label="Respostas paralelas dos modelos">
-    {models.filter((model) => model.enabled !== false).map((model) => {
-      const run = runs[model.id] || { status: 'running', text: '', elapsedMs: 0 };
-      return <article className={`cx-card cx-card-${run.status}`} key={model.id}>
-        <header className="cx-card-head">
-          <div><span className="cx-card-index">{String(models.indexOf(model) + 1).padStart(2, '0')}</span><strong>{model.label}</strong></div>
-          <span className="cx-card-status">{STATUS[run.status] || 'AGUARDANDO'}</span>
-        </header>
-        {run.thinking_summary && <ThinkingPanel summary={run.thinking_summary} elapsedMs={run.elapsed_ms || run.elapsedMs || 0} status={run.status === 'running' ? 'running' : 'idle'} />}
-        {run.status === 'running' && <div className="cx-skeleton"><i/><i/><i/><i/></div>}
-        {run.status === 'error' || run.status === 'rejected' ? <div className="cx-error">{run.error || 'O provedor não respondeu.'}</div> : <div className="cx-card-body">{run.text || (run.status === 'running' ? 'Aguardando a resposta…' : 'Sem conteúdo.')}</div>}
-        <footer className="cx-card-foot">
-          <span>{run.model}</span>
-          <span>{((run.elapsed_ms || run.elapsedMs || 0) / 1000).toFixed(1)}s</span>
-        </footer>
-      </article>;
-    })}
-  </section>;
+export default function ParallelResponseGrid({ models = [], runs = {} }) {
+  const activeModels = models.filter((item) => item.enabled !== false);
+
+  return (
+    <section className="cx-compare" aria-label="Respostas dos modelos">
+      {activeModels.map((model) => {
+        const run = runs[model.id] || { status: 'running' };
+        const elapsed = Number(run.elapsed_ms || 0);
+        const failed = run.status === 'rejected' || run.status === 'error';
+
+        return (
+          <article className={`cx-compare-column ${failed ? 'is-error' : ''}`} key={model.id}>
+            <header className="cx-compare-head">
+              <div>
+                <span>{model.label}</span>
+                <small>{model.model}</small>
+              </div>
+              <span className="cx-compare-status">{LABELS[run.status] || 'Aguardando'}</span>
+            </header>
+            {run.thinking_summary && (
+              <ThinkingPanel
+                summary={run.thinking_summary}
+                elapsedMs={elapsed}
+                status={run.status === 'running' ? 'running' : 'idle'}
+              />
+            )}
+            <div className="cx-compare-body">
+              {failed ? (
+                <p className="cx-compare-error">{run.error || 'Este modelo não respondeu.'}</p>
+              ) : run.text ? (
+                <div className="cx-compare-text">{run.text}</div>
+              ) : (
+                <div className="cx-compare-wait" aria-live="polite">
+                  <i /><i /><i />
+                </div>
+              )}
+            </div>
+            <footer className="cx-compare-foot">
+              <span>{elapsed ? `${(elapsed / 1000).toFixed(1)} s` : '—'}</span>
+              {Array.isArray(run.tools_used) && run.tools_used.length > 0 && <span>{run.tools_used.length} ferramenta{run.tools_used.length > 1 ? 's' : ''}</span>}
+            </footer>
+          </article>
+        );
+      })}
+    </section>
+  );
 }

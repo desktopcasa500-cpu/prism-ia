@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-export const INTRO_KEY = 'prism_codex_intro_v4_seen';
-const DURATION = 12500;
-const PROMPT = 'Crie um site que pareça uma marca de verdade.';
+export const INTRO_KEY = 'prism_codex_intro_v5_seen';
+const DURATION = 10000;
 const clamp = (value) => Math.max(0, Math.min(1, value));
 const ease = (value) => { const t = clamp(value); return t * t * (3 - 2 * t); };
 const range = (time, start, end) => clamp((time - start) / (end - start));
-
-function Scene({ children, className = '', style }) { return <div className={`pintro-v4-scene ${className}`} style={style}>{children}</div>; }
 
 export default function PrismCodexIntroRefined({ onComplete }) {
   const reduced = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, []);
@@ -17,37 +14,69 @@ export default function PrismCodexIntroRefined({ onComplete }) {
 
   useEffect(() => {
     if (reduced) { complete(); return undefined; }
-    const started = performance.now(); let frame;
-    const tick = (now) => { const next = Math.min(now - started, DURATION); setTime(next); if (next < DURATION) frame = requestAnimationFrame(tick); else complete(); };
+    const started = performance.now();
+    let frame;
+    const tick = (now) => {
+      const next = Math.min(now - started, DURATION);
+      setTime(next);
+      if (next < DURATION) frame = requestAnimationFrame(tick); else complete();
+    };
     frame = requestAnimationFrame(tick);
     const onKey = (event) => { if (event.key === 'Escape') complete(); };
     window.addEventListener('keydown', onKey);
     return () => { cancelAnimationFrame(frame); window.removeEventListener('keydown', onKey); };
   }, [reduced]);
 
-  return <section className="prism-intro-v4" aria-label="Apresentação do Prism Codex">
-    <header className="pintro-v4-header"><span>PRISM CODEX</span><button onClick={complete}>Pular</button></header>
-    <div className="pintro-v4-progress"><i style={{ width: `${(time / DURATION) * 100}%` }} /></div>
-    <div className="pintro-v4-scenes">
-      <Scene className="pintro-v4-opening" style={{ opacity: ease(range(time, 0, 2300)), transform: `translateY(${20 - 20 * ease(range(time, 0, 2300))}px)` }}>
-        <div className="pintro-v4-inner"><p className="pintro-v4-kicker">Prism IA</p><div className="pintro-v4-wordmark">PRISM CODEX</div><p>Um espaço para pensar, construir e revisar software com contexto.</p><div className="pintro-v4-rule" /></div>
-      </Scene>
-      <Scene className="pintro-v4-prompt" style={{ opacity: ease(range(time, 1900, 4400)), transform: `translateY(${24 - 24 * ease(range(time, 1900, 4400))}px)` }}>
-        <div className="pintro-v4-inner"><p className="pintro-v4-kicker">01 / Pedido</p><div className="pintro-v4-prompt-card"><p className="pintro-v4-prompt-label">Você descreve o trabalho</p><div className="pintro-v4-prompt-text">{PROMPT.slice(0, Math.floor(PROMPT.length * range(time, 2150, 3600)))}</div><div className="pintro-v4-prompt-meta"><span>contexto</span><span>arquivos</span><span>ferramentas</span></div></div></div>
-      </Scene>
-      <Scene className="pintro-v4-work" style={{ opacity: ease(range(time, 3950, 7200)) }}>
-        <div className="pintro-v4-inner"><div className="pintro-v4-work-head"><strong>O workspace acompanha o trabalho.</strong><span>código + resultado</span></div><div className="pintro-v4-workspace"><aside className="pintro-v4-files"><strong>Projeto</strong><span>src</span><span className="active">App.jsx</span><span>styles.css</span><span>package.json</span></aside><div className="pintro-v4-editor"><header><span>App.jsx</span><em>editável</em></header><pre>{`export default function App() {\n  return (\n    <main>\n      <h1>Construa algo real.</h1>\n    </main>\n  );\n}`}</pre></div><div className="pintro-v4-preview"><header><span>Preview</span><em>ao lado</em></header><div className="pintro-v4-preview-body"><div><strong>O resultado aparece aqui.</strong><span>sem trocar de contexto.</span></div></div></div></div></div>
-      </Scene>
-      <Scene className="pintro-v4-connected" style={{ opacity: ease(range(time, 6900, 9100)), transform: `translateX(${30 - 30 * ease(range(time, 6900, 9100))}px)` }}>
-        <div className="pintro-v4-inner"><div><p className="pintro-v4-kicker">02 / Contexto conectado</p><h2>O trabalho reúne modelos, ferramentas e contexto no mesmo lugar.</h2><p>Use MCP e integrações quando a tarefa realmente precisar delas.</p></div><div className="pintro-v4-connections"><div className="pintro-v4-connection"><strong>Modelos</strong><span>Prism e provedores conectados</span></div><div className="pintro-v4-connection"><strong>MCP</strong><span>Ferramentas e serviços do workspace</span></div><div className="pintro-v4-connection"><strong>Arquivos</strong><span>Estado real do projeto</span></div></div></div>
-      </Scene>
-      <Scene className="pintro-v4-agent" style={{ opacity: ease(range(time, 8800, 10900)) }}>
-        <div className="pintro-v4-inner"><p className="pintro-v4-kicker">03 / Agente</p><div className="pintro-v4-agent-flow"><strong>ANALISAR</strong><i>→</i><strong>CONSTRUIR</strong><i>→</i><strong>REVISAR</strong></div><div className="pintro-v4-agent-line"><i style={{ width: `${range(time, 9000, 10750) * 100}%` }} /></div><div className="pintro-v4-agent-note">O agente trabalha no projeto. Você acompanha cada etapa.</div></div>
-      </Scene>
-      <Scene className="pintro-v4-end" style={{ opacity: ease(range(time, 10400, DURATION)), transform: `scale(${.98 + .02 * ease(range(time, 10400, DURATION))})` }}>
-        <div className="pintro-v4-inner"><div className="pintro-v4-end-mark">P</div><strong>Prism Codex</strong><p>Seu próximo projeto começa aqui.</p><button onClick={complete}>Entrar no Codex</button></div>
-      </Scene>
-    </div>
-    <footer className="pintro-v4-footer"><span>Prism IA</span><span>{String(Math.floor(time / 1000)).padStart(2, '0')} / 12</span></footer>
+  const opening = ease(range(time, 0, 2200));
+  const prompt = ease(range(time, 1700, 4300));
+  const workspace = ease(range(time, 3900, 6900));
+  const ending = ease(range(time, 6500, DURATION));
+
+  return <section className="prism-intro-v5" aria-label="Apresentação do Prism Codex">
+    <header className="pintro-v5-header">
+      <span>Prism Codex</span>
+      <button onClick={complete}>Pular</button>
+    </header>
+
+    <main className="pintro-v5-stage">
+      <section className="pintro-v5-slide pintro-v5-slide-opening" style={{ opacity: 1 - prompt, transform: `translateY(${(1 - opening) * 12}px)` }}>
+        <div className="pintro-v5-center">
+          <p className="pintro-v5-overline">Prism IA</p>
+          <h1>Prism Codex</h1>
+          <p className="pintro-v5-subtitle">Um espaço para construir software com contexto.</p>
+        </div>
+      </section>
+
+      <section className="pintro-v5-slide pintro-v5-slide-prompt" style={{ opacity: prompt * (1 - workspace), transform: `translateY(${28 - prompt * 28}px)` }}>
+        <div className="pintro-v5-column">
+          <p className="pintro-v5-overline">01</p>
+          <h2>Comece pelo trabalho.</h2>
+          <div className="pintro-v5-input"><span>Você</span><strong>Quero transformar esta ideia em um produto.</strong><i /></div>
+          <p className="pintro-v5-note">Descreva o que precisa. O Codex mantém a conversa, o contexto e o projeto juntos.</p>
+        </div>
+      </section>
+
+      <section className="pintro-v5-slide pintro-v5-slide-workspace" style={{ opacity: workspace * (1 - ending), transform: `translateY(${18 - workspace * 18}px)` }}>
+        <div className="pintro-v5-wide">
+          <div className="pintro-v5-section-head"><div><p className="pintro-v5-overline">02</p><h2>O trabalho acontece no workspace.</h2></div><span>arquivos · código · preview</span></div>
+          <div className="pintro-v5-workspace">
+            <aside><small>PROJETO</small><span>src</span><b>App.jsx</b><span>styles.css</span><span>package.json</span></aside>
+            <div className="pintro-v5-editor"><header><span>App.jsx</span><small>editando</small></header><pre>{`export default function App() {\n  return (\n    <main>\n      <h1>Construa algo real.</h1>\n    </main>\n  );\n}`}</pre></div>
+            <div className="pintro-v5-preview"><header><span>Preview</span><small>ao lado</small></header><div className="pintro-v5-preview-page"><div><b>Seu produto</b><span>cresce junto com o código.</span></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="prism-intro-v5-slide pintro-v5-slide-end" style={{ opacity: ending, transform: `translateY(${20 - ending * 20}px)` }}>
+        <div className="pintro-v5-center pintro-v5-end-center">
+          <p className="pintro-v5-overline">03</p>
+          <h2>Pronto para começar.</h2>
+          <p className="pintro-v5-subtitle">Conversa para pensar. Codex para construir.</p>
+          <button className="pintro-v5-enter" onClick={complete}>Entrar no Codex</button>
+        </div>
+      </section>
+    </main>
+
+    <footer className="pintro-v5-footer"><span>Esc para pular</span><span>{String(Math.min(3, Math.floor(time / 3300) + 1)).padStart(2, '0')} / 03</span></footer>
   </section>;
 }

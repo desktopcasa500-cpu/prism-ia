@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const DB_NAME = 'prism-codex';
 const STORE = 'sessions';
 const DB_VERSION = 1;
 
 function openDb() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (typeof indexedDB === 'undefined') return resolve(null);
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
@@ -46,10 +46,8 @@ export function usePersistentCodex(preferenceKey = 'prism_codex_preferences') {
   const [preferences, setPreferences] = useState(() => {
     try { return JSON.parse(localStorage.getItem(preferenceKey) || '{}'); } catch { return {}; }
   });
-  const latest = useRef(preferences);
 
   useEffect(() => {
-    latest.current = preferences;
     localStorage.setItem(preferenceKey, JSON.stringify(preferences));
   }, [preferenceKey, preferences]);
 
@@ -59,5 +57,5 @@ export function usePersistentCodex(preferenceKey = 'prism_codex_preferences') {
 
   const cachedSession = useCallback((sessionId) => readCachedSession(sessionId), []);
 
-  return useMemo(() => ({ preferences: latest.current, updatePreference, cacheSession, cachedSession }), [cachedSession, updatePreference]);
+  return { preferences, updatePreference, cacheSession, cachedSession };
 }

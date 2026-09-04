@@ -3,13 +3,13 @@ function dayGroup(value) {
   const now = new Date();
   const start = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const delta = Math.round((start(now) - start(date)) / 86400000);
-  if (delta === 0) return 'HOJE';
-  if (delta === 1) return 'ONTEM';
-  if (delta < 7) return 'ÚLTIMOS 7 DIAS';
-  return 'MAIS ANTIGOS';
+  if (delta === 0) return 'Hoje';
+  if (delta === 1) return 'Ontem';
+  if (delta < 7) return 'Últimos 7 dias';
+  return 'Mais antigos';
 }
 
-export default function CodexSidebar({ sessions, activeId, query, onQuery, onNew, onOpen, onRename, onDelete }) {
+export default function CodexSidebar({ sessions = [], activeId, query = '', onQuery, onNew, onOpen, onRename, onDelete, onReplay }) {
   const visible = sessions.filter((session) => !query || String(session.title || '').toLowerCase().includes(query.toLowerCase()));
   const groups = visible.reduce((acc, session) => {
     const key = dayGroup(session.updated_at || session.created_at);
@@ -17,17 +17,21 @@ export default function CodexSidebar({ sessions, activeId, query, onQuery, onNew
     return acc;
   }, {});
 
-  return <aside className="cx-sidebar">
-    <div className="cx-brand"><span className="cx-brand-mark">P</span><div><strong>PRISM</strong><small>CODEX</small></div></div>
-    <button className="cx-new" onClick={onNew}>+ NOVO CHAT</button>
-    <label className="cx-search"><span>⌕</span><input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Buscar conversas"/><kbd>⌘K</kbd></label>
-    <div className="cx-history">
-      {Object.entries(groups).map(([group, items]) => <section key={group}><div className="cx-group-label">{group}</div>{items.map((session) => <div className={`cx-session ${session.id === activeId ? 'active' : ''}`} key={session.id}>
-        <button onClick={() => onOpen(session.id)}>{session.title || 'Nova conversa'}</button>
-        <div className="cx-session-actions"><button aria-label="Renomear" onClick={() => onRename(session)}>↗</button><button aria-label="Excluir" onClick={() => onDelete(session)}>×</button></div>
-      </div>)}</section>)}
-      {!visible.length && <p className="cx-empty">Nenhuma conversa encontrada.</p>}
+  return <aside className="pcx-sidebar">
+    <div className="pcx-brand"><span className="pcx-brand-mark">P</span><div><strong>Prism</strong><small>Codex</small></div></div>
+    <button className="pcx-new" onClick={onNew}>+ <span>Novo chat</span></button>
+    <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas"/><kbd>⌘K</kbd></label>
+    <div className="pcx-history">
+      <div className="pcx-history-head"><span>Conversas</span><b>{visible.length || ''}</b></div>
+      {Object.entries(groups).map(([group, items]) => <section key={group}>
+        <div className="pcx-group-label">{group}</div>
+        {items.map((session) => <div className={`pcx-session ${session.id === activeId ? 'active' : ''}`} key={session.id}>
+          <button className="pcx-session-open" onClick={() => onOpen?.(session.id)}>{session.title || 'Nova conversa'}</button>
+          <div className="pcx-session-actions"><button onClick={() => onRename?.(session)} aria-label="Renomear conversa">…</button><button onClick={() => onDelete?.(session)} aria-label="Excluir conversa">×</button></div>
+        </div>)}
+      </section>)}
+      {!visible.length && <p className="pcx-muted">Nenhuma conversa encontrada.</p>}
     </div>
-    <div className="cx-sidebar-bottom"><span>SESSION</span><strong>isolada por chat</strong></div>
+    <div className="pcx-sidebar-foot"><button onClick={onReplay}>Apresentação do Codex</button><div className="pcx-session-note"><span>SESSÃO</span><strong>Contexto isolado</strong></div></div>
   </aside>;
 }

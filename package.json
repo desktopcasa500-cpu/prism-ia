@@ -1,7 +1,7 @@
 {
   "name": "prism-ia",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite --config frontend/vite.config.js",
@@ -10,7 +10,7 @@
     "dev:api": "node backend/src/server.js",
     "start": "npm run migrate && node backend/src/server.js",
     "migrate": "node backend/src/db/migrate.js",
-    "check": "node --check backend/src/app.js && node --check backend/src/routes/ai.js && node --check backend/src/routes/chat.js && node --check backend/src/routes/mcp.js && node --check backend/src/services/mcp.js && node --check backend/src/services/orchestrator.js && node --check backend/src/services/skills.js"
+    "check": "node --check backend/src/app.js && node --check backend/src/routes/ai.js && node --check backend/src/routes/chat.js && node --check backend/src/routes/parallel.js && node --check backend/src/routes/mcp.js && node --check backend/src/services/mcp.js && node --check backend/src/services/orchestrator.js && node --check backend/src/services/parallelOrchestrator.js && node --check backend/src/services/skills.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

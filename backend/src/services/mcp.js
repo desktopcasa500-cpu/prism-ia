@@ -52,9 +52,7 @@ async function assertSafeUrl(rawUrl) {
   try { url = new URL(rawUrl); } catch { throw new Error('Endpoint MCP inválido'); }
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Endpoint MCP deve usar HTTP ou HTTPS');
   if (url.username || url.password) throw new Error('Credenciais não podem ficar embutidas na URL');
-  if (url.protocol === 'http:' && process.env.NODE_ENV === 'production' && process.env.MCP_ALLOW_HTTP !== 'true') {
-    throw new Error('Endpoints HTTP não são permitidos em produção');
-  }
+  if (url.protocol === 'http:' && process.env.NODE_ENV === 'production' && process.env.MCP_ALLOW_HTTP !== 'true') throw new Error('Endpoints HTTP não são permitidos em produção');
   if (process.env.MCP_ALLOW_PRIVATE_HOSTS !== 'true') {
     const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) throw new Error('Endpoint MCP local ou privado bloqueado');
@@ -78,14 +76,7 @@ function sanitizeToolName(name) { return String(name || 'tool').replace(/[^a-zA-
 
 function toolDefinition(server, tool) {
   const modelName = `mcp_${shortId(server.id)}_${sanitizeToolName(tool.name)}`.slice(0, 64);
-  return {
-    modelName,
-    serverId: server.id,
-    serverName: server.name,
-    toolName: tool.name,
-    description: String(tool.description || `Ferramenta ${tool.name} do MCP ${server.name}`).slice(0, 1000),
-    inputSchema: tool.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : { type: 'object', properties: {} },
-  };
+  return { modelName, serverId: server.id, serverName: server.name, toolName: tool.name, description: String(tool.description || `Ferramenta ${tool.name} do MCP ${server.name}`).slice(0, 1000), inputSchema: tool.inputSchema && typeof tool.inputSchema === 'object' ? tool.inputSchema : { type: 'object', properties: {} } };
 }
 
 function normalizeToolResult(result) {
@@ -100,24 +91,21 @@ function normalizeToolResult(result) {
 
 function transportOptions(token) {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  return {
-    authProvider: token ? { token: async () => token } : undefined,
-    requestInit: { headers },
-  };
+  return { authProvider: token ? { token: async () => token } : undefined, requestInit: { headers } };
 }
 
 async function connectServer(server) {
   const url = await assertSafeUrl(server.endpoint_url);
   const token = decryptSecret(server.auth_token_encrypted);
   const options = transportOptions(token);
-  const client = new Client({ name: 'prism-ia', version: '1.2.0' });
+  const client = new Client({ name: 'prism-ia', version: '1.3.0' });
   try {
     const transport = new StreamableHTTPClientTransport(url, options);
     await withTimeout(client.connect(transport));
     return { client, transport, transportName: 'streamable-http', serverName: server.name };
   } catch (streamableError) {
     await client.close().catch(() => {});
-    const fallbackClient = new Client({ name: 'prism-ia', version: '1.2.0' });
+    const fallbackClient = new Client({ name: 'prism-ia', version: '1.3.0' });
     const fallbackTransport = new SSEClientTransport(url, options);
     try {
       await withTimeout(fallbackClient.connect(fallbackTransport));
@@ -145,55 +133,44 @@ export async function probeMcpServer(server) {
   const connection = await connectServer(server);
   try {
     const tools = await listAllTools(connection.client);
-    return {
-      ok: true,
-      transport: connection.transportName,
-      server: connection.serverName,
-      tools: tools.map((tool) => ({
-        name: tool.name,
-        description: tool.description || '',
-        inputSchema: tool.inputSchema || { type: 'object' },
-      })),
-    };
-  } finally {
-    await connection.client.close().catch(() => {});
-  }
+    return { ok: true, transport: connection.transportName, server: connection.serverName, tools: tools.map((tool) => ({ name: tool.name, description: tool.description || '', inputSchema: tool.inputSchema || { type: 'object' } })) };
+  } finally { await connection.client.close().catch(() => {}); }
 }
 
-export async function createMcpExecutionContext(userId) {
-  const saved = await pool.query(`SELECT id, name, endpoint_url, auth_token_encrypted, enabled FROM mcp_servers WHERE user_id = $1 AND enabled = TRUE ORDER BY created_at ASC`, [userId]);
+function normalizeServerFilter(serverIds) {
+  return [...new Set((Array.isArray(serverIds) ? serverIds : []).map((id) => String(id || '').trim()).filter(Boolean))];
+}
+
+export async function createMcpExecutionContext(userId, options = {}) {
+  const filter = normalizeServerFilter(options.serverIds);
+  const hasFilter = filter.length > 0;
+  const uuidIds = filter.filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  const params = [userId];
+  let sql = `SELECT id, name, endpoint_url, auth_token_encrypted, enabled FROM mcp_servers WHERE user_id = $1 AND enabled = TRUE`;
+  if (hasFilter) {
+    if (!uuidIds.length) sql += ' AND FALSE';
+    else { params.push(uuidIds); sql += ` AND id = ANY($${params.length}::uuid[])`; }
+  }
+  sql += ' ORDER BY created_at ASC';
+  const saved = await pool.query(sql, params);
   const servers = [...saved.rows];
   const githubToken = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
-  if (githubToken) servers.push({
-    id: 'builtin-github',
-    name: 'GitHub',
-    endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
-    auth_token_encrypted: encryptSecret(githubToken),
-    enabled: true,
-    builtin: true,
-  });
+  if (githubToken && (!hasFilter || filter.includes('builtin-github'))) {
+    servers.push({ id: 'builtin-github', name: 'GitHub', endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/', auth_token_encrypted: encryptSecret(githubToken), enabled: true, builtin: true });
+  }
 
-  const results = await Promise.all(servers.map(async (server) => {
-    try { return { server, connection: await connectServer(server) }; }
-    catch (error) { return { server, error }; }
-  }));
+  const results = await Promise.allSettled(servers.map(async (server) => ({ server, connection: await connectServer(server) })));
   const toolResults = await Promise.all(results.map(async (entry) => {
-    if (entry.error) return entry;
-    try { return { ...entry, rawTools: await listAllTools(entry.connection.client) }; }
-    catch (error) {
-      await entry.connection.client.close().catch(() => {});
-      return { ...entry, error };
-    }
+    if (entry.status === 'rejected') return { server: null, error: entry.reason };
+    try { return { ...entry.value, rawTools: await listAllTools(entry.value.connection.client) }; }
+    catch (error) { await entry.value.connection.client.close().catch(() => {}); return { ...entry.value, error }; }
   }));
 
   const connections = [];
   const registry = new Map();
   const errors = [];
   for (const entry of toolResults) {
-    if (entry.error) {
-      errors.push({ server: entry.server?.name || 'MCP', message: entry.error?.message || 'Falha ao conectar ao MCP' });
-      continue;
-    }
+    if (entry.error) { errors.push({ server: entry.server?.name || 'MCP', message: entry.error?.message || 'Falha ao conectar ao MCP' }); continue; }
     const tools = (entry.rawTools || []).map((tool) => toolDefinition(entry.server, tool));
     tools.forEach((tool) => registry.set(tool.modelName, { ...tool, client: entry.connection.client }));
     connections.push(entry.connection);
@@ -207,16 +184,9 @@ export async function createMcpExecutionContext(userId) {
     return normalizeToolResult(result);
   }
 
-  async function close() {
-    await Promise.allSettled(connections.map((connection) => connection.client.close()));
-  }
+  async function close() { await Promise.allSettled(connections.map((connection) => connection.client.close())); }
 
-  return {
-    tools: [...registry.values()].map(({ client, ...tool }) => tool),
-    execute,
-    close,
-    errors,
-  };
+  return { tools: [...registry.values()].map(({ client, ...tool }) => tool), execute, close, errors };
 }
 
 export async function getMcpServers(userId) {

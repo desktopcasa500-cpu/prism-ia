@@ -1,5 +1,5 @@
-import PrismCodexIntroBrutalist, { INTRO_KEY } from './PrismCodexIntroBrutalist.jsx';
-import './prism-codex-intro-brutalist.css';
+import PrismCodexIntroRefined, { INTRO_KEY } from './PrismCodexIntroRefined.jsx';
+import './prism-codex-intro-refined.css';
 
 export { INTRO_KEY };
-export default PrismCodexIntroBrutalist;
+export default PrismCodexIntroRefined;

@@ -1,7 +1,33 @@
+```
+# Dependencies
 node_modules/
-dist/
+
+# Environment
 .env
+.env.local
 .env.*
-!.env.example
+
+# Logs and temp files
 *.log
-.DS_Store
+*.tmp
+
+# Editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
+
+# Package manager
+package-lock.json
+yarn.lock
+```

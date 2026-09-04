@@ -19,8 +19,7 @@ const efforts = [
   { id: 'ultracode', name: 'Ultra Code', label: 'Orquestrado', detail: 'Máximo esforço para engenharia e código.', tone: '5' },
 ];
 
-function getInitial(name) { return (name || 'P').trim().slice(0, 1).toUpperCase(); }
-function formatDate(value) { if (!value) return ''; const date = new Date(value); if (Number.isNaN(date.getTime())) return ''; return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date); }
+function getInitial(name) { return (name || 'U').trim().slice(0, 1).toUpperCase(); }
 
 export default function Chat() {
   const { user, logout } = useAuth();
@@ -109,7 +108,7 @@ export default function Chat() {
   async function deleteSession(session, event) {
     event?.stopPropagation();
     if (sending || deletingSession) return;
-    if (!window.confirm(`Excluir “${session.title || 'Nova conversa'}”? Esta ação remove a conversa e todas as mensagens dela permanentemente.`)) return;
+    if (!window.confirm(`Excluir "${session.title || 'Nova conversa'}"?`)) return;
     setDeletingSession(session.id); setError('');
     try {
       await api.delete(`/chat/sessions/${encodeURIComponent(session.id)}`);
@@ -152,56 +151,182 @@ export default function Chat() {
   function chooseModel(value) { setModel(value); setPickerView('models'); setPickerOpen(false); }
   function chooseEffort(value) { setEffort(value); setPickerView('models'); setPickerOpen(false); }
 
+  const suggestions = [
+    { icon: '📋', text: 'Planejar um projeto', prompt: 'Transforme esta ideia em um plano de projeto completo.' },
+    { icon: '🔍', text: 'Revisar código', prompt: 'Revise meu código e encontre os problemas mais importantes.' },
+    { icon: '💡', text: 'Explicar algo', prompt: 'Explique este conceito de forma simples.' },
+    { icon: '⚛️', text: 'Criar aplicação', prompt: 'Me ajude a estruturar uma aplicação React do zero.' },
+  ];
+
   return <div className="chat-app">
     <aside className="chat-sidebar">
       <div className="sidebar-top">
-        <button className="brand brand-button" onClick={() => navigate('/chat')}><span className="brand-mark" aria-hidden="true" /><span>Prism IA</span></button>
-        <button className="new-chat" onClick={newSession} disabled={sending}>+ Novo</button>
-        <button className="codex-nav-button" onClick={() => navigate('/codex')}><span className="pixel-nav-icon" /> Prism Codex <small>Workspace</small></button>
+        <button className="brand brand-button" onClick={() => navigate('/chat')}>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>Prism</span>
+        </button>
+        <button className="new-chat" onClick={newSession} disabled={sending}>
+          Novo chat
+        </button>
       </div>
-      <div className="session-heading"><span>Conversas</span><span>{sessions.length || ''}</span></div>
-      <div className="session-list" aria-live="polite">
-        {loadingSessions && <div className="sidebar-placeholder"><i /><i /><i /></div>}
-        {!loadingSessions && !sessions.length && <div className="sidebar-empty">Suas conversas aparecerão aqui.</div>}
-        {!loadingSessions && sessions.map((session) => <div key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`}><button className="session-open" onClick={() => openSession(session.id)} disabled={deletingSession === session.id}><span className="session-title">{session.title || 'Nova conversa'}</span><small>{formatDate(session.updated_at || session.created_at)}</small></button><button className="session-delete" onClick={(event) => deleteSession(session, event)} disabled={deletingSession === session.id} aria-label={`Excluir ${session.title || 'conversa'}`} title="Excluir conversa">{deletingSession === session.id ? '…' : '×'}</button></div>)}
+      <div className="sessions-section">
+        <div className="section-label">Hoje</div>
+        <div className="session-list" aria-live="polite">
+          {loadingSessions && <div className="sidebar-placeholder"><i /><i /><i /></div>}
+          {!loadingSessions && !sessions.length && <div className="sidebar-empty">Suas conversas aparecerão aqui.</div>}
+          {!loadingSessions && sessions.map((session) => (
+            <div key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`}>
+              <button className="session-open" onClick={() => openSession(session.id)} disabled={deletingSession === session.id}>
+                <span className="session-icon">💬</span>
+                <span className="session-title">{session.title || 'Nova conversa'}</span>
+              </button>
+              <button className="session-delete" onClick={(event) => deleteSession(session, event)} disabled={deletingSession === session.id} aria-label={`Excluir ${session.title || 'conversa'}`} title="Excluir conversa">
+                {deletingSession === session.id ? '…' : '×'}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="sidebar-bottom"><button className="profile-button" onClick={() => navigate('/studio')}><span className="avatar">{getInitial(user?.name)}</span><span className="profile-text"><strong>{user?.name || 'Usuário'}</strong><small>Plano {user?.plan || 'Grátis'}</small></span><span className="profile-arrow">↗</span></button></div>
+      <div className="sidebar-bottom">
+        <button className="codex-nav-button" onClick={() => navigate('/codex')}>
+          <span className="codex-icon">▣</span>
+          Codex <small>Workspace</small>
+        </button>
+        <button className="profile-button" onClick={() => navigate('/studio')}>
+          <span className="avatar">{getInitial(user?.name)}</span>
+          <span className="profile-text">
+            <strong>{user?.name || 'Usuário'}</strong>
+            <small>Plano {user?.plan || 'Grátis'}</small>
+          </span>
+          <span className="profile-arrow">↗</span>
+        </button>
+      </div>
     </aside>
 
     <main className="chat-main">
       <header className="chat-topbar">
-        <div className="chat-context"><span className="topbar-kicker">PRISM</span><span className="topbar-title">{activeSession ? 'Conversa' : 'Novo espaço'}</span></div>
-        <div className="model-control" ref={pickerRef}>
-          <button className="topbar-model" onClick={() => openPicker('models')} aria-expanded={pickerOpen} aria-haspopup="menu">
-            <span>{selectedModel.name}</span><small><i className={`effort-dot level-${selectedEffort.tone}`} /> {selectedEffort.name} <b>⌄</b></small>
+        <div className="topbar-center">
+          <button className="model-select" onClick={() => openPicker('models')} aria-expanded={pickerOpen} aria-haspopup="menu">
+            <span className="model-name">{selectedModel.name}</span>
+            <span className="model-separator">·</span>
+            <span className="effort-name">{selectedEffort.label}</span>
+            <span className="dropdown-arrow">⌄</span>
           </button>
-          {pickerOpen && <div className="model-picker" role="menu">
-            {pickerView === 'models' ? <>
-              <div className="picker-head"><strong>Modelos</strong><span>Escolha o motor para esta conversa.</span></div>
-              <div className="picker-model-list">
-                {models.map((item) => <button key={item.id} className={`picker-model ${model === item.id ? 'selected' : ''}`} onClick={() => chooseModel(item.id)} role="menuitem"><span className="picker-model-index">{String(models.indexOf(item) + 1).padStart(2, '0')}</span><span><strong>{item.name}</strong><small>{item.detail}</small></span>{model === item.id && <b>✓</b>}</button>)}
-              </div>
-              <button className="picker-thinking-link" onClick={() => setPickerView('thinking')}><span><strong>Nível de pensamento</strong><small>{selectedEffort.name} · {selectedEffort.label}</small></span><b>→</b></button>
-            </> : <>
-              <div className="picker-head picker-head-back"><button onClick={() => setPickerView('models')}>←</button><div><strong>Nível de pensamento</strong><span>Quanto esforço aplicar nesta conversa.</span></div></div>
-              <div className="picker-thinking-list">
-                {efforts.map((item) => <button key={item.id} className={`picker-thinking ${effort === item.id ? 'selected' : ''}`} onClick={() => chooseEffort(item.id)}><i className={`effort-index level-${item.tone}`}>{item.tone}</i><span><strong>{item.name}<em>{item.label}</em></strong><small>{item.detail}</small></span>{effort === item.id && <b>✓</b>}</button>)}
-              </div>
-            </>}
-          </div>}
+          {pickerOpen && (
+            <div className="model-picker" ref={pickerRef} role="menu">
+              {pickerView === 'models' ? (
+                <>
+                  <div className="picker-section">
+                    <strong>Modelo</strong>
+                    <span>Escolha o motor para esta conversa.</span>
+                  </div>
+                  <div className="picker-model-list">
+                    {models.map((item) => (
+                      <button key={item.id} className={`picker-model ${model === item.id ? 'selected' : ''}`} onClick={() => chooseModel(item.id)} role="menuitem">
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>{item.detail}</small>
+                        </span>
+                        {model === item.id && <span className="checkmark">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="picker-thinking-link" onClick={() => setPickerView('thinking')}>
+                    <span>
+                      <strong>Nível de pensamento</strong>
+                      <small>{selectedEffort.label}</small>
+                    </span>
+                    <b>→</b>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="picker-section picker-section-back">
+                    <button onClick={() => setPickerView('models')}>←</button>
+                    <div>
+                      <strong>Nível de pensamento</strong>
+                      <span>Quanto esforço aplicar nesta conversa.</span>
+                    </div>
+                  </div>
+                  <div className="picker-thinking-list">
+                    {efforts.map((item) => (
+                      <button key={item.id} className={`picker-thinking ${effort === item.id ? 'selected' : ''}`} onClick={() => chooseEffort(item.id)}>
+                        <span>
+                          <strong>{item.name}<em>{item.label}</em></strong>
+                          <small>{item.detail}</small>
+                        </span>
+                        {effort === item.id && <span className="checkmark">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
       <section className="messages" aria-live="polite">
-        {!messages.length && !loadingMessages ? <div className="empty-chat"><div className="empty-mark" aria-hidden="true"><span /><span /><span /><span /></div><p className="empty-kicker">PRISM IA</p><h1>O que vamos fazer?</h1><p>Comece com uma pergunta, uma ideia ou um problema. A Prism mantém o contexto e usa o modelo escolhido.</p><div className="prompt-suggestions"><button onClick={() => setInput('Transforme esta ideia em um plano de projeto completo.')}>Planejar um projeto</button><button onClick={() => setInput('Revise meu código e encontre os problemas mais importantes.')}>Revisar código</button><button onClick={() => setInput('Explique este conceito de forma simples.')}>Explicar algo</button></div></div> : loadingMessages ? <div className="message-loading" aria-label="Carregando conversa"><span /> <span /> <span /></div> : messages.map((message) => <article className={`message ${message.role === 'user' ? 'user' : 'assistant'}`} key={message.id}><div className="message-meta">{message.role === 'user' ? 'Você' : 'Prism'}</div><div className="message-content">{message.content}</div></article>)}
-        {sending && <div className="message assistant"><div className="message-meta">Prism</div><div className="thinking"><span /><span /><span /></div></div>}
+        {!messages.length && !loadingMessages ? (
+          <div className="empty-state">
+            <h1>Como posso ajudar?</h1>
+            <div className="suggestion-grid">
+              {suggestions.map((suggestion, index) => (
+                <button key={index} className="suggestion-card" onClick={() => setInput(suggestion.prompt)}>
+                  <span className="suggestion-icon">{suggestion.icon}</span>
+                  <span className="suggestion-text">{suggestion.text}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : loadingMessages ? (
+          <div className="message-loading" aria-label="Carregando conversa">
+            <span /><span /><span />
+          </div>
+        ) : (
+          messages.map((message) => (
+            <article className={`message ${message.role}`} key={message.id}>
+              <div className="message-avatar">
+                {message.role === 'user' ? getInitial(user?.name) : 'P'}
+              </div>
+              <div className="message-content">{message.content}</div>
+            </article>
+          ))
+        )}
+        {sending && (
+          <article className="message assistant">
+            <div className="message-avatar">P</div>
+            <div className="thinking"><span /><span /><span /></div>
+          </article>
+        )}
         <div ref={bottomRef} />
       </section>
 
       <div className="composer-area">
-        {error && <div className="chat-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>Fechar</button></div>}
-        <div className="composer"><textarea ref={textareaRef} rows={1} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Como posso ajudar você hoje?" disabled={sending} aria-label="Mensagem" /><div className="composer-footer"><span>Enter envia · Shift + Enter quebra a linha</span><div className="composer-actions"><button className="effort-chip" onClick={() => openPicker('models')} aria-label="Abrir modelos"><span>{selectedModel.name}</span><i className={`effort-dot level-${selectedEffort.tone}`} /> {selectedEffort.name}⌄</button><button className="send-button" onClick={send} disabled={sending || !input.trim()}>{sending ? 'Processando' : 'Enviar'}</button></div></div></div>
-        <p className="composer-disclaimer">As respostas podem conter erros. Revise informações importantes antes de usá-las.</p>
+        {error && (
+          <div className="chat-error" role="alert">
+            <span>{error}</span>
+            <button onClick={() => setError('')}>Fechar</button>
+          </div>
+        )}
+        <div className="composer">
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Envie uma mensagem para Prism..."
+            disabled={sending}
+            aria-label="Mensagem"
+          />
+          <div className="composer-actions">
+            <button className="send-button" onClick={send} disabled={sending || !input.trim()} aria-label="Enviar mensagem">
+              <span className="send-icon">↑</span>
+            </button>
+          </div>
+        </div>
+        <p className="composer-disclaimer">Prism pode cometer erros. Verifique informações importantes.</p>
       </div>
     </main>
   </div>;

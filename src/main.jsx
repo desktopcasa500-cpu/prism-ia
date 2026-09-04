@@ -9,7 +9,7 @@ import './studio-fixes.css';
 import './studio-pixel.css';
 import './pixel-landing.css';
 import './editorial-pages.css';
-import './prism-chat.css';
+import './claude-chat.css';
 import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';

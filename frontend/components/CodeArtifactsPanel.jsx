@@ -12,7 +12,7 @@ import 'prismjs/components/prism-bash.js';
 import 'prismjs/components/prism-yaml.js';
 import 'prismjs/components/prism-markdown.js';
 import 'prismjs/components/prism-sql.js';
-import { extensionForLanguage, languageDisplayName } from '../lib/codeBlocks.js';
+import { languageDisplayName } from '../lib/codeBlocks.js';
 
 const PRISM_LANGUAGE_ALIASES = {
   markup: 'markup', html: 'markup', xml: 'markup', svg: 'markup',
@@ -73,7 +73,6 @@ export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect
   const filename = active?.filename || 'snippet.txt';
 
   useEffect(() => { setCopied(false); }, [activeId]);
-
   if (!open || !active) return null;
 
   const onCopy = async () => {
@@ -84,10 +83,7 @@ export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect
     } catch {}
   };
 
-  const onDownloadCode = () => {
-    downloadBlob(filename, active.code);
-  };
-
+  const onDownloadCode = () => downloadBlob(filename, active.code);
   const onDownloadMarkdown = () => {
     const language = active.languageLabel || active.language || '';
     const markdown = `# ${filename}\n\n\`\`\`${language}\n${active.code}\n\`\`\`\n`;
@@ -110,28 +106,15 @@ export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect
 
       <div className="code-artifacts-tabs" role="tablist" aria-label="Arquivos de código">
         {artifacts.map((artifact) => (
-          <button
-            key={artifact.id}
-            role="tab"
-            aria-selected={artifact.id === active.id}
-            className={artifact.id === active.id ? 'active' : ''}
-            onClick={() => onSelect(artifact.id)}
-          >
-            <strong>{artifact.filename}</strong>
-            <small>{languageDisplayName(artifact.language)}</small>
+          <button key={artifact.id} role="tab" aria-selected={artifact.id === active.id} className={artifact.id === active.id ? 'active' : ''} onClick={() => onSelect(artifact.id)}>
+            <strong>{artifact.filename}</strong><small>{languageDisplayName(artifact.language)}</small>
           </button>
         ))}
       </div>
 
       <div className="code-artifact-toolbar">
         <div className="code-artifact-file">
-          <input
-            value={active.filename}
-            onChange={(event) => onUpdateArtifact(active.id, { filename: event.target.value })}
-            aria-label="Nome do arquivo"
-            spellCheck="false"
-          />
-          <span>.{extensionForLanguage(active.language)}</span>
+          <input value={active.filename} onChange={(event) => onUpdateArtifact(active.id, { filename: event.target.value })} aria-label="Nome do arquivo" spellCheck="false" />
         </div>
         <div className="code-artifact-actions">
           <button onClick={onCopy} title="Copiar código">{copied ? 'Copiado' : 'Copiar'}</button>
@@ -141,9 +124,7 @@ export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect
       </div>
 
       <div className="code-viewer" role="region" aria-label={`Código ${filename}`}>
-        <div className="code-gutter" aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}
-        </div>
+        <div className="code-gutter" aria-hidden="true">{Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}</div>
         <pre><code dangerouslySetInnerHTML={{ __html: highlighted }} /></pre>
       </div>
     </section>

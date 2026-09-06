@@ -1,14 +1,18 @@
-/** Prism IA — orquestração por modelo, Skills e ferramentas MCP reais. */
+/** Prism IA — orquestração multi-provider com fallback seguro. */
 import { getModelProfile, normalizeEffort } from './modelRouter.js';
 import { createMcpExecutionContext } from './mcp.js';
 import { skillToolDefinitions } from './skills.js';
 
-const PROVIDER_TIMEOUT = 45_000;
+const PROVIDER_TIMEOUT = 12_000;
 const MAX_TOOL_ROUNDS = 8;
 const MAX_CONTEXT = 30_000;
+const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
+
 const GEMINI_KEY = () => process.env.GEMINI_API_KEY;
 const GROQ_KEY = () => process.env.GROQ_API_KEY;
 const OPENROUTER_KEY = () => process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_NVIDIA_API_KEY;
+const NVIDIA_NIM_KEY = () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY;
+const NVIDIA_NIM_BASE = () => String(process.env.NVIDIA_NIM_BASE_URL || process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/$/, '');
 
 function effortInstruction(effort) {
   return ({
@@ -46,9 +50,10 @@ function systemPrompt(model, effort, hasTools, toolKinds, requireExternalTool = 
   ].join('\n');
 }
 
-async function request(url, options, timeout = PROVIDER_TIMEOUT) {
+async function request(url, options, deadline = Date.now() + PROVIDER_TIMEOUT) {
+  const remaining = Math.max(1, deadline - Date.now());
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
+  const timer = setTimeout(() => controller.abort(), remaining);
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
     const raw = await response.text();
@@ -56,11 +61,18 @@ async function request(url, options, timeout = PROVIDER_TIMEOUT) {
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
     if (!response.ok) {
       const detail = data?.error?.message || data?.error || data?.message || raw || `HTTP ${response.status}`;
-      throw new Error(String(detail).slice(0, 1000));
+      const error = new Error(String(detail).slice(0, 1000));
+      error.status = response.status;
+      error.providerStatus = response.status;
+      throw error;
     }
     return data;
   } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('tempo limite do provedor excedido');
+    if (error?.name === 'AbortError') {
+      const timeoutError = new Error('tempo limite do provedor excedido');
+      timeoutError.code = 'PROVIDER_TIMEOUT';
+      throw timeoutError;
+    }
     throw error;
   } finally {
     clearTimeout(timer);
@@ -112,24 +124,19 @@ function toolDefinitions(execution) {
 }
 
 function openAiTools(tools) {
-  return tools.map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.modelName,
-      description: String(tool.description || tool.toolName || tool.skillId).slice(0, 1000),
-      parameters: sanitizeOpenAiSchema(tool.inputSchema),
-    },
-  }));
+  return tools.map((tool) => ({ type: 'function', function: {
+    name: tool.modelName,
+    description: String(tool.description || tool.toolName || tool.skillId).slice(0, 1000),
+    parameters: sanitizeOpenAiSchema(tool.inputSchema),
+  } }));
 }
 
 function geminiTools(tools) {
-  return [{
-    functionDeclarations: tools.map((tool) => ({
-      name: tool.modelName,
-      description: String(tool.description || tool.toolName || tool.skillId).slice(0, 1000),
-      parameters: geminiSchema(tool.inputSchema),
-    })),
-  }];
+  return [{ functionDeclarations: tools.map((tool) => ({
+    name: tool.modelName,
+    description: String(tool.description || tool.toolName || tool.skillId).slice(0, 1000),
+    parameters: geminiSchema(tool.inputSchema),
+  })) }];
 }
 
 function geminiToolCalls(data) {
@@ -142,12 +149,10 @@ function geminiParts(data) {
   return Array.isArray(data?.candidates?.[0]?.content?.parts) ? data.candidates[0].content.parts : [];
 }
 
-function toolByName(tools, name) {
-  return tools.find((tool) => tool.modelName === name);
-}
+function toolByName(tools, name) { return tools.find((tool) => tool.modelName === name); }
 
 async function executeTool(tool, args, execution) {
-  if (!tool) return { text: '', error: 'Ferramenta desconhecida' };
+  if (!tool) return { text: '', isError: true };
   if (tool.kind === 'skill') {
     const { executeSkill } = await import('./skills.js');
     const result = await executeSkill(tool.skillId, typeof args?.input === 'string' ? args.input : '', { userId: execution.userId, timeoutMs: 150_000 });
@@ -167,22 +172,19 @@ async function callGemini(prompt, model, effort, execution, tools) {
   const contents = [{ role: 'user', parts: [{ text: prompt }] }];
   const toolsUsed = [];
   let totalTokens = 0;
-
+  const deadline = Date.now() + PROVIDER_TIMEOUT;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const data = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt(model, effort, Boolean(tools.length), tools.length ? ['Skills', 'MCP'] : [], requireTool) }] },
         contents,
         ...(declaredTools ? { tools: declaredTools } : {}),
         generationConfig: { temperature: effort === 'low' ? 0.35 : 0.2 },
       }),
-    });
+    }, deadline);
     totalTokens += Number(data?.usageMetadata?.totalTokenCount || 0);
     const calls = geminiToolCalls(data);
     if (!calls.length) return { provider: 'gemini', text: geminiParts(data).map((part) => part?.text || '').join(''), tokens: totalTokens, toolsUsed };
-
     contents.push({ role: 'model', parts: geminiParts(data) });
     const responses = [];
     for (const call of calls) {
@@ -211,7 +213,7 @@ async function callOpenAiCompatible(url, key, provider, prompt, model, effort, e
   const requireTool = needsExternalTool(prompt) && tools.some((tool) => tool.kind === 'mcp');
   const toolsUsed = [];
   let totalTokens = 0;
-
+  const deadline = Date.now() + PROVIDER_TIMEOUT;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const data = await request(url, {
       method: 'POST',
@@ -223,18 +225,17 @@ async function callOpenAiCompatible(url, key, provider, prompt, model, effort, e
         temperature: effort === 'low' ? 0.35 : 0.2,
         ...(provider === 'groq' ? { reasoning_effort: ['low', 'medium', 'high'].includes(effort) ? effort : 'high' } : {}),
       }),
-    });
+    }, deadline);
     totalTokens += Number(data?.usage?.total_tokens || 0);
     const message = data?.choices?.[0]?.message;
     if (!message) throw new Error(`${provider} retornou uma resposta inválida`);
     messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
     if (!calls.length) return { provider, text: message.content || '', tokens: totalTokens, toolsUsed };
-
     for (const call of calls) {
       const tool = toolByName(tools, call?.function?.name);
       let args = {};
-      try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch { args = {}; }
+      try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch {}
       let content;
       try {
         const result = await executeTool(tool, args, execution);
@@ -265,8 +266,17 @@ async function callOpenRouter(prompt, model, effort, execution, tools) {
   const profile = getModelProfile(model);
   const providerModel = process.env.OPENROUTER_MODEL || profile.openrouterModel || 'openai/gpt-oss-120b';
   return callOpenAiCompatible('https://openrouter.ai/api/v1/chat/completions', key, 'openrouter', prompt, model, effort, execution, tools, providerModel, {
-    'HTTP-Referer': process.env.APP_URL || 'https://prism-ia.app',
-    'X-Title': 'Prism IA',
+    'HTTP-Referer': process.env.APP_URL || 'https://prism-ia.app', 'X-Title': 'Prism IA',
+  });
+}
+
+async function callNvidiaNim(prompt, model, effort, execution, tools) {
+  const key = NVIDIA_NIM_KEY();
+  if (!key) throw new Error('NVIDIA_NIM_API_KEY não configurada');
+  const profile = getModelProfile(model);
+  const providerModel = process.env.NVIDIA_NIM_MODEL || process.env.NIM_MODEL || profile.nvidiaModel || profile.defaultModel || 'meta/llama-3.1-70b-instruct';
+  return callOpenAiCompatible(`${NVIDIA_NIM_BASE()}/chat/completions`, key, 'nvidia-nim', prompt, model, effort, execution, tools, providerModel, {
+    'Accept': 'application/json',
   });
 }
 
@@ -285,30 +295,49 @@ export async function runOrchestration(prompt, effort = 'medium', profile = null
     if (GEMINI_KEY()) providers.push({ name: 'gemini', call: callGemini });
     if (GROQ_KEY() && (normalizedEffort !== 'low' || model !== 'prism-nano-1.0')) providers.push({ name: 'groq', call: callGroq });
     if (OPENROUTER_KEY() && (normalizedEffort === 'ultracode' || model === 'prism-taff-2.0')) providers.push({ name: 'openrouter', call: callOpenRouter });
+    if (NVIDIA_NIM_KEY()) providers.push({ name: 'nvidia-nim', call: callNvidiaNim });
 
     for (const provider of providers) {
+      const startedAt = Date.now();
       try {
         const result = await provider.call(input, model, normalizedEffort, execution, tools);
         if (result?.text?.trim()) {
           return {
-            text: result.text.trim(),
-            tokens: Number(result.tokens || 0),
-            providers: [result.provider],
-            tools_used: Array.isArray(result.toolsUsed) ? result.toolsUsed : [],
-            mcp_errors: mcp.errors,
-            provider_errors: providerErrors,
-            model,
-            effort: normalizedEffort,
+            status: 'ok', text: result.text.trim(), tokens: Number(result.tokens || 0), providers: [result.provider],
+            tools_used: Array.isArray(result.toolsUsed) ? result.toolsUsed : [], mcp_errors: mcp.errors,
+            provider_errors: providerErrors, model, effort: normalizedEffort,
           };
         }
-        providerErrors.push(`${provider.name}: resposta vazia`);
+        providerErrors.push({ provider: provider.name, reason: 'empty_response', elapsedMs: Date.now() - startedAt });
       } catch (error) {
-        providerErrors.push(`${provider.name}: ${error?.message || 'indisponível'}`);
+        providerErrors.push({
+          provider: provider.name,
+          reason: error?.code === 'PROVIDER_TIMEOUT' ? 'timeout' : 'provider_error',
+          status: Number(error?.status || 0) || undefined,
+          elapsedMs: Date.now() - startedAt,
+        });
       }
     }
 
-    if (!providers.length) throw new Error('Nenhuma chave de IA está configurada no backend.');
-    throw new Error(`Nenhum provedor respondeu: ${providerErrors.join(' | ')}`);
+    const configured = providers.map((item) => item.name);
+    console.error(JSON.stringify({
+      event: 'prism_provider_fallback_exhausted',
+      timestamp: new Date().toISOString(),
+      model,
+      effort: normalizedEffort,
+      configuredProviders: configured,
+      failures: providerErrors,
+    }));
+
+    return {
+      status: 'unavailable',
+      message: UNAVAILABLE_MESSAGE,
+      providers: [],
+      provider_errors: providerErrors,
+      model,
+      effort: normalizedEffort,
+      mcp_errors: mcp.errors,
+    };
   } finally {
     await mcp.close().catch(() => {});
   }

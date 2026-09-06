@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import PlanPanel from '../components/PlanPanel.jsx';
+import CodeArtifactsPanel from '../components/CodeArtifactsPanel.jsx';
+import { extractCodeBlocks, splitMessageContent } from '../lib/codeBlocks.js';
 
 const MODELS = [
   { id: 'prism-nano-1.0', name: 'Prism Nano 1.0', short: 'Nano 1.0', detail: 'Rápido para tarefas do dia a dia', tier: 'nano' },
@@ -66,6 +68,32 @@ function groupSessions(sessions) {
   return groups;
 }
 
+function CodeReference({ block, onOpen }) {
+  return (
+    <div className="code-reference">
+      <button type="button" onClick={() => onOpen(block.id)} aria-label={`Abrir ${block.filename}`}>
+        <span className="code-reference-main">
+          <span className="code-reference-file"><span>{block.filename}</span></span>
+          <span className="code-reference-meta">{block.languageLabel || block.language} · {block.code.split('\n').length} {block.code.split('\n').length === 1 ? 'linha' : 'linhas'}</span>
+        </span>
+        <span className="code-reference-action">Abrir código</span>
+      </button>
+    </div>
+  );
+}
+
+function MessageBody({ message, onOpenCode }) {
+  if (message.role !== 'assistant') return <span className="message-text">{message.content}</span>;
+  const parts = splitMessageContent(message.content, String(message.id));
+  return (
+    <>
+      {parts.map((part, index) => part.type === 'text'
+        ? <span className="message-text" key={`text-${index}`}>{part.value}</span>
+        : <div className="message-code-list" key={part.block.id}><CodeReference block={part.block} onOpen={onOpenCode} /></div>)}
+    </>
+  );
+}
+
 export default function Chat() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -88,6 +116,9 @@ export default function Chat() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage('prism-chat-sidebar', 'open') === 'collapsed');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [dark, setDark] = useState(() => readStorage('prism-chat-theme', 'light') === 'dark');
+  const [artifacts, setArtifacts] = useState([]);
+  const [artifactPanelOpen, setArtifactPanelOpen] = useState(false);
+  const [activeArtifactId, setActiveArtifactId] = useState(null);
   const pickerRef = useRef(null);
   const renameRef = useRef(null);
   const textareaRef = useRef(null);
@@ -126,6 +157,9 @@ export default function Chat() {
     setError('');
     setPickerMode('closed');
     setMobileOpen(false);
+    setArtifactPanelOpen(false);
+    setActiveArtifactId(null);
+    setArtifacts([]);
     try {
       const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages`);
       if (requestId !== requestRef.current) return;
@@ -145,7 +179,7 @@ export default function Chat() {
       const next = Array.isArray(result.sessions) ? result.sessions : [];
       setSessions(next);
       if (next.length) await openSession(next[0].id);
-      else { setActiveSession(null); setMessages([]); }
+      else { setActiveSession(null); setMessages([]); setArtifacts([]); }
     } catch (err) {
       if (!handleAuthError(err)) setError(err.message || 'Não foi possível carregar suas conversas.');
     } finally { setLoadingSessions(false); }
@@ -163,18 +197,33 @@ export default function Chat() {
   }, [model, effort, sidebarCollapsed, dark]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto' }); }, [messages, sending]);
   useEffect(() => {
+    if (!messages.length) return;
+    setArtifacts((current) => {
+      const next = [...current];
+      const known = new Set(next.map((item) => item.id));
+      for (const message of messages) {
+        if (message.role !== 'assistant') continue;
+        const blocks = extractCodeBlocks(message.content, String(message.id));
+        for (const block of blocks) if (!known.has(block.id)) { next.push(block); known.add(block.id); }
+      }
+      return next;
+    });
+  }, [messages]);
+  useEffect(() => {
     const close = (event) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target)) setPickerMode('closed');
       if (renameRef.current && !renameRef.current.contains(event.target)) setEditingId(null);
     };
     const escape = (event) => {
       if (event.key !== 'Escape') return;
-      setPickerMode('closed'); setPlansOpen(false); setMobileOpen(false); setEditingId(null);
+      setPickerMode('closed'); setPlansOpen(false); setMobileOpen(false);
+      if (artifactPanelOpen) setArtifactPanelOpen(false);
+      setEditingId(null);
     };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
-  }, []);
+  }, [artifactPanelOpen]);
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -189,7 +238,7 @@ export default function Chat() {
       const result = await api.post('/chat/sessions', {});
       setSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
       setActiveSession(result.session.id);
-      setMessages([]);
+      setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null);
       setMobileOpen(false);
       requestAnimationFrame(() => textareaRef.current?.focus());
     } catch (err) {
@@ -219,7 +268,7 @@ export default function Chat() {
       setSessions(next);
       if (activeSession === session.id) {
         if (next[0]) await openSession(next[0].id);
-        else { setActiveSession(null); setMessages([]); }
+        else { setActiveSession(null); setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); }
       }
     } catch (err) {
       if (!handleAuthError(err)) setError(err.message || 'Não foi possível excluir a conversa.');
@@ -281,6 +330,8 @@ export default function Chat() {
   }
 
   function suggestion(text) { setInput(text); requestAnimationFrame(() => textareaRef.current?.focus()); }
+  function openArtifact(id) { setActiveArtifactId(id); setArtifactPanelOpen(true); setPickerMode('closed'); }
+  function updateArtifact(id, patch) { setArtifacts((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item)); }
   const first = firstName(user?.name);
 
   const sidebar = (
@@ -293,7 +344,6 @@ export default function Chat() {
         <div className="app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch active" onClick={() => navigate('/chat')}>Home</button><button className="app-switch" onClick={() => navigate('/codex')}>Codex</button></div>
         <button className="new-chat" onClick={newSession} disabled={sending}><span>+</span><span className="nav-label">Novo chat</span></button>
       </div>
-
       <div className="session-heading"><span className="nav-label">Conversas</span><span>{sessions.length || ''}</span></div>
       <div className="session-list">
         {loadingSessions && <div className="sidebar-loading"><span /><span /><span /></div>}
@@ -325,7 +375,6 @@ export default function Chat() {
           </div>
         ))}
       </div>
-
       <div className="sidebar-bottom">
         <div className="sidebar-usage" title={`${usageLabel} · janela de ${usage?.windowHours || 5} horas`}>
           <div className="sidebar-usage-head"><span className="nav-label">Uso</span><strong>{usageLabel}</strong></div>
@@ -339,7 +388,7 @@ export default function Chat() {
   );
 
   return (
-    <div className={`chat-app chat-theme-${dark ? 'dark' : 'light'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`chat-app chat-theme-${dark ? 'dark' : 'light'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${artifactPanelOpen ? 'code-panel-open' : ''}`}>
       <button className="mobile-menu-button" onClick={() => setMobileOpen((value) => !value)} aria-label="Abrir navegação">Menu</button>
       {sidebar}
       {mobileOpen && <button className="mobile-scrim" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
@@ -378,7 +427,7 @@ export default function Chat() {
           ) : (
             <>{messages.map((message) => <article key={message.id} className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}>
               <div className="message-head"><span className="message-author">{message.role === 'user' ? first : 'Prism IA'}</span>{message.role === 'assistant' && message.model_id && <span className="message-model">{MODELS.find((item) => item.id === message.model_id)?.short || message.model_id}</span>}</div>
-              <div className="message-content">{message.content}</div>
+              <div className="message-content"><MessageBody message={message} onOpenCode={openArtifact} /></div>
             </article>)}
             {sending && <article className="message assistant"><div className="message-head"><span className="message-author">Prism IA</span><span className="message-model">{selectedModel.short}</span></div><div className="message-thinking"><span /><span /><span /><span className="typing-label">digitando...</span></div></article>}
             <div ref={bottomRef} />
@@ -397,6 +446,14 @@ export default function Chat() {
         </div>
       </main>
 
+      <CodeArtifactsPanel
+        open={artifactPanelOpen}
+        artifacts={artifacts}
+        activeId={activeArtifactId}
+        onSelect={setActiveArtifactId}
+        onClose={() => setArtifactPanelOpen(false)}
+        onUpdateArtifact={updateArtifact}
+      />
       <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} />
     </div>
   );

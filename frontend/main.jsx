@@ -11,6 +11,7 @@ import './studio-overrides.css';
 import './pixel-landing.css';
 import './editorial-pages.css';
 import './prism-chat.css';
+import './prism-chat-v2.css';
 import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';
@@ -18,6 +19,7 @@ import './prism-identity.css';
 import './prism-original-pages.css';
 import './prism-polish.css';
 import './pages/prism-codex-final.css';
+import './pages/prism-codex-v2.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

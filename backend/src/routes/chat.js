@@ -2,61 +2,266 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { runOrchestration } from '../services/orchestrator.js';
-import { runParallelOrchestration } from '../services/parallelOrchestrator.js';
+import { normalizeEffort, validateThinking } from '../services/modelRouter.js';
+import { getUsage, reserveUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
 
 const router = Router();
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
-const ALLOWED_MODELS = new Set(['prism-nano-1.0', 'prism-mini-1.0', 'prism-edge-1.0', 'prism-tex-1.5', 'prism-taff-1.0', 'prism-taff-2.0']);
-const ALLOWED_PROVIDERS = new Set(['anthropic', 'openai', 'gemini']);
+const ALLOWED_MODELS = new Set(Object.keys(MODEL_REQUIREMENTS));
 const MAX_MESSAGE_LENGTH = 20_000;
-const MAX_PARALLEL_MODELS = 3;
-const PLAN_RANK = { free:0, 'Grátis':0, base:1, Base:1, medium:2, Medium:2, pro:3, Pro:3, enterprise:4, Empresarial:4 };
-const MODEL_TIER = { 'prism-nano-1.0':'nano', 'prism-mini-1.0':'mini', 'prism-edge-1.0':'edge', 'prism-tex-1.5':'tex', 'prism-taff-1.0':'taff', 'prism-taff-2.0':'taff2' };
-const PLAN_MODELS = { 0:new Set(['nano','mini','edge']), 1:new Set(['nano','mini','edge']), 2:new Set(['nano','mini','edge','tex']), 3:new Set(['nano','mini','edge','tex','taff','taff2']), 4:new Set(['nano','mini','edge','tex','taff','taff2']) };
-const REQUIRED_PLAN = { tex:'Medium', taff:'Pro', taff2:'Pro' };
+const MAX_HISTORY_MESSAGES = 24;
+const PLAN_NAMES = ['Grátis', 'Base', 'Medium', 'Pro', 'Empresarial'];
+
 router.use(requireAuth);
 
-async function authorizeModel(userId, model) {
-  const result = await pool.query('SELECT plan FROM users WHERE id=$1', [userId]);
-  const plan = result.rows[0]?.plan || 'free';
-  const rank = PLAN_RANK[plan] ?? 0;
-  const tier = MODEL_TIER[model];
-  return { ok:Boolean(tier && PLAN_MODELS[rank]?.has(tier)), plan, requiredPlan:REQUIRED_PLAN[tier] || 'Pro' };
+function cleanText(value, max = MAX_MESSAGE_LENGTH) {
+  return typeof value === 'string' ? value.replace(/\u0000/g, '').trim().slice(0, max) : '';
 }
 
-router.get('/sessions', async (req,res,next)=>{try{const result=await pool.query('SELECT id,title,created_at,updated_at FROM sessions WHERE user_id=$1 ORDER BY updated_at DESC,created_at DESC',[req.userId]);res.json({sessions:result.rows})}catch(error){next(error)}});
-router.post('/sessions', async (req,res,next)=>{try{const title=String(req.body?.title||'Nova conversa').replace(/\s+/g,' ').trim().slice(0,120)||'Nova conversa';const result=await pool.query('INSERT INTO sessions (user_id,title) VALUES ($1,$2) RETURNING id,title,created_at,updated_at',[req.userId,title]);res.status(201).json({session:result.rows[0]})}catch(error){next(error)}});
-router.patch('/sessions/:id', async (req,res,next)=>{try{const title=String(req.body?.title||'').replace(/\s+/g,' ').trim().slice(0,120);if(!title)return res.status(400).json({error:'O título não pode ficar vazio.'});const result=await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING id,title,created_at,updated_at',[title,req.params.id,req.userId]);if(!result.rows.length)return res.status(404).json({error:'Sessão não encontrada'});res.json({session:result.rows[0]})}catch(error){next(error)}});
-router.get('/sessions/:id/messages', async (req,res,next)=>{try{const owns=await pool.query('SELECT id FROM sessions WHERE id=$1 AND user_id=$2',[req.params.id,req.userId]);if(!owns.rows.length)return res.status(404).json({error:'Sessão não encontrada'});const result=await pool.query('SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at ASC',[req.params.id,req.userId]);res.json({messages:result.rows})}catch(error){next(error)}});
-router.delete('/sessions/:id', async (req,res,next)=>{try{const result=await pool.query('DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id',[req.params.id,req.userId]);if(!result.rows.length)return res.status(404).json({error:'Sessão não encontrada'});res.status(204).end()}catch(error){next(error)}});
+async function getUserPlan(userId) {
+  const result = await pool.query('SELECT plan FROM users WHERE id=$1', [userId]);
+  if (!result.rows.length) return null;
+  const plan = result.rows[0].plan || 'free';
+  return { plan, rank: normalizePlanRank(plan), label: PLAN_NAMES[normalizePlanRank(plan)] || 'Grátis' };
+}
 
-router.post('/parallel', async (req,res,next)=>{
- try{
-  const sessionId=String(req.body?.sessionId||'').trim();const content=typeof req.body?.content==='string'?req.body.content.trim():'';const effort=String(req.body?.effort||'medium');const requested=Array.isArray(req.body?.models)?req.body.models.slice(0,MAX_PARALLEL_MODELS):[];const serverIds=Array.isArray(req.body?.mcpServerIds)?req.body.mcpServerIds:[];const context=String(req.body?.context||'').slice(-30000);
-  if(!sessionId)return res.status(400).json({error:'Sessão inválida.'});if(!content)return res.status(400).json({error:'Mensagem vazia'});if(content.length>MAX_MESSAGE_LENGTH)return res.status(413).json({error:'Mensagem muito longa'});if(!ALLOWED_EFFORTS.has(effort))return res.status(400).json({error:'Nível de pensamento inválido'});
-  const session=await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2',[sessionId,req.userId]);if(!session.rows.length)return res.status(404).json({error:'Sessão não encontrada'});
-  const validModels=requested.filter(entry=>entry&&ALLOWED_PROVIDERS.has(String(entry.provider))&&String(entry.model||'').length<160);if(!validModels.length)return res.status(400).json({error:'Selecione pelo menos um provedor.'});
-  await pool.query("INSERT INTO messages (session_id,user_id,role,content,effort) VALUES ($1,$2,'user',$3,$4)",[sessionId,req.userId,content,effort]);
-  const title=session.rows[0].title==='Nova conversa'?content.replace(/\s+/g,' ').slice(0,64)||'Nova conversa':session.rows[0].title;await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3',[title,sessionId,req.userId]);
-  const parallel=await runParallelOrchestration({prompt:content,context,effort,userId:req.userId,requestedModels:validModels,mcpServerIds:serverIds});const saved=[];
-  for(const item of parallel.results||[]){if(item.status!=='fulfilled'||!item.text)continue;const result=await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata) VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9) RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`,[sessionId,req.userId,item.text,effort,Number(item.tokens||0),item.provider,item.model,item.thinking_summary||'',JSON.stringify({tools_used:item.tools_used||[],elapsed_ms:item.elapsed_ms||0})]);saved.push(result.rows[0])}
-  res.json({results:parallel.results||[],saved,mcp_errors:parallel.mcp_errors||[],elapsed_ms:parallel.elapsed_ms||0});
- }catch(error){next(error)}
+async function authorizeModel(userId, model, effort) {
+  const account = await getUserPlan(userId);
+  if (!account) return { ok: false, status: 401, code: 'AUTH_REQUIRED', error: 'Conta não encontrada.' };
+  const requiredRank = MODEL_REQUIREMENTS[model];
+  if (requiredRank === undefined) return { ok: false, status: 400, code: 'INVALID_MODEL', error: 'Modelo inválido.' };
+  if (account.rank < requiredRank) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'PLAN_UPGRADE_REQUIRED',
+      error: 'Este modelo não está disponível no seu plano.',
+      model,
+      requiredPlan: PLAN_NAMES[requiredRank] || 'Pro',
+    };
+  }
+  const normalizedEffort = normalizeEffort(effort);
+  if (!validateThinking(model, normalizedEffort)) {
+    return { ok: false, status: 400, code: 'INVALID_EFFORT', error: 'Nível de pensamento inválido.' };
+  }
+  if (normalizedEffort === 'ultracode' && !PLAN_FEATURES[account.rank]?.ultracode) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'PLAN_UPGRADE_REQUIRED',
+      error: 'O modo Ultracode está disponível apenas no plano Empresarial.',
+      requiredPlan: 'Empresarial',
+      model,
+    };
+  }
+  return { ok: true, ...account, effort: normalizedEffort };
+}
+
+function sessionTitle(current, content) {
+  if (current !== 'Nova conversa') return current;
+  return cleanText(content, 64).replace(/\s+/g, ' ') || 'Nova conversa';
+}
+
+async function loadHistory(sessionId, userId) {
+  const result = await pool.query(
+    `SELECT role, content
+       FROM messages
+      WHERE session_id=$1 AND user_id=$2
+      ORDER BY created_at DESC
+      LIMIT $3`,
+    [sessionId, userId, MAX_HISTORY_MESSAGES],
+  );
+  return result.rows.reverse().map((message) => `${message.role}: ${message.content}`).join('\n');
+}
+
+router.get('/usage', async (req, res, next) => {
+  try {
+    const usage = await getUsage(req.userId);
+    if (!usage) return res.status(404).json({ error: 'Conta não encontrada.' });
+    res.json(usage);
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/sessions/:id/messages', async (req,res,next)=>{
- const content=typeof req.body?.content==='string'?req.body.content.trim():'';const effort=req.body?.effort||'medium';const model=req.body?.model||'prism-mini-1.0';
- if(!content)return res.status(400).json({error:'Mensagem vazia'});if(content.length>MAX_MESSAGE_LENGTH)return res.status(413).json({error:'Mensagem muito longa'});if(!ALLOWED_EFFORTS.has(effort))return res.status(400).json({error:'Nível de pensamento inválido'});if(!ALLOWED_MODELS.has(model))return res.status(400).json({error:'Modelo inválido'});
- try{
-  const owns=await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2',[req.params.id,req.userId]);if(!owns.rows.length)return res.status(404).json({error:'Sessão não encontrada'});
-  const authorization=await authorizeModel(req.userId,model);if(!authorization.ok)return res.status(403).json({error:'Este modelo não está disponível no seu plano.',code:'PLAN_UPGRADE_REQUIRED',model,requiredPlan:authorization.requiredPlan});
-  const previous=await pool.query('SELECT role,content FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT 16',[req.params.id,req.userId]);const conversationContext=previous.rows.reverse().map(message=>`${message.role}: ${message.content}`).join('\n');
-  await pool.query('INSERT INTO messages (session_id,user_id,role,content,effort) VALUES ($1,$2,$3,$4,$5)',[req.params.id,req.userId,'user',content,effort]);
-  const title=owns.rows[0].title==='Nova conversa'?content.replace(/\s+/g,' ').slice(0,64)||'Nova conversa':owns.rows[0].title;await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3',[title,req.params.id,req.userId]);
-  let result;try{result=await runOrchestration(content,effort,{model},conversationContext,req.userId)}catch(error){console.error('Orchestration error:',error);const missingKeys=/não configurada/i.test(error?.message||'');return res.status(missingKeys?503:502).json({error:missingKeys?'Os motores de IA ainda não estão configurados no backend.':'O serviço de geração não respondeu. Tente novamente.'})}
-  const text=typeof result?.text==='string'?result.text.trim():'';if(!text)return res.status(502).json({error:'O serviço de geração retornou uma resposta vazia.'});
-  const saved=await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata) VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9) RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`,[req.params.id,req.userId,text,effort,Number.isFinite(result.tokens)?result.tokens:0,Array.isArray(result.providers)?result.providers[0]:null,model,'Resposta gerada e revisada.',JSON.stringify({tools_used:result.tools_used||[]})]);
-  res.json({message:saved.rows[0],providers_used:Array.isArray(result.providers)?result.providers:[],tools_used:Array.isArray(result.tools_used)?result.tools_used:[],mcp_errors:Array.isArray(result.mcp_errors)?result.mcp_errors:[],model,effort});
- }catch(error){next(error)}
+router.get('/sessions', async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,title,created_at,updated_at
+         FROM sessions
+        WHERE user_id=$1
+        ORDER BY updated_at DESC, created_at DESC`,
+      [req.userId],
+    );
+    res.json({ sessions: result.rows });
+  } catch (error) {
+    next(error);
+  }
 });
+
+router.post('/sessions', async (req, res, next) => {
+  try {
+    const title = cleanText(req.body?.title, 120).replace(/\s+/g, ' ') || 'Nova conversa';
+    const result = await pool.query(
+      'INSERT INTO sessions (user_id,title) VALUES ($1,$2) RETURNING id,title,created_at,updated_at',
+      [req.userId, title],
+    );
+    res.status(201).json({ session: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/sessions/:id', async (req, res, next) => {
+  try {
+    const title = cleanText(req.body?.title, 120).replace(/\s+/g, ' ');
+    if (!title) return res.status(400).json({ error: 'O título não pode ficar vazio.' });
+    const result = await pool.query(
+      `UPDATE sessions
+          SET title=$1, updated_at=now()
+        WHERE id=$2 AND user_id=$3
+        RETURNING id,title,created_at,updated_at`,
+      [title, req.params.id, req.userId],
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
+    res.json({ session: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/sessions/:id/messages', async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT m.id,m.role,m.content,m.effort,m.tokens_used,m.provider,m.model_id,
+              m.thinking_summary,m.metadata,m.created_at
+         FROM messages m
+         JOIN sessions s ON s.id=m.session_id AND s.user_id=m.user_id
+        WHERE m.session_id=$1 AND m.user_id=$2
+        ORDER BY m.created_at ASC`,
+      [req.params.id, req.userId],
+    );
+    if (!result.rows.length) {
+      const owns = await pool.query('SELECT id FROM sessions WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
+      if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
+    }
+    res.json({ messages: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/sessions/:id', async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id',
+      [req.params.id, req.userId],
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/sessions/:id/messages', async (req, res, next) => {
+  const content = cleanText(req.body?.content);
+  const model = cleanText(req.body?.model, 80) || 'prism-mini-1.0';
+  const effort = normalizeEffort(cleanText(req.body?.effort, 20) || 'medium');
+
+  if (!content) return res.status(400).json({ error: 'Mensagem vazia.' });
+  if (typeof req.body?.content === 'string' && req.body.content.length > MAX_MESSAGE_LENGTH) {
+    return res.status(413).json({ error: 'Mensagem muito longa.' });
+  }
+  if (!ALLOWED_EFFORTS.has(effort)) return res.status(400).json({ error: 'Nível de pensamento inválido.' });
+  if (!ALLOWED_MODELS.has(model)) return res.status(400).json({ error: 'Modelo inválido.' });
+
+  try {
+    const owns = await pool.query(
+      'SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2',
+      [req.params.id, req.userId],
+    );
+    if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
+
+    const authorization = await authorizeModel(req.userId, model, effort);
+    if (!authorization.ok) return res.status(authorization.status).json({ ...authorization, status: undefined });
+
+    const reservation = await reserveUsage(req.userId, model);
+    if (!reservation.ok) {
+      if (reservation.code === 'AUTH_REQUIRED') return res.status(401).json({ error: 'Sessão expirada.', code: reservation.code });
+      return res.status(429).json({
+        error: 'O limite de uso desta janela foi atingido.',
+        code: reservation.code,
+        usage: reservation.usage,
+      });
+    }
+
+    const conversationContext = await loadHistory(req.params.id, req.userId);
+    await pool.query(
+      `INSERT INTO messages (session_id,user_id,role,content,effort,model_id)
+       VALUES ($1,$2,'user',$3,$4,$5)`,
+      [req.params.id, req.userId, content, effort, model],
+    );
+    await pool.query(
+      `UPDATE sessions
+          SET title=$1, updated_at=now()
+        WHERE id=$2 AND user_id=$3`,
+      [sessionTitle(owns.rows[0].title, content), req.params.id, req.userId],
+    );
+
+    let result;
+    try {
+      result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
+    } catch (error) {
+      console.error('Prism orchestration error:', error);
+      return res.status(/não configurada|not configured/i.test(error?.message || '') ? 503 : 502).json({
+        error: /não configurada|not configured/i.test(error?.message || '')
+          ? 'Os motores de IA ainda não estão configurados no backend.'
+          : 'O serviço de geração não respondeu. Tente novamente.',
+        code: 'GENERATION_FAILED',
+        usage: reservation.usage,
+      });
+    }
+
+    const text = typeof result?.text === 'string' ? result.text.trim() : '';
+    if (!text) return res.status(502).json({ error: 'O serviço de geração retornou uma resposta vazia.', code: 'EMPTY_GENERATION' });
+
+    const tokens = Number.isFinite(Number(result?.tokens)) ? Math.max(0, Number(result.tokens)) : 0;
+    const providers = Array.isArray(result?.providers) ? result.providers : [];
+    const tools = Array.isArray(result?.tools_used) ? result.tools_used : [];
+    await recordTokens(reservation.reservationId, providers[0] || null, tokens);
+
+    const saved = await pool.query(
+      `INSERT INTO messages
+        (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata)
+       VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`,
+      [
+        req.params.id,
+        req.userId,
+        text,
+        effort,
+        tokens,
+        providers[0] || null,
+        model,
+        'Resposta gerada e revisada.',
+        JSON.stringify({ tools_used: tools }),
+      ],
+    );
+
+    const usage = await getUsage(req.userId);
+    res.json({
+      message: saved.rows[0],
+      providers_used: providers,
+      tools_used: tools,
+      mcp_errors: Array.isArray(result?.mcp_errors) ? result.mcp_errors : [],
+      model,
+      effort,
+      usage,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

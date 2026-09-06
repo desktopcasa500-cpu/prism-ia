@@ -3,9 +3,9 @@ import { pool } from '../db/pool.js';
 export const USAGE_WINDOW_MS = 5 * 60 * 60 * 1000;
 export const USAGE_WINDOW_HOURS = 5;
 
-// Request quotas are intentionally configuration-driven. The current defaults
-// preserve the previous plan capacity while changing the product semantics
-// from "credits" to a rolling five-hour usage window.
+// Configuration is deliberately environment-driven. The defaults preserve the
+// previous plan capacity while the public product language uses a rolling
+// usage window rather than message-priced "credits".
 export const PLAN_LIMITS = {
   0: Number(process.env.PRISM_FREE_WINDOW_LIMIT || 5),
   1: Number(process.env.PRISM_BASE_WINDOW_LIMIT || 30),
@@ -31,6 +31,14 @@ export const MODEL_REQUIREMENTS = {
   'prism-taff-2.0': 3,
 };
 
+export const PLAN_FEATURES = {
+  0: { label: 'Grátis', ultracode: false },
+  1: { label: 'Base', ultracode: false },
+  2: { label: 'Medium', ultracode: false },
+  3: { label: 'Pro', ultracode: true },
+  4: { label: 'Empresarial', ultracode: true },
+};
+
 export function normalizePlanRank(plan) {
   return PLAN_RANK[plan] ?? 0;
 }
@@ -52,11 +60,12 @@ export function percentUsed(used, limit) {
 export async function getUsage(userId) {
   const result = await pool.query(
     `SELECT u.plan,
-            COALESCE(SUM(greatest(usage.units, 0)), 0)::int AS used,
-            MAX(usage.created_at) AS last_used_at
+            COALESCE(SUM(greatest(us.units, 0)), 0)::int AS used,
+            MAX(us.created_at) AS latest_usage_at,
+            MIN(us.created_at) AS oldest_usage_at
        FROM users u
-       LEFT JOIN usage ON usage.user_id = u.id
-                       AND usage.created_at >= $2
+       LEFT JOIN usage us ON us.user_id = u.id
+                         AND us.created_at >= $2
       WHERE u.id = $1
       GROUP BY u.id, u.plan`,
     [userId, windowStart()],
@@ -67,16 +76,19 @@ export async function getUsage(userId) {
   const limit = getPlanLimit(row.plan);
   const used = Number(row.used || 0);
   const percentage = percentUsed(used, limit);
-  const resetsAt = new Date(Date.now() + USAGE_WINDOW_MS);
+  const oldest = row.oldest_usage_at ? new Date(row.oldest_usage_at).getTime() : null;
+  const resetsAt = oldest ? new Date(oldest + USAGE_WINDOW_MS) : new Date(Date.now() + USAGE_WINDOW_MS);
+
   return {
     plan: row.plan,
+    planRank: normalizePlanRank(row.plan),
     windowHours: USAGE_WINDOW_HOURS,
     used,
     limit,
     percentage,
     remaining: Math.max(0, limit - used),
     resetsAt: resetsAt.toISOString(),
-    lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
+    lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null,
   };
 }
 
@@ -84,8 +96,8 @@ export async function reserveUsage(userId, model) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Serialize reservations for the same account so two simultaneous sends
-    // cannot pass the quota check together.
+    // Serialize reservations for the same account. This closes the race where
+    // two simultaneous requests both observe free capacity.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [String(userId)]);
 
     const userResult = await client.query('SELECT plan FROM users WHERE id=$1 FOR SHARE', [userId]);
@@ -98,41 +110,45 @@ export async function reserveUsage(userId, model) {
     const limit = getPlanLimit(plan);
     const start = windowStart();
     const current = await client.query(
-      'SELECT COUNT(*)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2',
+      'SELECT COUNT(*)::int AS used, MIN(created_at) AS oldest_usage_at FROM usage WHERE user_id=$1 AND created_at >= $2',
       [userId, start],
     );
     const used = Number(current.rows[0]?.used || 0);
 
     if (used >= limit) {
       await client.query('ROLLBACK');
+      const oldest = current.rows[0]?.oldest_usage_at ? new Date(current.rows[0].oldest_usage_at).getTime() : Date.now();
       return {
         ok: false,
         code: 'USAGE_LIMIT_REACHED',
         status: 429,
         usage: {
           plan,
+          planRank: normalizePlanRank(plan),
           windowHours: USAGE_WINDOW_HOURS,
           used,
           limit,
           percentage: 100,
           remaining: 0,
-          // Exact rolling reset is oldest usage timestamp + window.
-          resetsAt: new Date(Date.now() + USAGE_WINDOW_MS).toISOString(),
+          resetsAt: new Date(oldest + USAGE_WINDOW_MS).toISOString(),
         },
       };
     }
 
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO usage (user_id, model, provider, tokens, units, created_at)
-       VALUES ($1, $2, NULL, 0, 1, now())`,
+       VALUES ($1, $2, NULL, 0, 1, now())
+       RETURNING id, created_at`,
       [userId, model || null],
     );
     await client.query('COMMIT');
 
     return {
       ok: true,
+      reservationId: inserted.rows[0]?.id || null,
       usage: {
         plan,
+        planRank: normalizePlanRank(plan),
         windowHours: USAGE_WINDOW_HOURS,
         used: used + 1,
         limit,
@@ -148,19 +164,12 @@ export async function reserveUsage(userId, model) {
   }
 }
 
-export async function recordTokens(userId, model, provider, tokens) {
+export async function recordTokens(reservationId, provider, tokens) {
+  if (!reservationId) return;
   const amount = Number.isFinite(Number(tokens)) ? Math.max(0, Math.floor(Number(tokens))) : 0;
-  if (!amount) return;
   await pool.query(
-    `UPDATE usage
-        SET tokens=$1, provider=$2
-      WHERE id = (
-        SELECT id FROM usage
-         WHERE user_id=$3 AND model IS NOT DISTINCT FROM $4
-         ORDER BY created_at DESC
-         LIMIT 1
-      )`,
-    [amount, provider || null, userId, model || null],
+    'UPDATE usage SET tokens=$1, provider=$2 WHERE id=$3',
+    [amount, provider || null, reservationId],
   );
 }
 

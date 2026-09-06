@@ -9,12 +9,12 @@ function dayGroup(value) {
   return 'Mais antigos';
 }
 
-export default function CodexSidebar({ sessions = [], activeId, query = '', onQuery, onNew, onOpen, onRename, onDelete, onReplay, onMode, onPlans, onHome = () => { window.location.href = '/chat'; }, mode = 'chat' }) {
+export default function CodexSidebar({ sessions = [], activeId, query = '', onQuery, onNew, onOpen, onRename, onDelete, onReplay, onMode, onPlans, onHome = () => { window.location.href = '/chat'; }, onCodex = () => {}, mode = 'chat' }) {
   const visible = sessions.filter((session) => !query || String(session.title || '').toLowerCase().includes(query.toLowerCase()));
   const groups = visible.reduce((acc, session) => { const key = dayGroup(session.updated_at || session.created_at); (acc[key] ||= []).push(session); return acc; }, {});
   return <aside className="pcx-sidebar">
     <div className="pcx-brand"><span className="pcx-brand-mark">P</span><div><strong>Prism IA</strong><small>Codex</small></div></div>
-    <div className="app-switcher pcx-app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch" onClick={onHome}>Home</button><button className="app-switch active" onClick={() => onMode?.('chat')}>Codex</button></div>
+    <div className="app-switcher pcx-app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch" onClick={onHome}>Home</button><button className="app-switch active" onClick={onCodex}>Codex</button></div>
     <button className="pcx-new" onClick={onNew}>+ <span>Novo chat</span></button>
     <nav className="pcx-nav" aria-label="Navegação do Codex"><button className={mode === 'chat' ? 'active' : ''} onClick={() => onMode?.('chat')}>Conversa</button><button className={mode === 'vibe' ? 'active' : ''} onClick={() => onMode?.('vibe')}>Vibe Code <small>quando necessário</small></button><button onClick={onPlans}>Planos <small>conta</small></button><button onClick={onReplay}>Apresentação</button></nav>
     <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas"/><kbd>⌘K</kbd></label>

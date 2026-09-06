@@ -21,11 +21,7 @@ const EFFORTS = [
 ];
 const PLAN_RANK = { 'Grátis':0, free:0, Base:1, base:1, Medium:2, medium:2, Pro:3, pro:3, Empresarial:4, enterprise:4 };
 const ALLOWED_BY_PLAN = {
-  0:new Set(['nano','mini','edge']),
-  1:new Set(['nano','mini','edge']),
-  2:new Set(['nano','mini','edge','tex']),
-  3:new Set(['nano','mini','edge','tex','taff','taff2']),
-  4:new Set(['nano','mini','edge','tex','taff','taff2']),
+  0:new Set(['nano','mini','edge']), 1:new Set(['nano','mini','edge']), 2:new Set(['nano','mini','edge','tex']), 3:new Set(['nano','mini','edge','tex','taff','taff2']), 4:new Set(['nano','mini','edge','tex','taff','taff2']),
 };
 function firstName(name=''){return String(name).trim().split(/\s+/)[0]||'você'}
 function initial(name=''){return firstName(name).slice(0,1).toUpperCase()||'P'}
@@ -56,8 +52,8 @@ export default function Chat(){
   return <div className="chat-app">
     <aside className="chat-sidebar"><div className="sidebar-top">
       <button className="brand" onClick={()=>navigate('/chat')}><span className="brand-mark"/><span>Prism IA</span></button>
+      <div className="app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch active" onClick={()=>navigate('/chat')}>Home</button><button className="app-switch" onClick={()=>navigate('/codex')}>Codex</button></div>
       <button className="new-chat" onClick={newSession} disabled={sending}><span>+</span> Nova conversa</button>
-      <button className="codex-nav-button" onClick={()=>navigate('/codex')}><span className="code-square"/><span>Prism Codex</span><small>Vibe Code</small></button>
       <button className="plans-nav-button" onClick={()=>{setRequestedModel('');setPlansOpen(true)}}>Planos <small>{user?.plan||'Grátis'}</small></button>
     </div>
     <div className="session-heading"><span>Conversas</span><span>{sessions.length||''}</span></div>

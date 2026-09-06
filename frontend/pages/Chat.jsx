@@ -29,6 +29,7 @@ const ALLOWED_BY_PLAN = {
   3: new Set(['nano', 'mini', 'edge', 'tex', 'taff', 'taff2']),
   4: new Set(['nano', 'mini', 'edge', 'tex', 'taff', 'taff2']),
 };
+const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
 
 function firstName(name = '') { return String(name).trim().split(/\s+/)[0] || 'você'; }
 function initial(name = '') { return firstName(name).slice(0, 1).toUpperCase() || 'P'; }
@@ -303,6 +304,12 @@ export default function Chat() {
       setMessages((current) => [...current, { id: localId, role: 'user', content, model_id: model, effort }]);
       setInput('');
       const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content, model, effort }, { timeout: 180000 });
+
+      if (result?.status === 'unavailable') {
+        setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]);
+        return;
+      }
+
       if (!result?.message) throw new Error('O servidor não retornou uma resposta válida.');
       setMessages((current) => [...current, { ...result.message, tools_used: Array.isArray(result.tools_used) ? result.tools_used : [] }]);
       if (result.usage) setUsage(result.usage);
@@ -310,7 +317,9 @@ export default function Chat() {
         .map((item) => item.id === sid ? { ...item, title: item.title === 'Nova conversa' ? content.replace(/\s+/g, ' ').slice(0, 64) : item.title, updated_at: new Date().toISOString() } : item)
         .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
     } catch (err) {
-      if (err?.code === 'USAGE_LIMIT_REACHED' || err?.payload?.code === 'USAGE_LIMIT_REACHED' || err?.status === 429) {
+      if (err?.payload?.status === 'unavailable' || err?.code === 'PROVIDERS_UNAVAILABLE' || err?.payload?.code === 'PROVIDERS_UNAVAILABLE') {
+        setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]);
+      } else if (err?.code === 'USAGE_LIMIT_REACHED' || err?.payload?.code === 'USAGE_LIMIT_REACHED' || err?.status === 429) {
         if (err.payload?.usage) setUsage(err.payload.usage);
         setError(err.message || 'Você atingiu o limite de uso desta janela.');
         setMessages((current) => current.filter((message) => message.id !== localId));
@@ -425,10 +434,14 @@ export default function Chat() {
               <button onClick={() => suggestion('Explique isso de um jeito simples.')}><strong>Explicar algo</strong><span>Deixe um assunto técnico fácil de entender.</span></button>
             </div></div>
           ) : (
-            <>{messages.map((message) => <article key={message.id} className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}>
-              <div className="message-head"><span className="message-author">{message.role === 'user' ? first : 'Prism IA'}</span>{message.role === 'assistant' && message.model_id && <span className="message-model">{MODELS.find((item) => item.id === message.model_id)?.short || message.model_id}</span>}</div>
-              <div className="message-content"><MessageBody message={message} onOpenCode={openArtifact} /></div>
-            </article>)}
+            <>{messages.map((message) => {
+              const isUnavailable = message.role === 'system' && message.status === 'unavailable';
+              if (isUnavailable) return <article key={message.id} className="message system-message" role="status"><div className="system-message-inner"><span className="system-message-icon" aria-hidden="true">!</span><span>{message.content}</span></div></article>;
+              return <article key={message.id} className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}>
+                <div className="message-head"><span className="message-author">{message.role === 'user' ? first : 'Prism IA'}</span>{message.role === 'assistant' && message.model_id && <span className="message-model">{MODELS.find((item) => item.id === message.model_id)?.short || message.model_id}</span>}</div>
+                <div className="message-content"><MessageBody message={message} onOpenCode={openArtifact} /></div>
+              </article>;
+            })}
             {sending && <article className="message assistant"><div className="message-head"><span className="message-author">Prism IA</span><span className="message-model">{selectedModel.short}</span></div><div className="message-thinking"><span /><span /><span /><span className="typing-label">digitando...</span></div></article>}
             <div ref={bottomRef} />
           </>

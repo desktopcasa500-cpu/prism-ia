@@ -22,20 +22,53 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../../dist');
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || process.env.APP_URL || '').split(',').map((value) => value.trim().replace(/\/$/, '')).filter(Boolean);
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || process.env.APP_URL || '')
+  .split(',')
+  .map((value) => value.trim().replace(/\/$/, ''))
+  .filter(Boolean);
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('Origem não permitida')); }, credentials: true, methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Accept'] }));
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+}));
 app.use(express.json({ limit: '12mb' }));
-app.use(rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+const apiLimiter = rateLimit({
+  windowMs: 60_000,
+  max: Number(process.env.PRISM_IP_RATE_LIMIT || 120),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ error: 'Muitas solicitações. Aguarde um momento e tente novamente.', code: 'IP_RATE_LIMIT' }),
+});
+app.use('/api', apiLimiter);
 
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, database: 'connected', auth: Boolean(process.env.JWT_SECRET), ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY), mcp: Boolean(process.env.MCP_ENCRYPTION_KEY) });
+    res.json({
+      ok: true,
+      database: 'connected',
+      auth: Boolean(process.env.JWT_SECRET),
+      ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY),
+      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
+    });
   } catch {
-    res.status(503).json({ ok: false, database: 'unreachable', auth: Boolean(process.env.JWT_SECRET), ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY), mcp: Boolean(process.env.MCP_ENCRYPTION_KEY) });
+    res.status(503).json({
+      ok: false,
+      database: 'unreachable',
+      auth: Boolean(process.env.JWT_SECRET),
+      ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY),
+      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
+    });
   }
 });
 
@@ -53,8 +86,22 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/mcp', mcpRoutes);
 
 app.use(express.static(distPath, { index: false }));
-app.get('*', (req, res, next) => { if (req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath, 'index.html'), (error) => { if (error) next(error); }); });
-app.use((_req, res) => res.status(404).json({ error: 'Endpoint não encontrado' }));
-app.use((err, _req, res, _next) => { console.error(err); const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500; const publicMessage = status >= 500 ? 'Erro interno do servidor.' : (err?.message || 'Solicitação inválida.'); res.status(status).json({ error: publicMessage }); });
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) return next();
+  return res.sendFile(path.join(distPath, 'index.html'), (error) => {
+    if (error) next(error);
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint não encontrado.', code: 'NOT_FOUND' });
+});
+
+app.use((err, _req, res, _next) => {
+  console.error('Prism API error:', err);
+  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  const message = status >= 500 ? 'Erro interno do servidor.' : (err?.message || 'Solicitação inválida.');
+  res.status(status).json({ error: message, code: err?.code || 'SERVER_ERROR' });
+});
 
 export default app;

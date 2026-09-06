@@ -12,7 +12,7 @@ import 'prismjs/components/prism-bash.js';
 import 'prismjs/components/prism-yaml.js';
 import 'prismjs/components/prism-markdown.js';
 import 'prismjs/components/prism-sql.js';
-import { languageDisplayName } from '../lib/codeBlocks.js';
+import { extensionForLanguage, languageDisplayName } from '../lib/codeBlocks.js';
 
 const PRISM_LANGUAGE_ALIASES = {
   markup: 'markup', html: 'markup', xml: 'markup', svg: 'markup',
@@ -65,6 +65,11 @@ function copyText(value) {
   return Promise.resolve();
 }
 
+function ensureExtension(filename, language) {
+  const clean = String(filename || '').trim() || 'snippet';
+  return /\.[a-z0-9]{1,8}$/i.test(clean) ? clean : `${clean}.${extensionForLanguage(language)}`;
+}
+
 export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect, onClose, onUpdateArtifact }) {
   const active = artifacts.find((item) => item.id === activeId) || artifacts[0] || null;
   const [copied, setCopied] = useState(false);
@@ -83,7 +88,7 @@ export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect
     } catch {}
   };
 
-  const onDownloadCode = () => downloadBlob(filename, active.code);
+  const onDownloadCode = () => downloadBlob(ensureExtension(filename, active.language), active.code);
   const onDownloadMarkdown = () => {
     const language = active.languageLabel || active.language || '';
     const markdown = `# ${filename}\n\n\`\`\`${language}\n${active.code}\n\`\`\`\n`;

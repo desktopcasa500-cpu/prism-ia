@@ -4,7 +4,7 @@ export const INTRO_KEY = 'prism_codex_intro_v6_seen';
 const DURATION = 25000;
 const PROMPT = 'Create a user-friendly car sales website designed to attract customers.';
 const GREETING = 'good morning programmer';
-const CLOUDS = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260906_224646_7b83df9b-d657-4258-a823-8abd2e9f17f0.png';
+const CLOUDS = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260906_225745_b60b7b78-602c-49fc-bb99-915cc0c7d87f.png';
 const clamp = n => Math.max(0, Math.min(1, n));
 const ease = n => { const t = clamp(n); return t * t * (3 - 2 * t); };
 const range = (time, start, end) => clamp((time - start) / (end - start));

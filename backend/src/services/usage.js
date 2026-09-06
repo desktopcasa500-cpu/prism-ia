@@ -35,22 +35,18 @@ export const PLAN_FEATURES = {
   0: { label: 'Grátis', ultracode: false },
   1: { label: 'Base', ultracode: false },
   2: { label: 'Medium', ultracode: false },
-  3: { label: 'Pro', ultracode: true },
+  3: { label: 'Pro', ultracode: false },
   4: { label: 'Empresarial', ultracode: true },
 };
 
-export function normalizePlanRank(plan) {
-  return PLAN_RANK[plan] ?? 0;
-}
+export function normalizePlanRank(plan) { return PLAN_RANK[plan] ?? 0; }
 
 export function getPlanLimit(plan) {
   const limit = PLAN_LIMITS[normalizePlanRank(plan)];
   return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1;
 }
 
-function windowStart() {
-  return new Date(Date.now() - USAGE_WINDOW_MS);
-}
+function windowStart() { return new Date(Date.now() - USAGE_WINDOW_MS); }
 
 export function percentUsed(used, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return 100;
@@ -70,22 +66,19 @@ export async function getUsage(userId) {
       GROUP BY u.id, u.plan`,
     [userId, windowStart()],
   );
-
   if (!result.rows.length) return null;
   const row = result.rows[0];
   const limit = getPlanLimit(row.plan);
   const used = Number(row.used || 0);
-  const percentage = percentUsed(used, limit);
   const oldest = row.oldest_usage_at ? new Date(row.oldest_usage_at).getTime() : null;
   const resetsAt = oldest ? new Date(oldest + USAGE_WINDOW_MS) : new Date(Date.now() + USAGE_WINDOW_MS);
-
   return {
     plan: row.plan,
     planRank: normalizePlanRank(row.plan),
     windowHours: USAGE_WINDOW_HOURS,
     used,
     limit,
-    percentage,
+    percentage: percentUsed(used, limit),
     remaining: Math.max(0, limit - used),
     resetsAt: resetsAt.toISOString(),
     lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null,
@@ -96,25 +89,20 @@ export async function reserveUsage(userId, model) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Serialize reservations for the same account. This closes the race where
-    // two simultaneous requests both observe free capacity.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [String(userId)]);
-
     const userResult = await client.query('SELECT plan FROM users WHERE id=$1 FOR SHARE', [userId]);
     if (!userResult.rows.length) {
       await client.query('ROLLBACK');
       return { ok: false, code: 'AUTH_REQUIRED', status: 401 };
     }
-
     const plan = userResult.rows[0].plan;
     const limit = getPlanLimit(plan);
     const start = windowStart();
     const current = await client.query(
-      'SELECT COUNT(*)::int AS used, MIN(created_at) AS oldest_usage_at FROM usage WHERE user_id=$1 AND created_at >= $2',
+      'SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used, MIN(created_at) AS oldest_usage_at FROM usage WHERE user_id=$1 AND created_at >= $2',
       [userId, start],
     );
     const used = Number(current.rows[0]?.used || 0);
-
     if (used >= limit) {
       await client.query('ROLLBACK');
       const oldest = current.rows[0]?.oldest_usage_at ? new Date(current.rows[0].oldest_usage_at).getTime() : Date.now();
@@ -134,15 +122,13 @@ export async function reserveUsage(userId, model) {
         },
       };
     }
-
     const inserted = await client.query(
       `INSERT INTO usage (user_id, model, provider, tokens, units, created_at)
        VALUES ($1, $2, NULL, 0, 1, now())
-       RETURNING id, created_at`,
+       RETURNING id`,
       [userId, model || null],
     );
     await client.query('COMMIT');
-
     return {
       ok: true,
       reservationId: inserted.rows[0]?.id || null,
@@ -159,18 +145,13 @@ export async function reserveUsage(userId, model) {
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }
 
 export async function recordTokens(reservationId, provider, tokens) {
   if (!reservationId) return;
   const amount = Number.isFinite(Number(tokens)) ? Math.max(0, Math.floor(Number(tokens))) : 0;
-  await pool.query(
-    'UPDATE usage SET tokens=$1, provider=$2 WHERE id=$3',
-    [amount, provider || null, reservationId],
-  );
+  await pool.query('UPDATE usage SET tokens=$1, provider=$2 WHERE id=$3', [amount, provider || null, reservationId]);
 }
 
 export async function getUsagePercent(userId) {

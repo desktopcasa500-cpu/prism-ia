@@ -30,11 +30,11 @@ export default function PrismCodexIntroBrutalist({ onComplete, userName = 'você
   const logoDrift = ease(range(time, 1550, 3450));
   const taff = ease(range(time, 1100, 3450));
   const sky = ease(range(time, 3300, 6900));
-  const greeting = ease(range(time, 9300, 11900));
-  const demo = ease(range(time, 11900, 18000));
-  const build = ease(range(time, 17300, 23200));
+  const greeting = ease(range(time, 8900, 11500));
+  const demo = ease(range(time, 11500, 17600));
+  const build = ease(range(time, 16900, 23200));
   const ending = ease(range(time, 22700, DURATION));
-  const blackout = time >= 6900 && time < 9300;
+  const blackout = time >= 6900 && time < 8900;
 
   return <section className="prism-story" aria-label="Apresentação do Prism Codex">
     <div className="prism-story-backdrop" onMouseDown={event => event.target === event.currentTarget && complete()} />
@@ -69,7 +69,7 @@ export default function PrismCodexIntroBrutalist({ onComplete, userName = 'você
 
           <Scene className="story-goodmorning" style={{ opacity: greeting }}>
             <LogoMark className="story-good-logo"/>
-            <TypeLine text={GREETING} progress={range(time, 9600, 11900)} className="story-good-line"/>
+            <TypeLine text={GREETING} progress={range(time, 9000, 11500)} className="story-good-line"/>
           </Scene>
 
           <Scene className="story-demo" style={{ opacity: demo, transform: `translateY(${20 - 20 * demo}px)` }}>
@@ -79,10 +79,10 @@ export default function PrismCodexIntroBrutalist({ onComplete, userName = 'você
                 <aside><b>PRISM</b><span>Home</span><span className="active">Codex</span><span>Workspace</span></aside>
                 <main>
                   <div className="story-selector"><span>Prism Edge 1.0</span><b>⌄</b></div>
-                  <div className="story-cursor" style={{ left: `${63 + 9 * ease(range(time, 13400, 14200))}%`, top: `${18 + 7 * ease(range(time, 13400, 14200))}%` }}/>
-                  <div className="story-menu" style={{ opacity: range(time, 14000, 14900), transform: `translateY(${8 - 8 * ease(range(time, 14000, 14900))}px)` }}><span>Prism Edge 1.0</span><strong>Prism Taff 2.0</strong><span>Prism Tex 1.5</span></div>
+                  <div className="story-cursor" style={{ left: `${63 + 9 * ease(range(time, 13100, 13900))}%`, top: `${18 + 7 * ease(range(time, 13100, 13900))}%` }}/>
+                  <div className="story-menu" style={{ opacity: range(time, 13700, 14600), transform: `translateY(${8 - 8 * ease(range(time, 13700, 14600))}px)` }}><span>Prism Edge 1.0</span><strong>Prism Taff 2.0</strong><span>Prism Tex 1.5</span></div>
                   <div className="story-user-line"><span>{userName}</span><em>agora</em></div>
-                  <div className="story-prompt"><TypeLine text={PROMPT} progress={range(time, 14900, 17700)}/></div>
+                  <div className="story-prompt"><TypeLine text={PROMPT} progress={range(time, 14600, 17300)}/></div>
                   <button className="story-send">Enviar</button>
                 </main>
               </div>

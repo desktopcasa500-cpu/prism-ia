@@ -21,7 +21,8 @@ export default function PrismCodexIntroBrutalist({onComplete,userName='você'}){
     frame=requestAnimationFrame(tick); const onKey=e=>e.key==='Escape'&&complete(); window.addEventListener('keydown',onKey);
     return()=>{cancelAnimationFrame(frame);window.removeEventListener('keydown',onKey)};
   },[reduced]);
-  const t1=range(time,300,2200), t2=range(time,1800,4700), t3=range(time,4300,7400), t4=range(time,7400,9400), t5=range(time,9700,15000), t6=range(time,14500,20700);
+  const t1=range(time,300,2200), t2=range(time,1800,4700), t4=range(time,9400,10200), t5=range(time,10200,15000), t6=range(time,14500,20700);
+  const blackVisible=time>=7400&&time<9400;
   return <section className="prism-story" aria-label="Apresentação do Prism Codex">
     <div className="prism-story-ui"><span>PRISM CODEX</span><button onClick={complete}>Pular <b>Esc</b></button></div>
     <div className="prism-story-progress"><i style={{width:`${Math.min(100,time/DURATION*100)}%`}}/></div>
@@ -37,7 +38,7 @@ export default function PrismCodexIntroBrutalist({onComplete,userName='você'}){
       <div className="story-sky-copy"><small>PRISM TAFF 2.0</small><strong>Build with more<br/>room to think.</strong></div>
     </Scene>
 
-    <Scene className="story-black" style={{opacity:range(time,7400,7450)}}/>
+    <Scene className="story-black" style={{opacity:blackVisible?1:0}}/>
 
     <Scene className="story-goodmorning" style={{opacity:ease(t4)}}>
       <div className="story-good-logo"><span className="story-mark"><i/><i/><i/><i/></span></div>
@@ -51,10 +52,10 @@ export default function PrismCodexIntroBrutalist({onComplete,userName='você'}){
           <aside><b>PRISM</b><span>Conversas</span><span className="active">Novo projeto</span><span>Workspace</span></aside>
           <main>
             <div className="story-selector"><span>Prism Edge 1.0</span><b>⌄</b></div>
-            <div className="story-cursor" style={{left:`${26+44*ease(range(time,10400,11300))}%`,top:`${50+4*ease(range(time,10400,11300))}%`}}/>
-            <div className="story-menu" style={{opacity:range(time,11000,11800),transform:`translateY(${8-8*ease(range(time,11000,11800))}px)`}}><span>Prism Edge 1.0</span><strong>Prism Taff 2.0</strong><span>Prism Tex 1.5</span></div>
+            <div className="story-cursor" style={{left:`${26+44*ease(range(time,10800,11600))}%`,top:`${50+4*ease(range(time,10800,11600))}%`}}/>
+            <div className="story-menu" style={{opacity:range(time,11200,12000),transform:`translateY(${8-8*ease(range(time,11200,12000))}px)`}}><span>Prism Edge 1.0</span><strong>Prism Taff 2.0</strong><span>Prism Tex 1.5</span></div>
             <div className="story-user-line"><span>{userName}</span><em>agora</em></div>
-            <div className="story-prompt"><TypeLine text={PROMPT} progress={range(time,11800,14200)}/></div>
+            <div className="story-prompt"><TypeLine text={PROMPT} progress={range(time,12000,14500)}/></div>
             <button className="story-send">Enviar</button>
           </main>
         </div>

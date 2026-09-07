@@ -101,27 +101,31 @@ function removeLocalAssetReferences(html, files) {
 }
 
 function buildPreviewDocument(artifacts) {
-  const htmlArtifact = artifacts.find(isHtmlArtifact) || null;
+  const htmlArtifact = artifacts.find(isHtmlArtifact);
   if (!htmlArtifact) return '';
-
-  const htmlFiles = artifacts.filter(isHtmlArtifact);
   const cssFiles = artifacts.filter(isCssArtifact);
   const jsFiles = artifacts.filter(isJsArtifact);
   let documentText = removeLocalAssetReferences(htmlArtifact.code, [...cssFiles, ...jsFiles]);
+  if (!/<html\b/i.test(documentText)) {
+    documentText = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${documentText}</body></html>`;
+  } else if (!/^\s*<!doctype/i.test(documentText)) {
+    documentText = `<!doctype html>${documentText}`;
+  }
+
   const css = cssFiles.map((file) => `/* ${file.filename} */\n${file.code}`).join('\n\n');
   const js = jsFiles.map((file) => `// ${file.filename}\n${file.code}`).join('\n\n');
   const styleTag = css ? `<style data-prism-artifacts>\n${css}\n</style>` : '';
   const scriptTag = js ? `<script data-prism-artifacts>\n${js}\n<\/script>` : '';
-  const headInjection = `${styleTag}${scriptTag ? '' : ''}`;
-  const uniqueHtmlFiles = htmlFiles.length > 1 ? `<!-- Prism Preview: ${htmlFiles.length} HTML files generated; previewing ${htmlArtifact.filename}. -->` : '';
 
-  if (/<head\b[^>]*>/i.test(documentText)) documentText = documentText.replace(/<head\b[^>]*>/i, (match) => `${match}${headInjection}`);
-  else documentText = `${headInjection}${documentText}`;
+  if (styleTag) {
+    if (/<head\b[^>]*>/i.test(documentText)) documentText = documentText.replace(/(<head\b[^>]*>)/i, `$1${styleTag}`);
+    else documentText = documentText.replace(/(<html\b[^>]*>)/i, `$1<head>${styleTag}</head>`);
+  }
   if (scriptTag) {
     if (/<\/body>/i.test(documentText)) documentText = documentText.replace(/<\/body>/i, `${scriptTag}</body>`);
     else documentText += scriptTag;
   }
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${uniqueHtmlFiles}${documentText.includes('<html') ? '' : ''}</head>${documentText.replace(/^<!doctype[^>]*>/i, '').replace(/^<html[^>]*>/i, '').replace(/<\/html>\s*$/i, '')}</html>`;
+  return documentText;
 }
 
 export default function CodeArtifactsPanel({ open, artifacts, activeId, onSelect, onClose, onUpdateArtifact }) {

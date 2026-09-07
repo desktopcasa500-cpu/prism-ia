@@ -53,6 +53,23 @@ export function percentUsed(used, limit) {
   return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 100)));
 }
 
+function usageSnapshot(plan, used, oldestUsageAt = null) {
+  const limit = getPlanLimit(plan);
+  const safeUsed = Math.max(0, Number(used || 0));
+  const oldest = oldestUsageAt ? new Date(oldestUsageAt).getTime() : null;
+  const resetsAt = oldest ? new Date(oldest + USAGE_WINDOW_MS) : new Date(Date.now() + USAGE_WINDOW_MS);
+  return {
+    plan,
+    planRank: normalizePlanRank(plan),
+    windowHours: USAGE_WINDOW_HOURS,
+    used: safeUsed,
+    limit,
+    percentage: percentUsed(safeUsed, limit),
+    remaining: Math.max(0, limit - safeUsed),
+    resetsAt: resetsAt.toISOString(),
+  };
+}
+
 export async function getUsage(userId) {
   const result = await pool.query(
     `SELECT u.plan,
@@ -62,25 +79,15 @@ export async function getUsage(userId) {
        FROM users u
        LEFT JOIN usage us ON us.user_id = u.id
                          AND us.created_at >= $2
+                         AND COALESCE(us.units, 0) > 0
       WHERE u.id = $1
       GROUP BY u.id, u.plan`,
     [userId, windowStart()],
   );
   if (!result.rows.length) return null;
   const row = result.rows[0];
-  const limit = getPlanLimit(row.plan);
-  const used = Number(row.used || 0);
-  const oldest = row.oldest_usage_at ? new Date(row.oldest_usage_at).getTime() : null;
-  const resetsAt = oldest ? new Date(oldest + USAGE_WINDOW_MS) : new Date(Date.now() + USAGE_WINDOW_MS);
   return {
-    plan: row.plan,
-    planRank: normalizePlanRank(row.plan),
-    windowHours: USAGE_WINDOW_HOURS,
-    used,
-    limit,
-    percentage: percentUsed(used, limit),
-    remaining: Math.max(0, limit - used),
-    resetsAt: resetsAt.toISOString(),
+    ...usageSnapshot(row.plan, Number(row.used || 0), row.oldest_usage_at),
     lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null,
   };
 }
@@ -95,33 +102,26 @@ export async function reserveUsage(userId, model) {
       await client.query('ROLLBACK');
       return { ok: false, code: 'AUTH_REQUIRED', status: 401 };
     }
+
     const plan = userResult.rows[0].plan;
     const limit = getPlanLimit(plan);
     const start = windowStart();
     const current = await client.query(
-      'SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used, MIN(created_at) AS oldest_usage_at FROM usage WHERE user_id=$1 AND created_at >= $2',
+      'SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used, MIN(created_at) AS oldest_usage_at FROM usage WHERE user_id=$1 AND created_at >= $2 AND COALESCE(units, 0) > 0',
       [userId, start],
     );
     const used = Number(current.rows[0]?.used || 0);
+
     if (used >= limit) {
       await client.query('ROLLBACK');
-      const oldest = current.rows[0]?.oldest_usage_at ? new Date(current.rows[0].oldest_usage_at).getTime() : Date.now();
       return {
         ok: false,
         code: 'USAGE_LIMIT_REACHED',
         status: 429,
-        usage: {
-          plan,
-          planRank: normalizePlanRank(plan),
-          windowHours: USAGE_WINDOW_HOURS,
-          used,
-          limit,
-          percentage: 100,
-          remaining: 0,
-          resetsAt: new Date(oldest + USAGE_WINDOW_MS).toISOString(),
-        },
+        usage: usageSnapshot(plan, used, current.rows[0]?.oldest_usage_at),
       };
     }
+
     const inserted = await client.query(
       `INSERT INTO usage (user_id, model, provider, tokens, units, created_at)
        VALUES ($1, $2, NULL, 0, 1, now())
@@ -129,23 +129,27 @@ export async function reserveUsage(userId, model) {
       [userId, model || null],
     );
     await client.query('COMMIT');
+
     return {
       ok: true,
       reservationId: inserted.rows[0]?.id || null,
-      usage: {
-        plan,
-        planRank: normalizePlanRank(plan),
-        windowHours: USAGE_WINDOW_HOURS,
-        used: used + 1,
-        limit,
-        percentage: percentUsed(used + 1, limit),
-        remaining: Math.max(0, limit - used - 1),
-      },
+      usage: usageSnapshot(plan, used + 1, current.rows[0]?.oldest_usage_at || new Date()),
     };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
-  } finally { client.release(); }
+  } finally {
+    client.release();
+  }
+}
+
+export async function releaseUsage(reservationId) {
+  if (!reservationId) return false;
+  const result = await pool.query(
+    'UPDATE usage SET units=0 WHERE id=$1 AND COALESCE(units, 0) > 0 RETURNING id',
+    [reservationId],
+  );
+  return Boolean(result.rows.length);
 }
 
 export async function recordTokens(reservationId, provider, tokens) {

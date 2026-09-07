@@ -18,36 +18,33 @@ export default function CodexSidebar({ sessions = [], activeId, query = '', onQu
   }, {});
   return <aside className="pcx-sidebar">
     <div className="pcx-brand">
-      <button className="pcx-brand-button" onClick={onCodex} aria-label="Abrir Codex">
+      <button className="pcx-brand-button" onClick={onCodex} aria-label="Abrir Prism Codex">
         <img className="pcx-brand-mark" src="/prism-logo.svg" alt="" aria-hidden="true" />
         <span><strong>Prism IA</strong><small>Codex</small></span>
       </button>
     </div>
+
     <div className="app-switcher pcx-app-switcher" role="navigation" aria-label="Alternar aplicativo">
       <button className="app-switch" onClick={onHome}>Home</button>
-      <button className="app-switch active" onClick={onCodex}>Codex</button>
+      <button className="app-switch active" onClick={onCodex}>Code</button>
     </div>
-    <button className="pcx-new" onClick={onNew}>+ <span>Novo chat</span></button>
+
+    <button className="pcx-new" onClick={onNew} aria-label="Nova sessão"><span className="pcx-new-plus">+</span><span>Novo</span></button>
 
     <div className="pcx-sidebar-section">
-      <div className="pcx-sidebar-section-title">FERRAMENTAS</div>
-      <nav className="pcx-nav" aria-label="Ferramentas do Codex">
+      <div className="pcx-sidebar-section-title">WORKSPACE</div>
+      <nav className="pcx-nav" aria-label="Workspace">
         <button className={mode === 'chat' ? 'active' : ''} onClick={() => onMode?.('chat')}><span>Conversa</span><small>Chat</small></button>
-        <button className={mode === 'vibe' ? 'active' : ''} onClick={() => onMode?.('vibe')}><span>Vibe Code</span><small>Workspace</small></button>
-      </nav>
-    </div>
-
-    <div className="pcx-sidebar-section pcx-account-section">
-      <div className="pcx-sidebar-section-title">CONTA</div>
-      <nav className="pcx-nav" aria-label="Conta">
+        <button className={mode === 'vibe' ? 'active' : ''} onClick={() => onMode?.('vibe')}><span>Vibe Code</span><small>Build</small></button>
         <button onClick={onPlans}><span>Planos</span><small>Conta</small></button>
-        <button onClick={onReplay}><span>Apresentação</span><small>Codex</small></button>
+        <button onClick={onReplay}><span>Apresentação</span><small>TAFF 2.0</small></button>
       </nav>
     </div>
 
-    <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar conversa" aria-label="Buscar conversas"/><kbd>⌘K</kbd></label>
+    <div className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas" /><kbd>⌘K</kbd></div>
+
     <div className="pcx-history">
-      <div className="pcx-history-head"><span>Histórico</span><b>{visible.length || ''}</b></div>
+      <div className="pcx-history-head"><span>Recentes</span><b>{visible.length || ''}</b></div>
       {Object.entries(groups).map(([group, items]) => (
         <section key={group}>
           <div className="pcx-group-label">{group}</div>
@@ -64,9 +61,10 @@ export default function CodexSidebar({ sessions = [], activeId, query = '', onQu
       ))}
       {!visible.length && <p className="pcx-muted">Nenhuma conversa encontrada.</p>}
     </div>
+
     <div className="pcx-sidebar-foot">
       <div className="pcx-sidebar-foot-card"><span>ESPAÇO</span><strong>Projeto ativo</strong></div>
-      <button onClick={onReplay}>Apresentação do Codex</button>
+      <button onClick={onReplay}>Apresentação do TAFF 2.0</button>
     </div>
   </aside>;
 }

@@ -23,7 +23,7 @@ function requestNativeModel(picker, token) {
   const button = findNativeButton(picker, token);
   if (!button) return;
   button.click();
-  window.setTimeout(sync, 20);
+  window.setTimeout(sync, 30);
 }
 function buildRow(config, picker, locked, selected, nativeToken) {
   const button = document.createElement('button');
@@ -44,13 +44,21 @@ function getCurrentModel(picker) {
   if (text.includes('tex')) return 'tex15';
   return 'mini';
 }
-function syncDisplayedLabels(currentKey) {
-  const app = document.querySelector('.chat-app');
+function cleanComposerModes(app) {
+  const composer = app?.querySelector('.composer');
+  if (!composer) return;
+  composer.querySelectorAll('button').forEach((button) => {
+    const value = normalize(button.textContent);
+    if (value === 'chat' || value === 'cowork') button.remove();
+  });
+}
+function syncDisplayedLabels(app, currentKey) {
   const config = MODEL_CONFIG[currentKey] || MODEL_CONFIG.mini;
   const topbar = app?.querySelector('.topbar-model span');
   if (topbar) topbar.textContent = config.label;
   const composer = app?.querySelector('.composer-model');
   if (composer?.firstChild?.nodeType === Node.TEXT_NODE) composer.firstChild.nodeValue = `${config.label} `;
+  cleanComposerModes(app);
 }
 function createCustomPicker(picker) {
   const rank = getRank();
@@ -100,6 +108,7 @@ function createCustomPicker(picker) {
 function sync() {
   const app = document.querySelector('.chat-app');
   if (!app) return;
+  cleanComposerModes(app);
   const picker = app.querySelector('.model-picker');
   if (!picker) {
     state.custom?.remove();
@@ -113,7 +122,7 @@ function sync() {
     return;
   }
   const current = getCurrentModel(picker);
-  syncDisplayedLabels(current);
+  syncDisplayedLabels(app, current);
   if (!state.custom || !picker.parentElement?.contains(state.custom)) {
     state.custom?.remove();
     state.custom = createCustomPicker(picker);

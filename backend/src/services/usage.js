@@ -3,15 +3,14 @@ import { pool } from '../db/pool.js';
 export const USAGE_WINDOW_MS = 5 * 60 * 60 * 1000;
 export const USAGE_WINDOW_HOURS = 5;
 
-// Configuration is deliberately environment-driven. The defaults preserve the
-// previous plan capacity while the public product language uses a rolling
-// usage window rather than message-priced "credits".
+// Cada geração reserva uma unidade. Os limites são amplos para que conversas
+// normais não consumam grandes blocos da janela de uso.
 export const PLAN_LIMITS = {
-  0: Number(process.env.PRISM_FREE_WINDOW_LIMIT || 5),
-  1: Number(process.env.PRISM_BASE_WINDOW_LIMIT || 30),
-  2: Number(process.env.PRISM_MEDIUM_WINDOW_LIMIT || 700),
-  3: Number(process.env.PRISM_PRO_WINDOW_LIMIT || 2000),
-  4: Number(process.env.PRISM_ENTERPRISE_WINDOW_LIMIT || 6000),
+  0: Number(process.env.PRISM_FREE_WINDOW_LIMIT || 100),
+  1: Number(process.env.PRISM_BASE_WINDOW_LIMIT || 500),
+  2: Number(process.env.PRISM_MEDIUM_WINDOW_LIMIT || 3000),
+  3: Number(process.env.PRISM_PRO_WINDOW_LIMIT || 10000),
+  4: Number(process.env.PRISM_ENTERPRISE_WINDOW_LIMIT || 30000),
 };
 
 const PLAN_RANK = {
@@ -50,7 +49,7 @@ function windowStart() { return new Date(Date.now() - USAGE_WINDOW_MS); }
 
 export function percentUsed(used, limit) {
   if (!Number.isFinite(limit) || limit <= 0) return 100;
-  return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 100)));
+  return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100));
 }
 
 function usageSnapshot(plan, used, oldestUsageAt = null) {

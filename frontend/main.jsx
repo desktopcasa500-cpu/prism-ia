@@ -27,6 +27,7 @@ import './pages/prism-codex-final.css';
 import './pages/prism-codex-v2.css';
 import './codex-redesign.css';
 import './prism-logo-overrides.css';
+import './taff-presentation-v2.css';
 import './model-picker-enhancement.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(

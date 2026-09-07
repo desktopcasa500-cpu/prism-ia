@@ -27,11 +27,10 @@ import './taff-presentation-v2.css';
 import './reference-experience.css';
 import './reference-experience-v4.css';
 import './reference-experience-v5.css';
-import './codex-light-v5.css';
-import './chat-interactions-v2.css';
 import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
+import './codex-rebuild.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

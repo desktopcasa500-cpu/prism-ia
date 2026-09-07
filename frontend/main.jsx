@@ -22,9 +22,6 @@ import './pixel-refinement.css';
 import './prism-identity.css';
 import './prism-original-pages.css';
 import './prism-polish.css';
-import './pages/prism-codex-final.css';
-import './pages/prism-codex-v2.css';
-import './codex-redesign.css';
 import './prism-logo-overrides.css';
 import './taff-presentation-v2.css';
 import './reference-experience.css';
@@ -35,8 +32,6 @@ import './chat-interactions-v2.css';
 import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
-import './codex-unified-fixes.css';
-import './chat-interactions-v2.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

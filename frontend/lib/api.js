@@ -4,6 +4,7 @@ const apiRoot = configuredApiUrl
   : '/api';
 
 let token = localStorage.getItem('prism_token');
+const generationControllers = new Set();
 
 function stringifyError(value) {
   if (value == null) return '';
@@ -21,6 +22,12 @@ export function setAuthToken(value) {
 
 export function getAuthToken() { return token; }
 
+export function hasActiveGeneration() { return generationControllers.size > 0; }
+
+export function stopActiveGenerations() {
+  for (const controller of [...generationControllers]) controller.abort();
+}
+
 function buildUrl(path) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return `${apiRoot}${normalizedPath}`;
@@ -30,8 +37,14 @@ function isCallerAbort(error, signal) {
   return signal?.aborted || error?.name === 'AbortError';
 }
 
+function isGenerationPath(path) {
+  return /\/chat\/sessions\/[^/]+\/messages$/.test(path) || path.includes('/chat/parallel') || path.includes('/ai/generate/stream');
+}
+
 async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   const controller = new AbortController();
+  const generation = isGenerationPath(path);
+  if (generation) generationControllers.add(controller);
   let timedOut = false;
   const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
   const onAbort = () => controller.abort();
@@ -77,11 +90,14 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
   } finally {
     window.clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
+    if (generation) generationControllers.delete(controller);
   }
 }
 
 async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } = {}) {
   const controller = new AbortController();
+  const generation = isGenerationPath(path);
+  if (generation) generationControllers.add(controller);
   let timedOut = false;
   const timer = window.setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
   const onAbort = () => controller.abort();
@@ -105,6 +121,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
       const message = stringifyError(data?.error) || stringifyError(data?.message) || `Erro ${response.status}`;
       const error = new Error(message);
       error.status = response.status;
+      error.payload = data;
       throw error;
     }
     if (!response.body) throw new Error('O servidor não disponibilizou o fluxo de progresso.');
@@ -141,6 +158,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 180_000 } 
   } finally {
     window.clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
+    if (generation) generationControllers.delete(controller);
   }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import CodexStable from './CodexStable.jsx';
-import './codex-final.css';
+import '../codex-final.css';
+import '../codex-premium.css';
 
 export default function CodexFinal() {
   const [mounted, setMounted] = useState(false);

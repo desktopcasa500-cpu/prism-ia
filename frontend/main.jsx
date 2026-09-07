@@ -15,6 +15,7 @@ import './prism-chat-v2.css';
 import './prism-code-artifacts.css';
 import './provider-status.css';
 import './chat-home-redesign.css';
+import './conversation-quality.css';
 import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';

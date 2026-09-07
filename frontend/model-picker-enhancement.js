@@ -29,7 +29,7 @@ function buildRow(config, picker, locked, selected, nativeToken) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `prism-model-row${selected ? ' selected' : ''}${locked ? ' locked' : ''}`;
-  button.innerHTML = `<span class="prism-model-copy"><strong>${config.label}</strong><small>${config.description}</small></span><b>${locked ? 'Fazer upgrade' : selected ? 'Atual' : ''}</b>`;
+  button.innerHTML = `<span class="prism-model-copy"><strong>${config.label}</strong><small>${config.description}</small></span><b>${locked ? 'Fazer upgrade' : selected ? '✓' : ''}</b>`;
   button.addEventListener('click', () => requestNativeModel(picker, nativeToken));
   return button;
 }
@@ -43,6 +43,14 @@ function getCurrentModel(picker) {
   if (text.includes('taff')) return 'taff1';
   if (text.includes('tex')) return 'tex15';
   return 'mini';
+}
+function syncDisplayedLabels(currentKey) {
+  const app = document.querySelector('.chat-app');
+  const config = MODEL_CONFIG[currentKey] || MODEL_CONFIG.mini;
+  const topbar = app?.querySelector('.topbar-model span');
+  if (topbar) topbar.textContent = config.label;
+  const composer = app?.querySelector('.composer-model');
+  if (composer?.firstChild?.nodeType === Node.TEXT_NODE) composer.firstChild.nodeValue = `${config.label} `;
 }
 function createCustomPicker(picker) {
   const rank = getRank();
@@ -104,6 +112,8 @@ function sync() {
     state.custom = null;
     return;
   }
+  const current = getCurrentModel(picker);
+  syncDisplayedLabels(current);
   if (!state.custom || !picker.parentElement?.contains(state.custom)) {
     state.custom?.remove();
     state.custom = createCustomPicker(picker);

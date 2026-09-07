@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '../../lib/api.js';
+
 function dayGroup(value) {
   const date = new Date(value || Date.now());
   const now = new Date();
@@ -9,13 +12,54 @@ function dayGroup(value) {
   return 'Mais antigos';
 }
 
+function formatTokens(value) {
+  const amount = Math.max(0, Number(value || 0));
+  if (amount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(1)} bi`;
+  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)} mi`;
+  if (amount >= 1_000) return `${Math.round(amount / 1_000)} mil`;
+  return String(amount);
+}
+
+function intensity(tokens, max) {
+  if (!tokens || !max) return 0;
+  const ratio = Math.max(0, Math.min(1, tokens / max));
+  if (ratio <= 0.08) return 1;
+  if (ratio <= 0.3) return 2;
+  if (ratio <= 0.62) return 3;
+  return 4;
+}
+
 export default function CodexSidebar({ sessions = [], activeId, query = '', onQuery, onNew, onOpen, onRename, onDelete, onReplay, onMode, onPlans, onHome = () => { window.location.href = '/chat'; }, onCodex = () => {}, mode = 'chat' }) {
+  const [usage, setUsage] = useState({ days: [], totalTokens: 0, activeDays: 0, maxDailyTokens: 0 });
+  const [usageLoading, setUsageLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const result = await api.get('/chat/usage/history?days=35');
+        if (mounted) setUsage(result || { days: [], totalTokens: 0, activeDays: 0, maxDailyTokens: 0 });
+      } catch {
+        if (mounted) setUsage({ days: [], totalTokens: 0, activeDays: 0, maxDailyTokens: 0 });
+      } finally {
+        if (mounted) setUsageLoading(false);
+      }
+    };
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+
   const visible = sessions.filter((session) => !query || String(session.title || '').toLowerCase().includes(query.toLowerCase()));
-  const groups = visible.reduce((acc, session) => {
+  const groups = useMemo(() => visible.reduce((acc, session) => {
     const key = dayGroup(session.updated_at || session.created_at);
     (acc[key] ||= []).push(session);
     return acc;
-  }, {});
+  }, {}), [visible]);
+
   return <aside className="pcx-sidebar">
     <div className="pcx-brand">
       <button className="pcx-brand-button" onClick={onCodex} aria-label="Abrir Prism Codex">
@@ -41,7 +85,17 @@ export default function CodexSidebar({ sessions = [], activeId, query = '', onQu
       </nav>
     </div>
 
-    <div className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas" /><kbd>⌘K</kbd></div>
+    <div className="pcx-usage-card" aria-label="Atividade dos últimos 35 dias">
+      <div className="pcx-usage-head"><span>ATIVIDADE</span><strong>{usageLoading ? '—' : `${usage.activeDays} dias`}</strong></div>
+      <div className="pcx-usage-grid">
+        {(usage.days.length ? usage.days : Array.from({ length: 35 }, (_, index) => ({ day: `slot-${index}`, tokens: 0, active: false }))).map((day) => (
+          <span key={day.day} className={`pcx-usage-cell level-${intensity(day.tokens, usage.maxDailyTokens)}`} title={`${day.day}${day.active ? ` · ${formatTokens(day.tokens)} tokens` : ' · sem uso'}`} />
+        ))}
+      </div>
+      <div className="pcx-usage-total"><span>Tokens usados</span><strong>{usageLoading ? 'Carregando…' : formatTokens(usage.totalTokens)}</strong></div>
+    </div>
+
+    <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas" /><kbd>⌘K</kbd></label>
 
     <div className="pcx-history">
       <div className="pcx-history-head"><span>Recentes</span><b>{visible.length || ''}</b></div>

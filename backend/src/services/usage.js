@@ -92,6 +92,41 @@ export async function getUsage(userId) {
   };
 }
 
+export async function getDailyUsage(userId, days = 35) {
+  const safeDays = Math.min(120, Math.max(7, Math.floor(Number(days) || 35)));
+  const result = await pool.query(
+    `SELECT gs.day::date AS day,
+            COALESCE(SUM(greatest(us.tokens, 0)), 0)::bigint AS tokens,
+            COALESCE(SUM(greatest(us.units, 0)), 0)::int AS requests
+       FROM generate_series(current_date - ($2 - 1), current_date, interval '1 day') AS gs(day)
+       LEFT JOIN usage us
+         ON us.user_id = $1
+        AND us.created_at >= gs.day
+        AND us.created_at < gs.day + interval '1 day'
+      GROUP BY gs.day
+      ORDER BY gs.day ASC`,
+    [userId, safeDays],
+  );
+
+  const daysData = result.rows.map((row) => ({
+    day: row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day),
+    tokens: Math.max(0, Number(row.tokens || 0)),
+    requests: Math.max(0, Number(row.requests || 0)),
+    active: Number(row.tokens || 0) > 0 || Number(row.requests || 0) > 0,
+  }));
+  const totalTokens = daysData.reduce((sum, day) => sum + day.tokens, 0);
+  const activeDays = daysData.reduce((sum, day) => sum + (day.active ? 1 : 0), 0);
+  const maxDailyTokens = daysData.reduce((max, day) => Math.max(max, day.tokens), 0);
+
+  return {
+    days: daysData,
+    totalTokens,
+    activeDays,
+    maxDailyTokens,
+    windowDays: safeDays,
+  };
+}
+
 export async function reserveUsage(userId, model) {
   const client = await pool.connect();
   try {

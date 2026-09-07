@@ -1,5 +1,15 @@
-import PrismCodexIntroBrutalist, { INTRO_KEY } from './PrismCodexIntroBrutalist.jsx';
-import './prism-codex-intro-brutalist.css';
+import { useEffect } from 'react';
 
-export { INTRO_KEY };
-export default PrismCodexIntroBrutalist;
+export const INTRO_KEY = 'prism_codex_intro_v9_seen';
+
+/**
+ * Compatibility shim: the Codex presentation is opened explicitly
+ * from the sidebar, so it must never block the workspace on startup.
+ */
+export default function PrismCodexIntro({ onComplete }) {
+  useEffect(() => {
+    onComplete?.();
+  }, [onComplete]);
+
+  return null;
+}

@@ -1,5 +1,7 @@
 import { hasActiveGeneration, stopActiveGenerations } from './lib/api.js';
 
+let lastSendActionAt = 0;
+
 function copyText(text) {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
   const area = document.createElement('textarea');
@@ -28,34 +30,21 @@ function addToast(text) {
   toast.textContent = text;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('show'));
-  window.setTimeout(() => {
-    toast.classList.remove('show');
-    window.setTimeout(() => toast.remove(), 160);
-  }, 1300);
+  window.setTimeout(() => { toast.classList.remove('show'); window.setTimeout(() => toast.remove(), 160); }, 1300);
 }
 
 function addMessageActions() {
   const messages = document.querySelectorAll('.chat-app .message.user, .chat-app .message.assistant, .pcx-root .pcx-message.user, .pcx-root .pcx-message.assistant');
   messages.forEach((message) => {
-    const body = message.querySelector('.message-content, .pcx-message-text');
+    const body = message.querySelector('.message-content, .pcx-message-text, .markdown-message');
     if (!body || message.dataset.prismActions === '1') return;
-
     const actions = document.createElement('div');
     actions.className = 'prism-message-actions';
-
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.textContent = 'Copiar';
-    copy.addEventListener('click', async () => {
-      try {
-        await copyText(body.innerText || body.textContent || '');
-        addToast('Mensagem copiada');
-      } catch {
-        addToast('Não foi possível copiar');
-      }
-    });
+    copy.addEventListener('click', async () => { try { await copyText(body.innerText || body.textContent || ''); addToast('Mensagem copiada'); } catch { addToast('Não foi possível copiar'); } });
     actions.appendChild(copy);
-
     if (message.classList.contains('user')) {
       const edit = document.createElement('button');
       edit.type = 'button';
@@ -70,7 +59,6 @@ function addMessageActions() {
       });
       actions.appendChild(edit);
     }
-
     message.appendChild(actions);
     message.dataset.prismActions = '1';
   });
@@ -84,11 +72,7 @@ function installStopButton(host) {
   button.className = 'prism-stop-overlay';
   button.textContent = 'Parar';
   button.setAttribute('aria-label', 'Parar resposta');
-  button.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    stopActiveGenerations();
-  });
+  button.addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); stopActiveGenerations(); });
   host.appendChild(button);
 }
 
@@ -97,56 +81,45 @@ function removeStopButtons() {
   document.querySelectorAll('.prism-stop-host').forEach((host) => host.classList.remove('prism-stop-host'));
 }
 
-function enhanceChatPicker(root) {
-  const list = root.querySelector('.picker-list');
-  if (!list) return;
-  const rows = [...list.querySelectorAll('.picker-model')];
-  const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
-  if (!extra || root.querySelector('.prism-more-models')) return;
-
-  extra.style.display = 'none';
-  const section = document.createElement('div');
-  section.className = 'prism-more-models';
-  section.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
-  const clone = extra.cloneNode(true);
-  clone.style.display = '';
-  clone.addEventListener('click', () => extra.click());
-  section.appendChild(clone);
-  list.insertAdjacentElement('afterend', section);
+function keepSendButtonUsable() {
+  const button = document.querySelector('.chat-app .send-button');
+  const input = document.querySelector('.chat-app .composer textarea');
+  if (!button || !input || button.textContent.trim() !== 'Enviar') return;
+  if (input.value.trim()) button.removeAttribute('disabled');
 }
 
-function enhanceCodexPicker(root) {
-  const rows = [...root.children].filter((node) => node.matches('button'));
-  const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
-  if (!extra || root.querySelector('.prism-more-models')) return;
-
-  extra.style.display = 'none';
-  const section = document.createElement('div');
-  section.className = 'prism-more-models codex-more-models';
-  section.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
-  const clone = extra.cloneNode(true);
-  clone.style.display = '';
-  clone.addEventListener('click', () => extra.click());
-  section.appendChild(clone);
-  root.appendChild(section);
+function suppressDuplicateSendActions(event) {
+  const now = performance.now();
+  const isTextInput = event.target?.matches?.('.chat-app .composer textarea');
+  const isSendButton = event.target?.closest?.('.chat-app .send-button');
+  const validEnter = isTextInput && event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey;
+  const validClick = isSendButton && event.type === 'click';
+  if (!validEnter && !validClick) return;
+  if (!document.querySelector('.chat-app .composer textarea')?.value.trim()) return;
+  if (now - lastSendActionAt < 450) {
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    return;
+  }
+  lastSendActionAt = now;
 }
+
+document.addEventListener('click', suppressDuplicateSendActions, true);
+document.addEventListener('keydown', suppressDuplicateSendActions, true);
 
 function refresh() {
   addMessageActions();
+  keepSendButtonUsable();
   const active = hasActiveGeneration();
   if (active) {
     const chatSend = document.querySelector('.chat-app .send-button');
     if (chatSend) installStopButton(chatSend.parentElement);
     const codexSend = document.querySelector('.pcx-root .pcx-send');
     if (codexSend) installStopButton(codexSend.parentElement);
-  } else {
-    removeStopButtons();
-  }
-  document.querySelectorAll('.chat-app .model-picker').forEach(enhanceChatPicker);
-  document.querySelectorAll('.pcx-root .pcx-model-dropdown').forEach(enhanceCodexPicker);
+  } else removeStopButtons();
 }
 
 const observer = new MutationObserver(refresh);
-observer.observe(document.documentElement, { childList: true, subtree: true });
+observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 window.setInterval(refresh, 180);
 refresh();

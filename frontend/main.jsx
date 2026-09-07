@@ -16,6 +16,7 @@ import './prism-code-artifacts.css';
 import './provider-status.css';
 import './chat-home-redesign.css';
 import './conversation-quality.css';
+import './model-picker-enhancement.css';
 import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';
@@ -26,6 +27,7 @@ import './pages/prism-codex-final.css';
 import './pages/prism-codex-v2.css';
 import './codex-redesign.css';
 import './prism-logo-overrides.css';
+import './model-picker-enhancement.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

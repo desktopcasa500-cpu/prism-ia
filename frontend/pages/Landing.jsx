@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import PrismScrollStory from '../components/PrismScrollStory.jsx';
 import PrismNews from '../components/PrismNews.jsx';
-import TaffPresentation from '../components/TaffPresentation.jsx';
 
 const quickLinks = [
   ['01', 'Informações', 'O que existe por trás da Prism e como a plataforma organiza o trabalho.', '/informacoes'],
@@ -71,7 +70,6 @@ export default function Landing() {
           </aside>
         </section>
 
-        <TaffPresentation />
         <PrismScrollStory />
 
         <section className="home-intro home-intro-expanded">

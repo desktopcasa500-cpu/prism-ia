@@ -1,24 +1,4 @@
-const generationControllers = new Set();
-let generationId = 0;
-
-function registerGenerationController(controller) {
-  generationControllers.add(controller);
-  generationId += 1;
-  return generationId;
-}
-
-function unregisterGenerationController(controller) {
-  generationControllers.delete(controller);
-}
-
-window.__prismGenerationState = {
-  active() { return generationControllers.size > 0; },
-  stop() {
-    for (const controller of [...generationControllers]) controller.abort();
-  },
-  register(controller) { return registerGenerationController(controller); },
-  unregister(controller) { unregisterGenerationController(controller); },
-};
+import { hasActiveGeneration, stopActiveGenerations } from './lib/api.js';
 
 function copyText(text) {
   if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
@@ -42,8 +22,7 @@ function setReactValue(element, value) {
 }
 
 function addToast(text) {
-  const existing = document.querySelector('.prism-interaction-toast');
-  existing?.remove();
+  document.querySelector('.prism-interaction-toast')?.remove();
   const toast = document.createElement('div');
   toast.className = 'prism-interaction-toast';
   toast.textContent = text;
@@ -98,20 +77,20 @@ function addMessageActions() {
   });
 }
 
-function installStopButton(host, trigger) {
+function installStopButton(host) {
   if (!host || host.querySelector('.prism-stop-overlay')) return;
   host.classList.add('prism-stop-host');
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'prism-stop-overlay';
   button.textContent = 'Parar';
+  button.setAttribute('aria-label', 'Parar resposta');
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    window.__prismGenerationState.stop();
+    stopActiveGenerations();
   });
   host.appendChild(button);
-  trigger?.();
 }
 
 function removeStopButtons() {
@@ -119,54 +98,54 @@ function removeStopButtons() {
   document.querySelectorAll('.prism-stop-host').forEach((host) => host.classList.remove('prism-stop-host'));
 }
 
-function enhanceModelPicker(root) {
-  if (!root || root.dataset.prismModels === '1') return;
-  const items = [...root.querySelectorAll('.picker-model')];
-  if (items.length) {
-    const moreItem = items.find((item) => /Taff 1\.0|Taff 1\.0A/i.test(item.textContent));
-    const list = root.querySelector('.picker-list');
-    if (moreItem && list) {
-      moreItem.remove();
-      const more = document.createElement('div');
-      more.className = 'prism-more-models';
-      more.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
-      const clone = moreItem.cloneNode(true);
-      clone.addEventListener('click', () => moreItem.click());
-      more.appendChild(clone);
-      list.insertAdjacentElement('afterend', more);
-    }
-  }
-  const codexButtons = [...root.querySelectorAll('.pcx-model-dropdown > button')];
-  if (codexButtons.length) {
-    const moreButton = codexButtons.find((item) => /Taff 1\.0|Taff 1\.0A/i.test(item.textContent));
-    if (moreButton && !root.querySelector('.prism-more-models')) {
-      moreButton.style.display = 'none';
-      const more = document.createElement('div');
-      more.className = 'prism-more-models codex-more-models';
-      more.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
-      const clone = moreButton.cloneNode(true);
-      clone.style.display = '';
-      clone.addEventListener('click', () => moreButton.click());
-      more.appendChild(clone);
-      moreButton.parentElement.appendChild(more);
-    }
-  }
+function enhanceChatPicker(root) {
+  if (root.dataset.prismModels === '1') return;
+  const list = root.querySelector('.picker-list');
+  if (!list) return;
+  const rows = [...list.querySelectorAll('.picker-model')];
+  const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
+  if (!extra) return;
+  extra.remove();
+  const section = document.createElement('div');
+  section.className = 'prism-more-models';
+  section.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
+  const clone = extra.cloneNode(true);
+  clone.addEventListener('click', () => extra.click());
+  section.appendChild(clone);
+  list.insertAdjacentElement('afterend', section);
+  root.dataset.prismModels = '1';
+}
+
+function enhanceCodexPicker(root) {
+  if (root.dataset.prismModels === '1') return;
+  const rows = [...root.children].filter((node) => node.matches('button'));
+  const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
+  if (!extra) return;
+  extra.style.display = 'none';
+  const section = document.createElement('div');
+  section.className = 'prism-more-models codex-more-models';
+  section.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
+  const clone = extra.cloneNode(true);
+  clone.style.display = '';
+  clone.addEventListener('click', () => extra.click());
+  section.appendChild(clone);
+  root.appendChild(section);
   root.dataset.prismModels = '1';
 }
 
 function refresh() {
   addMessageActions();
-  const active = window.__prismGenerationState.active();
+  const active = hasActiveGeneration();
   if (active) {
     const chatSend = document.querySelector('.chat-app .send-button');
-    if (chatSend) installStopButton(chatSend.parentElement, () => { chatSend.setAttribute('aria-label', 'Parar resposta'); });
+    if (chatSend) installStopButton(chatSend.parentElement);
     const codexSend = document.querySelector('.pcx-root .pcx-send');
-    if (codexSend) installStopButton(codexSend.parentElement, () => { codexSend.setAttribute('aria-label', 'Parar resposta'); });
+    if (codexSend) installStopButton(codexSend.parentElement);
   } else {
     removeStopButtons();
   }
-
-  document.querySelectorAll('.chat-app .model-picker, .pcx-root .pcx-model-dropdown').forEach(enhanceModelPicker);
+  document.querySelectorAll('.chat-app .model-picker').forEach(enhanceChatPicker);
+  document.querySelectorAll('.pcx-root .pcx-model-dropdown').forEach(enhanceCodexPicker);
 }
 
 const observer = new MutationObserver(refresh);

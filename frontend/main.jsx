@@ -35,6 +35,7 @@ import './chat-interactions-v2.css';
 import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
+import './codex-unified-fixes.css';
 import './chat-interactions-v2.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(

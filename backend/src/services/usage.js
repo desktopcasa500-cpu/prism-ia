@@ -41,6 +41,7 @@ export const PLAN_FEATURES = {
 export function normalizePlanRank(plan) { return PLAN_RANK[plan] ?? 0; }
 export function getDailyCredits(plan) { const value = PLAN_DAILY_CREDITS[normalizePlanRank(plan)]; return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1; }
 export function getWeeklyCredits(plan) { return getDailyCredits(plan) * 7; }
+export function percentUsed(used, limit) { if (!Number.isFinite(limit) || limit <= 0) return 100; return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100)); }
 
 function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now = new Date()) {
   const zone = normalizeTimeZone(timezone || DEFAULT_TIMEZONE);
@@ -50,7 +51,7 @@ function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now
   const activeLock = lockDate && lockDate.getTime() > now.getTime() ? lockDate.toISOString() : null;
   const dailySafe = Math.max(0, Number(dailyUsed || 0));
   const weeklySafe = Math.max(0, Number(weeklyUsed || 0));
-  const dailyReset = new Date(startOfLocalDay(new Date(now.getTime() + USAGE_DAY_MS), zone));
+  const dailyReset = startOfLocalDay(new Date(now.getTime() + USAGE_DAY_MS), zone);
   const weeklyReset = nextWeeklyReset(now, zone);
   return {
     plan,
@@ -67,23 +68,6 @@ function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now
     lockedUntil: activeLock,
     canUseExtraFunds: normalizePlanRank(plan) >= 3,
   };
-}
-
-export function percentUsed(used, limit) { if (!Number.isFinite(limit) || limit <= 0) return 100; return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100)); }
-
-export async function getUsage(userId) {
-  const result = await pool.query(
-    `SELECT u.plan, u.timezone, u.weekly_locked_until,
-            COALESCE(SUM(CASE WHEN us.created_at >= $2 THEN greatest(us.units, 0) ELSE 0 END), 0)::int AS daily_used,
-            COALESCE(SUM(greatest(us.units, 0)), 0)::int AS weekly_used,
-            MAX(us.created_at) AS latest_usage_at
-       FROM users u
-       LEFT JOIN usage us ON us.user_id = u.id AND us.created_at >= $3 AND COALESCE(us.units, 0) > 0
-      WHERE u.id = $1
-      GROUP BY u.id, u.plan, u.timezone, u.weekly_locked_until`,
-    async () => {},
-  );
-  return null;
 }
 
 export async function getUsage(userId) {

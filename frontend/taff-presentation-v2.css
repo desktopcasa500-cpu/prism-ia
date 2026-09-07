@@ -28,16 +28,16 @@
 .prism-story .story-send{bottom:12px;border-radius:5px;padding:6px 9px}
 .prism-story .story-image-cursor{position:absolute;width:0;height:0;z-index:9;border-left:8px solid transparent;border-right:8px solid transparent;border-top:17px solid #262621;transform:rotate(-27deg);filter:drop-shadow(1px 1px 0 #fff)}
 .prism-story .story-build{z-index:9;background:#0c0c0b}
-.prism-story .story-build-window{width:93%;height:84%;border-radius:7px;overflow:hidden;background:#f7f6f1;box-shadow:0 30px 90px rgba(0,0,0,.4)}
+.prism-story .story-build-window{position:relative;width:93%;height:84%;display:grid;grid-template-rows:34px auto minmax(0,1fr);border-radius:7px;overflow:hidden;background:#f7f6f1;box-shadow:0 30px 90px rgba(0,0,0,.4)}
 .prism-story .story-build-window>header{height:34px;padding:0 13px}
-.prism-story .story-build-metrics{grid-template-columns:repeat(4,1fr);background:#f2f1eb}
+.prism-story .story-build-metrics{grid-template-columns:repeat(4,1fr);background:#f2f1eb;min-height:0}
 .prism-story .story-build-metrics>div{padding:9px 8px}
 .prism-story .story-build-main{display:grid;grid-template-columns:126px minmax(0,1fr);min-height:0;overflow:hidden}
 .prism-story .story-build-plan{padding:12px 11px;gap:8px;background:#f1f0ea;border-right:1px solid #d9d8d0}
-.prism-story .story-build-editor{min-width:0;min-height:0;padding:12px 14px;background:#fffefa}
+.prism-story .story-build-editor{position:relative;min-width:0;min-height:0;overflow:hidden;padding:12px 14px 30px;background:#fffefa}
 .prism-story .story-code-tabs{margin-bottom:9px}
-.prism-story .story-build-editor pre{font-size:7.2px;line-height:1.75}
-.prism-story .story-build-footer{position:absolute;left:14px;right:14px;bottom:11px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid #e0dfd8;padding-top:7px;color:#8a8982;font:6px "DM Mono",ui-monospace,monospace}
+.prism-story .story-build-editor pre{font-size:7.2px;line-height:1.75;max-height:calc(100% - 28px)}
+.prism-story .story-build-footer{position:absolute;left:14px;right:14px;bottom:9px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid #e0dfd8;padding-top:7px;color:#8a8982;font:6px "DM Mono",ui-monospace,monospace;background:#fffefa}
 .prism-story .story-build-footer b{font-weight:650;color:#373630}
 .prism-story .story-final-site{z-index:10;display:grid;place-items:center;background:#0c0c0b;padding:0;will-change:transform,opacity}
 .prism-story .story-site-shell{width:94%;height:86%;overflow:hidden;background:#f4f2ec;color:#23231e;border:1px solid #3a3934;border-radius:7px;box-shadow:0 30px 90px rgba(0,0,0,.42)}

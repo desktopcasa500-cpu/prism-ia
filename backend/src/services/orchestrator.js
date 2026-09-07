@@ -4,6 +4,7 @@ import { createMcpExecutionContext } from './mcp.js';
 import { skillToolDefinitions } from './skills.js';
 
 const PROVIDER_TIMEOUT = 12_000;
+const MCP_BOOT_TIMEOUT = 7_000;
 const MAX_TOOL_ROUNDS = 8;
 const MAX_CONTEXT = 30_000;
 const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
@@ -74,6 +75,24 @@ async function request(url, options, deadline = Date.now() + PROVIDER_TIMEOUT) {
       throw timeoutError;
     }
     throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function withTimeout(task, ms, message) {
+  let timer;
+  try {
+    return await Promise.race([
+      task,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new Error(message);
+          error.code = 'MCP_BOOT_TIMEOUT';
+          reject(error);
+        }, ms);
+      }),
+    ]);
   } finally {
     clearTimeout(timer);
   }
@@ -276,26 +295,64 @@ async function callNvidiaNim(prompt, model, effort, execution, tools) {
   const profile = getModelProfile(model);
   const providerModel = process.env.NVIDIA_NIM_MODEL || process.env.NIM_MODEL || profile.nvidiaModel || profile.defaultModel || 'meta/llama-3.1-70b-instruct';
   return callOpenAiCompatible(`${NVIDIA_NIM_BASE()}/chat/completions`, key, 'nvidia-nim', prompt, model, effort, execution, tools, providerModel, {
-    'Accept': 'application/json',
+    Accept: 'application/json',
   });
+}
+
+function buildProviders(model, effort) {
+  const available = [];
+  if (GEMINI_KEY()) available.push({ name: 'gemini', call: callGemini });
+  if (GROQ_KEY() && (effort !== 'low' || model !== 'prism-nano-1.0')) available.push({ name: 'groq', call: callGroq });
+  if (OPENROUTER_KEY() && (effort === 'ultracode' || model === 'prism-taff-2.0')) available.push({ name: 'openrouter', call: callOpenRouter });
+  if (NVIDIA_NIM_KEY()) available.push({ name: 'nvidia-nim', call: callNvidiaNim });
+
+  const priority = model === 'prism-taff-2.0' || effort === 'ultracode'
+    ? ['nvidia-nim', 'openrouter', 'gemini', 'groq']
+    : effort === 'low'
+      ? ['groq', 'gemini', 'nvidia-nim', 'openrouter']
+      : ['gemini', 'groq', 'nvidia-nim', 'openrouter'];
+
+  return available.sort((a, b) => priority.indexOf(a.name) - priority.indexOf(b.name));
 }
 
 export async function runOrchestration(prompt, effort = 'medium', profile = null, context = '', userId = null, options = {}) {
   const model = profile?.model || profile?.id || 'prism-mini-1.0';
   const normalizedEffort = normalizeEffort(effort);
   const input = buildInput(prompt, context);
-  const mcp = userId ? await createMcpExecutionContext(userId) : { tools: [], errors: [], execute: async () => { throw new Error('MCP indisponível'); }, close: async () => {} };
+
+  let mcp = { tools: [], errors: [], execute: async () => { throw new Error('MCP indisponível'); }, close: async () => {} };
+  if (userId) {
+    try {
+      mcp = await withTimeout(
+        createMcpExecutionContext(userId, { serverIds: options.mcpServerIds }),
+        MCP_BOOT_TIMEOUT,
+        'MCP demorou demais para inicializar',
+      );
+    } catch (error) {
+      mcp = { tools: [], errors: [{ server: 'MCP', message: 'MCP temporariamente indisponível' }], execute: async () => { throw new Error('MCP indisponível'); }, close: async () => {} };
+      console.warn('Prism MCP bootstrap failed:', { code: error?.code, message: error?.message });
+    }
+  }
+
   const skillTools = options.enableSkills === false ? [] : skillToolDefinitions();
   const tools = toolDefinitions({ mcpTools: mcp.tools, skillTools });
   const execution = { userId, mcp, mcpTools: mcp.tools, skillTools };
-  const providers = [];
+  const providers = buildProviders(model, normalizedEffort);
   const providerErrors = [];
 
   try {
-    if (GEMINI_KEY()) providers.push({ name: 'gemini', call: callGemini });
-    if (GROQ_KEY() && (normalizedEffort !== 'low' || model !== 'prism-nano-1.0')) providers.push({ name: 'groq', call: callGroq });
-    if (OPENROUTER_KEY() && (normalizedEffort === 'ultracode' || model === 'prism-taff-2.0')) providers.push({ name: 'openrouter', call: callOpenRouter });
-    if (NVIDIA_NIM_KEY()) providers.push({ name: 'nvidia-nim', call: callNvidiaNim });
+    if (!providers.length) {
+      console.error(JSON.stringify({ event: 'prism_no_provider_configured', timestamp: new Date().toISOString(), model, effort: normalizedEffort }));
+      return {
+        status: 'unavailable',
+        message: UNAVAILABLE_MESSAGE,
+        providers: [],
+        provider_errors: [{ reason: 'no_provider_configured' }],
+        model,
+        effort: normalizedEffort,
+        mcp_errors: mcp.errors,
+      };
+    }
 
     for (const provider of providers) {
       const startedAt = Date.now();
@@ -303,9 +360,15 @@ export async function runOrchestration(prompt, effort = 'medium', profile = null
         const result = await provider.call(input, model, normalizedEffort, execution, tools);
         if (result?.text?.trim()) {
           return {
-            status: 'ok', text: result.text.trim(), tokens: Number(result.tokens || 0), providers: [result.provider],
-            tools_used: Array.isArray(result.toolsUsed) ? result.toolsUsed : [], mcp_errors: mcp.errors,
-            provider_errors: providerErrors, model, effort: normalizedEffort,
+            status: 'ok',
+            text: result.text.trim(),
+            tokens: Number(result.tokens || 0),
+            providers: [result.provider],
+            tools_used: Array.isArray(result.toolsUsed) ? result.toolsUsed : [],
+            mcp_errors: mcp.errors,
+            provider_errors: providerErrors,
+            model,
+            effort: normalizedEffort,
           };
         }
         providerErrors.push({ provider: provider.name, reason: 'empty_response', elapsedMs: Date.now() - startedAt });
@@ -319,13 +382,12 @@ export async function runOrchestration(prompt, effort = 'medium', profile = null
       }
     }
 
-    const configured = providers.map((item) => item.name);
     console.error(JSON.stringify({
       event: 'prism_provider_fallback_exhausted',
       timestamp: new Date().toISOString(),
       model,
       effort: normalizedEffort,
-      configuredProviders: configured,
+      configuredProviders: providers.map((item) => item.name),
       failures: providerErrors,
     }));
 

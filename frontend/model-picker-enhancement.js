@@ -34,7 +34,7 @@ function buildRow(config, picker, locked, selected, nativeToken) {
   return button;
 }
 function getCurrentModel(picker) {
-  const selected = nativeButtons(picker).find((button) => button.classList.contains('selected'));
+  const selected = picker ? nativeButtons(picker).find((button) => button.classList.contains('selected')) : null;
   const text = normalize(selected?.textContent || document.querySelector('.chat-app .topbar-model span')?.textContent);
   if (text.includes('nano')) return 'nano';
   if (text.includes('mini')) return 'mini';
@@ -58,6 +58,15 @@ function syncDisplayedLabels(app, currentKey) {
   if (topbar) topbar.textContent = config.label;
   const composer = app?.querySelector('.composer-model');
   if (composer?.firstChild?.nodeType === Node.TEXT_NODE) composer.firstChild.nodeValue = `${config.label} `;
+  app?.querySelectorAll('.message-model').forEach((node) => {
+    const value = normalize(node.textContent);
+    if (value.includes('nano')) node.textContent = 'Nano 1.0A';
+    else if (value.includes('mini')) node.textContent = 'Mini 1.0A';
+    else if (value.includes('edge')) node.textContent = 'Edge 1.0A';
+    else if (value.includes('taff 2')) node.textContent = 'Taff 2.0';
+    else if (value.includes('taff')) node.textContent = 'Taff 1.0A';
+    else if (value.includes('tex')) node.textContent = 'Tex 1.5B';
+  });
   cleanComposerModes(app);
 }
 function createCustomPicker(picker) {
@@ -71,13 +80,7 @@ function createCustomPicker(picker) {
   shell.appendChild(head);
   const main = document.createElement('div');
   main.className = 'prism-model-main';
-  const mainModels = [
-    ['nano', 'Nano'],
-    ['mini', 'Mini'],
-    ...(rank >= 2 ? [['edge', 'Edge']] : []),
-    ['tex15', 'Tex'],
-    ['taff2', 'Taff 2'],
-  ];
+  const mainModels = [['nano', 'Nano'], ['mini', 'Mini'], ...(rank >= 2 ? [['edge', 'Edge']] : []), ['tex15', 'Tex'], ['taff2', 'Taff 2']];
   const nativeToken = { nano: 'Nano', mini: 'Mini', edge: 'Edge', tex15: 'Tex 1.5', taff2: 'Taff 2' };
   for (const [key] of mainModels) {
     const config = MODEL_CONFIG[key];
@@ -108,8 +111,9 @@ function createCustomPicker(picker) {
 function sync() {
   const app = document.querySelector('.chat-app');
   if (!app) return;
-  cleanComposerModes(app);
   const picker = app.querySelector('.model-picker');
+  cleanComposerModes(app);
+  syncDisplayedLabels(app, getCurrentModel(picker));
   if (!picker) {
     state.custom?.remove();
     state.custom = null;
@@ -121,8 +125,6 @@ function sync() {
     state.custom = null;
     return;
   }
-  const current = getCurrentModel(picker);
-  syncDisplayedLabels(app, current);
   if (!state.custom || !picker.parentElement?.contains(state.custom)) {
     state.custom?.remove();
     state.custom = createCustomPicker(picker);

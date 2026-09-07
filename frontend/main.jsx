@@ -25,6 +25,7 @@ import './prism-polish.css';
 import './pages/prism-codex-final.css';
 import './pages/prism-codex-v2.css';
 import './codex-redesign.css';
+import './prism-logo-overrides.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

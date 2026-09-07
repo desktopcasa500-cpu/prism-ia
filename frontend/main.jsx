@@ -31,6 +31,7 @@ import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
 import './codex-stable.css';
+import './codex-stable-fixes.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

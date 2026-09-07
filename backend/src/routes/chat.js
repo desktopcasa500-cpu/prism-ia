@@ -3,7 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { runOrchestration } from '../services/orchestrator.js';
 import { normalizeEffort, validateThinking } from '../services/modelRouter.js';
-import { getUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
+import { getUsage, getDailyUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
 
 const router = Router();
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
@@ -56,6 +56,13 @@ router.get('/usage', async (req, res, next) => {
     const usage = await getUsage(req.userId);
     if (!usage) return res.status(404).json({ error: 'Conta não encontrada.' });
     res.json(usage);
+  } catch (error) { next(error); }
+});
+
+router.get('/usage/history', async (req, res, next) => {
+  try {
+    const history = await getDailyUsage(req.userId, req.query?.days);
+    res.json(history);
   } catch (error) { next(error); }
 });
 

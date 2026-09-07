@@ -9,7 +9,7 @@ import PrismDetail from './pages/PrismDetail.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import Chat from './pages/Chat.jsx';
-import Codex from './pages/CodexStable.jsx';
+import Codex from './pages/CodexFinal.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';

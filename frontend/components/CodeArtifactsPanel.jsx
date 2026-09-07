@@ -112,8 +112,8 @@ function buildPreviewDocument(artifacts) {
     documentText = `<!doctype html>${documentText}`;
   }
 
-  const css = cssFiles.map((file) => `/* ${file.filename} */\n${file.code}`).join('\n\n');
-  const js = jsFiles.map((file) => `// ${file.filename}\n${file.code}`).join('\n\n');
+  const css = cssFiles.map((file) => `/* ${file.filename} */\n${file.code}`.replace(/<\/style/gi, '<\\/style')).join('\n\n');
+  const js = jsFiles.map((file) => `// ${file.filename}\n${file.code}`.replace(/<\/script/gi, '<\\/script')).join('\n\n');
   const styleTag = css ? `<style data-prism-artifacts>\n${css}\n</style>` : '';
   const scriptTag = js ? `<script data-prism-artifacts>\n${js}\n<\/script>` : '';
 

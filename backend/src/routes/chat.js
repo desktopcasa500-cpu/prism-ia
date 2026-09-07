@@ -3,7 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { runOrchestration } from '../services/orchestrator.js';
 import { normalizeEffort, validateThinking } from '../services/modelRouter.js';
-import { getUsage, getDailyUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
+import { getUsage, getDailyUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES, getWallet } from '../services/usage.js';
 
 const router = Router();
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
@@ -44,10 +44,7 @@ function sessionTitle(current, content) {
 }
 
 async function loadHistory(sessionId, userId) {
-  const result = await pool.query(
-    `SELECT role, content FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT $3`,
-    [sessionId, userId, MAX_HISTORY_MESSAGES],
-  );
+  const result = await pool.query('SELECT role, content FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT $3', [sessionId, userId, MAX_HISTORY_MESSAGES]);
   return result.rows.reverse().map((message) => `${message.role}: ${message.content}`).join('\n');
 }
 
@@ -66,9 +63,17 @@ router.get('/usage/history', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/usage/account', async (req, res, next) => {
+  try {
+    const [usage, wallet] = await Promise.all([getUsage(req.userId), getWallet(req.userId)]);
+    if (!usage || !wallet) return res.status(404).json({ error: 'Conta não encontrada.' });
+    res.json({ usage, wallet });
+  } catch (error) { next(error); }
+});
+
 router.get('/sessions', async (req, res, next) => {
   try {
-    const result = await pool.query(`SELECT id,title,created_at,updated_at FROM sessions WHERE user_id=$1 ORDER BY updated_at DESC, created_at DESC`, [req.userId]);
+    const result = await pool.query('SELECT id,title,created_at,updated_at FROM sessions WHERE user_id=$1 ORDER BY updated_at DESC, created_at DESC', [req.userId]);
     res.json({ sessions: result.rows });
   } catch (error) { next(error); }
 });
@@ -85,7 +90,7 @@ router.patch('/sessions/:id', async (req, res, next) => {
   try {
     const title = cleanText(req.body?.title, 120).replace(/\s+/g, ' ');
     if (!title) return res.status(400).json({ error: 'O título não pode ficar vazio.' });
-    const result = await pool.query(`UPDATE sessions SET title=$1, updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING id,title,created_at,updated_at`, [title, req.params.id, req.userId]);
+    const result = await pool.query('UPDATE sessions SET title=$1, updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING id,title,created_at,updated_at', [title, req.params.id, req.userId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
     res.json({ session: result.rows[0] });
   } catch (error) { next(error); }
@@ -93,12 +98,7 @@ router.patch('/sessions/:id', async (req, res, next) => {
 
 router.get('/sessions/:id/messages', async (req, res, next) => {
   try {
-    const result = await pool.query(
-      `SELECT m.id,m.role,m.content,m.effort,m.tokens_used,m.provider,m.model_id,m.thinking_summary,m.metadata,m.created_at
-         FROM messages m JOIN sessions s ON s.id=m.session_id AND s.user_id=m.user_id
-        WHERE m.session_id=$1 AND m.user_id=$2 ORDER BY m.created_at ASC`,
-      [req.params.id, req.userId],
-    );
+    const result = await pool.query(`SELECT m.id,m.role,m.content,m.effort,m.tokens_used,m.provider,m.model_id,m.thinking_summary,m.metadata,m.created_at FROM messages m JOIN sessions s ON s.id=m.session_id AND s.user_id=m.user_id WHERE m.session_id=$1 AND m.user_id=$2 ORDER BY m.created_at ASC`, [req.params.id, req.userId]);
     if (!result.rows.length) {
       const owns = await pool.query('SELECT id FROM sessions WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
       if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
@@ -136,7 +136,9 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     reservation = await reserveUsage(req.userId, model);
     if (!reservation.ok) {
       if (reservation.code === 'AUTH_REQUIRED') return res.status(401).json({ error: 'Sessão expirada.', code: reservation.code });
-      return res.status(429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
+      if (reservation.code === 'WEEKLY_USAGE_LOCKED') return res.status(429).json({ error: 'Seu uso semanal foi esgotado. Você poderá voltar a usar a IA após o período de bloqueio ou adicionar pelo menos US$ 5 em fundos extras no plano elegível.', code: reservation.code, usage: reservation.usage, canUseExtraFunds: reservation.canUseExtraFunds, minimumTopUpCents: 500 });
+      if (reservation.code === 'DAILY_CREDITS_EXHAUSTED') return res.status(429).json({ error: 'Os créditos diários acabaram. Eles serão renovados amanhã.', code: reservation.code, usage: reservation.usage });
+      return res.status(429).json({ error: 'O limite de uso foi atingido.', code: reservation.code, usage: reservation.usage });
     }
 
     const conversationContext = await loadHistory(req.params.id, req.userId);
@@ -144,7 +146,6 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     await pool.query(`UPDATE sessions SET title=$1, updated_at=now() WHERE id=$2 AND user_id=$3`, [sessionTitle(owns.rows[0].title, content), req.params.id, req.userId]);
 
     const result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
-
     if (result?.status === 'unavailable') {
       await releaseUsage(reservation.reservationId).catch(() => {});
       return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
@@ -161,13 +162,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     const tools = Array.isArray(result?.tools_used) ? result.tools_used : [];
     await recordTokens(reservation.reservationId, providers[0] || null, tokens);
 
-    const saved = await pool.query(
-      `INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata)
-       VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9)
-       RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`,
-      [req.params.id, req.userId, text, effort, tokens, providers[0] || null, model, 'Resposta gerada e revisada.', JSON.stringify({ tools_used: tools })],
-    );
-
+    const saved = await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata) VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9) RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`, [req.params.id, req.userId, text, effort, tokens, providers[0] || null, model, 'Resposta gerada e revisada.', JSON.stringify({ tools_used: tools })]);
     const usage = await getUsage(req.userId);
     res.json({ message: saved.rows[0], providers_used: providers, tools_used: tools, mcp_errors: Array.isArray(result?.mcp_errors) ? result.mcp_errors : [], model, effort, usage });
   } catch (error) {

@@ -14,6 +14,7 @@ import './prism-chat.css';
 import './prism-chat-v2.css';
 import './prism-code-artifacts.css';
 import './provider-status.css';
+import './chat-home-redesign.css';
 import './auth-premium.css';
 import './settings.css';
 import './pixel-refinement.css';
@@ -22,6 +23,7 @@ import './prism-original-pages.css';
 import './prism-polish.css';
 import './pages/prism-codex-final.css';
 import './pages/prism-codex-v2.css';
+import './codex-redesign.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

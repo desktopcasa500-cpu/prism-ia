@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useAuth } from '../lib/auth.jsx';
 import { usePersistentCodex } from '../lib/usePersistentCodex.js';
 import PrismCodexIntro, { INTRO_KEY } from '../components/PrismCodexIntro.jsx';
 import CodexSidebar from '../components/codex/CodexSidebar.jsx';
@@ -9,6 +8,8 @@ import McpContextBar from '../components/codex/McpContextBar.jsx';
 import CodeArtifactsPanel from '../components/CodeArtifactsPanel.jsx';
 import MarkdownMessage from '../components/MarkdownMessage.jsx';
 import PlanPanel from '../components/PlanPanel.jsx';
+import TaffPresentation from '../components/TaffPresentation.jsx';
+import './codex-stable-taff.css';
 
 const MODELS = [
   ['prism-nano-1.0', 'Prism Nano 1.0A'],
@@ -89,6 +90,7 @@ export default function CodexStable() {
   const navigate = useNavigate();
   const { preferences, updatePreference, cacheSession, cachedSession } = usePersistentCodex();
   const [showIntro, setShowIntro] = useState(() => { try { return localStorage.getItem(INTRO_KEY) !== '1'; } catch { return false; } });
+  const [showTaffPresentation, setShowTaffPresentation] = useState(false);
   const [mode, setMode] = useState('chat');
   const [model, setModel] = useState(preferences.model || 'prism-mini-1.0');
   const [effort, setEffort] = useState(preferences.effort || 'medium');
@@ -179,7 +181,7 @@ export default function CodexStable() {
   useEffect(() => { if (sessionId) openSession(sessionId).catch(() => {}); }, [sessionId, openSession]);
   useEffect(() => { updatePreference('model', model); updatePreference('effort', effort); }, [model, effort, updatePreference]);
   useEffect(() => { if (!running) return undefined; const timer = window.setInterval(() => setElapsed(Date.now() - startedAtRef.current), 100); return () => window.clearInterval(timer); }, [running]);
-  useEffect(() => { const handler = (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(true); } if (event.key === 'Escape') { setCommandOpen(false); setModelOpen(false); setPlansOpen(false); setMobileOpen(false); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
+  useEffect(() => { const handler = (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(true); } if (event.key === 'Escape') { setCommandOpen(false); setModelOpen(false); setPlansOpen(false); setMobileOpen(false); setShowTaffPresentation(false); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
 
   const resetConversation = () => { setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); setError(''); };
 
@@ -268,11 +270,12 @@ export default function CodexStable() {
   }
 
   function setCodexMode(next) { setMode(next); setError(''); }
-  function replayIntro() { try { localStorage.removeItem(INTRO_KEY); } catch {} setShowIntro(true); }
+  function replayIntro() { setShowTaffPresentation(true); setMobileOpen(false); }
   function openArtifacts() { if (!artifacts.length) return; setActiveArtifactId((current) => current || artifacts[0].id); setArtifactPanelOpen(true); }
 
   return <div className={`codex-rebuild ${mode === 'vibe' ? 'vibe-mode' : 'chat-mode'} ${mobileOpen ? 'mobile-sidebar-open' : ''}`}>
     {showIntro && <PrismCodexIntro userName={user?.name || 'você'} onComplete={() => setShowIntro(false)} />}
+    {showTaffPresentation && <div className="codex-taff-overlay" role="dialog" aria-modal="true" aria-label="Apresentação TAFF 2.0"><button type="button" className="codex-taff-close" onClick={() => setShowTaffPresentation(false)} aria-label="Fechar apresentação">Fechar</button><div className="codex-taff-shell"><TaffPresentation /></div></div>}
     <button type="button" className="codex-mobile-toggle" onClick={() => setMobileOpen((current) => !current)} aria-label="Abrir navegação">☰</button>
     {mobileOpen && <button type="button" className="codex-mobile-backdrop" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
     <CodexSidebar sessions={sessions} activeId={sessionId} query={query} onQuery={setQuery} onNew={newSession} onOpen={openSession} onRename={renameSession} onDelete={deleteSession} onReplay={replayIntro} onMode={setCodexMode} onPlans={() => setPlansOpen(true)} onHome={() => navigate('/chat')} onArtifacts={openArtifacts} onSettings={() => navigate('/configuracoes')} onProjects={() => navigate('/studio')} mode={mode} />

@@ -37,9 +37,8 @@ function addToast(text) {
 function addMessageActions() {
   const messages = document.querySelectorAll('.chat-app .message.user, .chat-app .message.assistant, .pcx-root .pcx-message.user, .pcx-root .pcx-message.assistant');
   messages.forEach((message) => {
-    if (message.dataset.prismActions === '1') return;
     const body = message.querySelector('.message-content, .pcx-message-text');
-    if (!body) return;
+    if (!body || message.dataset.prismActions === '1') return;
 
     const actions = document.createElement('div');
     actions.className = 'prism-message-actions';
@@ -99,28 +98,28 @@ function removeStopButtons() {
 }
 
 function enhanceChatPicker(root) {
-  if (root.dataset.prismModels === '1') return;
   const list = root.querySelector('.picker-list');
   if (!list) return;
   const rows = [...list.querySelectorAll('.picker-model')];
   const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
-  if (!extra) return;
-  extra.remove();
+  if (!extra || root.querySelector('.prism-more-models')) return;
+
+  extra.style.display = 'none';
   const section = document.createElement('div');
   section.className = 'prism-more-models';
   section.innerHTML = '<div class="prism-more-title">Mais modelos</div>';
   const clone = extra.cloneNode(true);
+  clone.style.display = '';
   clone.addEventListener('click', () => extra.click());
   section.appendChild(clone);
   list.insertAdjacentElement('afterend', section);
-  root.dataset.prismModels = '1';
 }
 
 function enhanceCodexPicker(root) {
-  if (root.dataset.prismModels === '1') return;
   const rows = [...root.children].filter((node) => node.matches('button'));
   const extra = rows.find((row) => /Prism Taff 1\.0/i.test(row.textContent));
-  if (!extra) return;
+  if (!extra || root.querySelector('.prism-more-models')) return;
+
   extra.style.display = 'none';
   const section = document.createElement('div');
   section.className = 'prism-more-models codex-more-models';
@@ -130,7 +129,6 @@ function enhanceCodexPicker(root) {
   clone.addEventListener('click', () => extra.click());
   section.appendChild(clone);
   root.appendChild(section);
-  root.dataset.prismModels = '1';
 }
 
 function refresh() {

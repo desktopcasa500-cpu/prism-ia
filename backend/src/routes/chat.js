@@ -3,7 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { runOrchestration } from '../services/orchestrator.js';
 import { normalizeEffort, validateThinking } from '../services/modelRouter.js';
-import { getUsage, reserveUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
+import { getUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
 
 const router = Router();
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
@@ -113,19 +113,20 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
   const model = cleanText(req.body?.model, 80) || 'prism-mini-1.0';
   const effort = normalizeEffort(cleanText(req.body?.effort, 20) || 'medium');
 
-  if (!content) return res.status(400).json({ error: 'Mensagem vazia.' });
-  if (typeof req.body?.content === 'string' && req.body.content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa.' });
-  if (!ALLOWED_EFFORTS.has(effort)) return res.status(400).json({ error: 'Nível de pensamento inválido.' });
-  if (!ALLOWED_MODELS.has(model)) return res.status(400).json({ error: 'Modelo inválido.' });
+  if (!content) return res.status(400).json({ error: 'Mensagem vazia.', code: 'EMPTY_MESSAGE' });
+  if (typeof req.body?.content === 'string' && req.body.content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa.', code: 'MESSAGE_TOO_LONG' });
+  if (!ALLOWED_EFFORTS.has(effort)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
+  if (!ALLOWED_MODELS.has(model)) return res.status(400).json({ error: 'Modelo inválido.', code: 'INVALID_MODEL' });
 
+  let reservation = null;
   try {
     const owns = await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
-    if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
+    if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.', code: 'SESSION_NOT_FOUND' });
 
     const authorization = await authorizeModel(req.userId, model, effort);
     if (!authorization.ok) return res.status(authorization.status).json({ ...authorization, status: undefined });
 
-    const reservation = await reserveUsage(req.userId, model);
+    reservation = await reserveUsage(req.userId, model);
     if (!reservation.ok) {
       if (reservation.code === 'AUTH_REQUIRED') return res.status(401).json({ error: 'Sessão expirada.', code: reservation.code });
       return res.status(429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
@@ -135,20 +136,18 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,model_id) VALUES ($1,$2,'user',$3,$4,$5)`, [req.params.id, req.userId, content, effort, model]);
     await pool.query(`UPDATE sessions SET title=$1, updated_at=now() WHERE id=$2 AND user_id=$3`, [sessionTitle(owns.rows[0].title, content), req.params.id, req.userId]);
 
-    let result;
-    try {
-      result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
-    } catch (error) {
-      console.error('Prism orchestration error:', error);
-      return res.status(502).json({ error: 'O serviço de geração não respondeu. Tente novamente.', code: 'GENERATION_FAILED', usage: reservation.usage });
-    }
+    const result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
 
     if (result?.status === 'unavailable') {
-      return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE, usage: reservation.usage });
+      await releaseUsage(reservation.reservationId).catch(() => {});
+      return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
     }
 
     const text = typeof result?.text === 'string' ? result.text.trim() : '';
-    if (!text) return res.status(502).json({ error: 'O serviço de geração retornou uma resposta vazia.', code: 'EMPTY_GENERATION' });
+    if (!text) {
+      await releaseUsage(reservation.reservationId).catch(() => {});
+      return res.status(502).json({ error: 'O serviço de geração retornou uma resposta vazia.', code: 'EMPTY_GENERATION' });
+    }
 
     const tokens = Number.isFinite(Number(result?.tokens)) ? Math.max(0, Number(result.tokens)) : 0;
     const providers = Array.isArray(result?.providers) ? result.providers : [];
@@ -164,7 +163,13 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
 
     const usage = await getUsage(req.userId);
     res.json({ message: saved.rows[0], providers_used: providers, tools_used: tools, mcp_errors: Array.isArray(result?.mcp_errors) ? result.mcp_errors : [], model, effort, usage });
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
+    console.error('Prism chat generation error:', { code: error?.code, status: error?.status, message: error?.message });
+    if (error?.code === 'PROVIDER_CONFIGURATION') return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
+    if (error?.status === 401) return res.status(401).json({ error: 'Sessão expirada.', code: 'AUTH_REQUIRED' });
+    return res.status(502).json({ error: 'Não foi possível concluir a resposta. Tente novamente.', code: 'GENERATION_FAILED' });
+  }
 });
 
 export default router;

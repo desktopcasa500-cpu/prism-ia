@@ -13,12 +13,28 @@ export default function CodexSidebar({ sessions = [], activeId, query = '', onQu
   const visible = sessions.filter((session) => !query || String(session.title || '').toLowerCase().includes(query.toLowerCase()));
   const groups = visible.reduce((acc, session) => { const key = dayGroup(session.updated_at || session.created_at); (acc[key] ||= []).push(session); return acc; }, {});
   return <aside className="pcx-sidebar">
-    <div className="pcx-brand"><span className="pcx-brand-mark">P</span><div><strong>Prism IA</strong><small>Codex</small></div></div>
+    <div className="pcx-brand"><button className="pcx-brand-button" onClick={onCodex} aria-label="Abrir Codex"><span className="pcx-brand-mark">P</span><span><strong>Prism IA</strong><small>Codex</small></span></button></div>
     <div className="app-switcher pcx-app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch" onClick={onHome}>Home</button><button className="app-switch active" onClick={onCodex}>Codex</button></div>
     <button className="pcx-new" onClick={onNew}>+ <span>Novo chat</span></button>
-    <nav className="pcx-nav" aria-label="Navegação do Codex"><button className={mode === 'chat' ? 'active' : ''} onClick={() => onMode?.('chat')}>Conversa</button><button className={mode === 'vibe' ? 'active' : ''} onClick={() => onMode?.('vibe')}>Vibe Code <small>quando necessário</small></button><button onClick={onPlans}>Planos <small>conta</small></button><button onClick={onReplay}>Apresentação</button></nav>
-    <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar" aria-label="Buscar conversas"/><kbd>⌘K</kbd></label>
-    <div className="pcx-history"><div className="pcx-history-head"><span>Conversas</span><b>{visible.length || ''}</b></div>{Object.entries(groups).map(([group, items]) => <section key={group}><div className="pcx-group-label">{group}</div>{items.map((session) => <div className={`pcx-session ${session.id === activeId ? 'active' : ''}`} key={session.id}><button className="pcx-session-open" onClick={() => onOpen?.(session.id)}>{session.title || 'Nova conversa'}</button><div className="pcx-session-actions"><button onClick={() => onRename?.(session)} aria-label="Renomear conversa">…</button><button onClick={() => onDelete?.(session)} aria-label="Excluir conversa">×</button></div></div>)}</section>)}{!visible.length && <p className="pcx-muted">Nenhuma conversa encontrada.</p>}</div>
-    <div className="pcx-sidebar-foot"><button onClick={onReplay}>Apresentação do Codex</button><div className="pcx-session-note"><span>SESSÃO</span><strong>Contexto isolado</strong></div></div>
+
+    <div className="pcx-sidebar-section">
+      <div className="pcx-sidebar-section-title">FERRAMENTAS</div>
+      <nav className="pcx-nav" aria-label="Ferramentas do Codex">
+        <button className={mode === 'chat' ? 'active' : ''} onClick={() => onMode?.('chat')}><span>Conversa</span><small>Chat</small></button>
+        <button className={mode === 'vibe' ? 'active' : ''} onClick={() => onMode?.('vibe')}><span>Vibe Code</span><small>Workspace</small></button>
+      </nav>
+    </div>
+
+    <div className="pcx-sidebar-section pcx-account-section">
+      <div className="pcx-sidebar-section-title">CONTA</div>
+      <nav className="pcx-nav" aria-label="Conta">
+        <button onClick={onPlans}><span>Planos</span><small>Conta</small></button>
+        <button onClick={onReplay}><span>Apresentação</span><small>Codex</small></button>
+      </nav>
+    </div>
+
+    <label className="pcx-history-search"><span>⌕</span><input value={query} onChange={(event) => onQuery?.(event.target.value)} placeholder="Buscar conversa" aria-label="Buscar conversas"/><kbd>⌘K</kbd></label>
+    <div className="pcx-history"><div className="pcx-history-head"><span>Histórico</span><b>{visible.length || ''}</b></div>{Object.entries(groups).map(([group, items]) => <section key={group}><div className="pcx-group-label">{group}</div>{items.map((session) => <div className={`pcx-session ${session.id === activeId ? 'active' : ''}`} key={session.id}><button className="pcx-session-open" onClick={() => onOpen?.(session.id)}>{session.title || 'Nova conversa'}</button><div className="pcx-session-actions"><button onClick={() => onRename?.(session)} aria-label="Renomear conversa">…</button><button onClick={() => onDelete?.(session)} aria-label="Excluir conversa">×</button></div></div>)}</section>)}{!visible.length && <p className="pcx-muted">Nenhuma conversa encontrada.</p>}</div>
+    <div className="pcx-sidebar-foot"><div className="pcx-sidebar-foot-card"><span>ESPAÇO</span><strong>Projeto ativo</strong></div><button onClick={onReplay}>Apresentação do Codex</button></div>
   </aside>;
 }

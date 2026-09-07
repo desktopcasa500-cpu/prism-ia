@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 import { usePersistentCodex } from '../lib/usePersistentCodex.js';
 import PrismCodexIntro, { INTRO_KEY } from '../components/PrismCodexIntro.jsx';
 import CodexSidebar from '../components/codex/CodexSidebar.jsx';

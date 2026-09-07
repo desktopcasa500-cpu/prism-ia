@@ -38,57 +38,32 @@ export const PLAN_FEATURES = {
 };
 
 export function normalizePlanRank(plan) { return PLAN_RANK[plan] ?? 0; }
-
-export function getDailyCredits(plan) {
-  const value = PLAN_DAILY_CREDITS[normalizePlanRank(plan)];
-  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
-}
-
+export function getDailyCredits(plan) { const value = PLAN_DAILY_CREDITS[normalizePlanRank(plan)]; return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1; }
 export function getWeeklyCredits(plan) { return getDailyCredits(plan) * 7; }
 
-function startOfDay(value = new Date()) {
-  const date = new Date(value);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function weekStart(value = new Date()) {
-  const date = startOfDay(value);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  return date;
-}
-
+function startOfDay(value = new Date()) { const date = new Date(value); return new Date(date.getFullYear(), date.getMonth(), date.getDate()); }
+function weekStart(value = new Date()) { const date = startOfDay(value); const day = date.getDay(); date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day)); return date; }
 function nextDayReset() { return new Date(startOfDay().getTime() + USAGE_DAY_MS); }
-
-export function percentUsed(used, limit) {
-  if (!Number.isFinite(limit) || limit <= 0) return 100;
-  return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100));
-}
+export function percentUsed(used, limit) { if (!Number.isFinite(limit) || limit <= 0) return 100; return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100)); }
 
 function snapshot(plan, dailyUsed, weeklyUsed, lockedUntil = null) {
   const dailyLimit = getDailyCredits(plan);
   const weeklyLimit = getWeeklyCredits(plan);
   const lockDate = lockedUntil ? new Date(lockedUntil) : null;
   const activeLock = lockDate && lockDate.getTime() > Date.now() ? lockDate.toISOString() : null;
+  const dailySafe = Math.max(0, Number(dailyUsed || 0));
+  const weeklySafe = Math.max(0, Number(weeklyUsed || 0));
   return {
     plan,
     planRank: normalizePlanRank(plan),
     windowHours: USAGE_WINDOW_HOURS,
-    daily: {
-      used: Math.max(0, Number(dailyUsed || 0)),
-      limit: dailyLimit,
-      remaining: Math.max(0, dailyLimit - Number(dailyUsed || 0)),
-      percentage: percentUsed(dailyUsed, dailyLimit),
-      resetsAt: nextDayReset().toISOString(),
-    },
-    weekly: {
-      used: Math.max(0, Number(weeklyUsed || 0)),
-      limit: weeklyLimit,
-      remaining: Math.max(0, weeklyLimit - Number(weeklyUsed || 0)),
-      percentage: percentUsed(weeklyUsed, weeklyLimit),
-      resetsAt: new Date(weekStart().getTime() + USAGE_WEEK_MS).toISOString(),
-    },
+    used: dailySafe,
+    limit: dailyLimit,
+    percentage: percentUsed(dailySafe, dailyLimit),
+    remaining: Math.max(0, dailyLimit - dailySafe),
+    resetsAt: nextDayReset().toISOString(),
+    daily: { used: dailySafe, limit: dailyLimit, remaining: Math.max(0, dailyLimit - dailySafe), percentage: percentUsed(dailySafe, dailyLimit), resetsAt: nextDayReset().toISOString() },
+    weekly: { used: weeklySafe, limit: weeklyLimit, remaining: Math.max(0, weeklyLimit - weeklySafe), percentage: percentUsed(weeklySafe, weeklyLimit), resetsAt: new Date(weekStart().getTime() + USAGE_WEEK_MS).toISOString() },
     lockedUntil: activeLock,
     canUseExtraFunds: normalizePlanRank(plan) >= 3,
   };
@@ -96,55 +71,32 @@ function snapshot(plan, dailyUsed, weeklyUsed, lockedUntil = null) {
 
 export async function getUsage(userId) {
   const result = await pool.query(
-    `SELECT u.plan,
-            u.weekly_locked_until,
+    `SELECT u.plan, u.weekly_locked_until,
             COALESCE(SUM(CASE WHEN us.created_at >= $2 THEN greatest(us.units, 0) ELSE 0 END), 0)::int AS daily_used,
             COALESCE(SUM(greatest(us.units, 0)), 0)::int AS weekly_used,
             MAX(us.created_at) AS latest_usage_at
        FROM users u
-       LEFT JOIN usage us ON us.user_id = u.id
-                         AND us.created_at >= $3
-                         AND COALESCE(us.units, 0) > 0
+       LEFT JOIN usage us ON us.user_id = u.id AND us.created_at >= $3 AND COALESCE(us.units, 0) > 0
       WHERE u.id = $1
       GROUP BY u.id, u.plan, u.weekly_locked_until`,
     [userId, startOfDay(), weekStart()],
   );
   if (!result.rows.length) return null;
   const row = result.rows[0];
-  return {
-    ...snapshot(row.plan, Number(row.daily_used || 0), Number(row.weekly_used || 0), row.weekly_locked_until),
-    lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null,
-  };
+  return { ...snapshot(row.plan, Number(row.daily_used || 0), Number(row.weekly_used || 0), row.weekly_locked_until), lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null };
 }
 
 export async function getDailyUsage(userId, days = 35) {
   const safeDays = Math.min(120, Math.max(7, Math.floor(Number(days) || 35)));
   const result = await pool.query(
-    `SELECT gs.day::date AS day,
-            COALESCE(SUM(greatest(us.tokens, 0)), 0)::bigint AS tokens,
-            COALESCE(SUM(greatest(us.units, 0)), 0)::int AS requests
+    `SELECT gs.day::date AS day, COALESCE(SUM(greatest(us.tokens, 0)), 0)::bigint AS tokens, COALESCE(SUM(greatest(us.units, 0)), 0)::int AS requests
        FROM generate_series(current_date - ($2 - 1), current_date, interval '1 day') AS gs(day)
-       LEFT JOIN usage us
-         ON us.user_id = $1
-        AND us.created_at >= gs.day
-        AND us.created_at < gs.day + interval '1 day'
-      GROUP BY gs.day
-      ORDER BY gs.day ASC`,
+       LEFT JOIN usage us ON us.user_id = $1 AND us.created_at >= gs.day AND us.created_at < gs.day + interval '1 day'
+      GROUP BY gs.day ORDER BY gs.day ASC`,
     [userId, safeDays],
   );
-  const daysData = result.rows.map((row) => ({
-    day: row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day),
-    tokens: Math.max(0, Number(row.tokens || 0)),
-    requests: Math.max(0, Number(row.requests || 0)),
-    active: Number(row.tokens || 0) > 0 || Number(row.requests || 0) > 0,
-  }));
-  return {
-    days: daysData,
-    totalTokens: daysData.reduce((sum, day) => sum + day.tokens, 0),
-    activeDays: daysData.reduce((sum, day) => sum + (day.active ? 1 : 0), 0),
-    maxDailyTokens: daysData.reduce((max, day) => Math.max(max, day.tokens), 0),
-    windowDays: safeDays,
-  };
+  const daysData = result.rows.map((row) => ({ day: row.day instanceof Date ? row.day.toISOString().slice(0, 10) : String(row.day), tokens: Math.max(0, Number(row.tokens || 0)), requests: Math.max(0, Number(row.requests || 0)), active: Number(row.tokens || 0) > 0 || Number(row.requests || 0) > 0 }));
+  return { days: daysData, totalTokens: daysData.reduce((sum, day) => sum + day.tokens, 0), activeDays: daysData.reduce((sum, day) => sum + (day.active ? 1 : 0), 0), maxDailyTokens: daysData.reduce((max, day) => Math.max(max, day.tokens), 0), windowDays: safeDays };
 }
 
 export async function reserveUsage(userId, model) {
@@ -153,11 +105,7 @@ export async function reserveUsage(userId, model) {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [String(userId)]);
     const userResult = await client.query('SELECT plan, weekly_locked_until FROM users WHERE id=$1 FOR UPDATE', [userId]);
-    if (!userResult.rows.length) {
-      await client.query('ROLLBACK');
-      return { ok: false, code: 'AUTH_REQUIRED', status: 401 };
-    }
-
+    if (!userResult.rows.length) { await client.query('ROLLBACK'); return { ok: false, code: 'AUTH_REQUIRED', status: 401 }; }
     const { plan, weekly_locked_until: existingLock } = userResult.rows[0];
     const rank = normalizePlanRank(plan);
     const now = new Date();
@@ -184,21 +132,18 @@ export async function reserveUsage(userId, model) {
       await client.query('COMMIT');
       return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage, canUseExtraFunds: rank >= 3 };
     }
-
     if (dailyUsed >= dailyLimit) {
       await client.query('ROLLBACK');
       return { ok: false, code: 'DAILY_CREDITS_EXHAUSTED', status: 429, usage: snapshot(plan, dailyUsed, weeklyUsed), canUseExtraFunds: false };
     }
 
-    const inserted = await client.query(`INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id`, [userId, model || null]);
+    const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
     await client.query('COMMIT');
     return { ok: true, reservationId: inserted.rows[0]?.id || null, usage: snapshot(plan, dailyUsed + 1, weeklyUsed + 1) };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }
 
 export async function releaseUsage(reservationId) {
@@ -213,21 +158,12 @@ export async function recordTokens(reservationId, provider, tokens) {
   await pool.query('UPDATE usage SET tokens=$1, provider=$2 WHERE id=$3', [amount, provider || null, reservationId]);
 }
 
-export async function getUsagePercent(userId) {
-  const usage = await getUsage(userId);
-  return usage?.daily?.percentage ?? 0;
-}
+export async function getUsagePercent(userId) { const usage = await getUsage(userId); return usage?.daily?.percentage ?? usage?.percentage ?? 0; }
 
 export async function getWallet(userId) {
   const result = await pool.query('SELECT plan, wallet_balance_cents, weekly_locked_until FROM users WHERE id=$1', [userId]);
   if (!result.rows.length) return null;
-  return {
-    plan: result.rows[0].plan,
-    balanceCents: Math.max(0, Number(result.rows[0].wallet_balance_cents || 0)),
-    lockedUntil: result.rows[0].weekly_locked_until ? new Date(result.rows[0].weekly_locked_until).toISOString() : null,
-    canUseExtraFunds: normalizePlanRank(result.rows[0].plan) >= 3,
-    minimumTopUpCents: 500,
-  };
+  return { plan: result.rows[0].plan, balanceCents: Math.max(0, Number(result.rows[0].wallet_balance_cents || 0)), lockedUntil: result.rows[0].weekly_locked_until ? new Date(result.rows[0].weekly_locked_until).toISOString() : null, canUseExtraFunds: normalizePlanRank(result.rows[0].plan) >= 3, minimumTopUpCents: 500 };
 }
 
 export async function simulateTopUp(userId, amountCents) {
@@ -242,8 +178,6 @@ export async function simulateTopUp(userId, amountCents) {
     const updated = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents+$2, weekly_locked_until=NULL WHERE id=$1 RETURNING wallet_balance_cents, weekly_locked_until', [userId, amount]);
     await client.query('COMMIT');
     return { ok: true, balanceCents: Number(updated.rows[0].wallet_balance_cents || 0), lockedUntil: updated.rows[0].weekly_locked_until };
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw error;
-  } finally { client.release(); }
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+  finally { client.release(); }
 }

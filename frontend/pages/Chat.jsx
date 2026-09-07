@@ -7,12 +7,12 @@ import CodeArtifactsPanel from '../components/CodeArtifactsPanel.jsx';
 import { extractCodeBlocks, splitMessageContent } from '../lib/codeBlocks.js';
 
 const MODELS = [
-  { id: 'prism-nano-1.0', name: 'Prism Nano 1.0', short: 'Nano 1.0', detail: 'Rápido para tarefas do dia a dia', tier: 'nano' },
-  { id: 'prism-mini-1.0', name: 'Prism Mini 1.0', short: 'Mini 1.0', detail: 'Conversa, escrita e programação', tier: 'mini' },
-  { id: 'prism-edge-1.0', name: 'Prism Edge 1.0', short: 'Edge 1.0', detail: 'Análise mais profunda', tier: 'edge' },
-  { id: 'prism-tex-1.5', name: 'Prism Tex 1.5', short: 'Tex 1.5', detail: 'Código, documentação e arquitetura', tier: 'tex' },
-  { id: 'prism-taff-1.0', name: 'Prism Taff 1.0', short: 'Taff 1.0', detail: 'Projetos complexos e debugging', tier: 'taff' },
-  { id: 'prism-taff-2.0', name: 'Prism Taff 2.0', short: 'Taff 2.0', detail: 'O modelo mais forte da linha Prism', tier: 'taff2', badge: 'Novo' },
+  { id: 'prism-nano-1.0', name: 'Prism Nano 1.0A', short: 'Nano 1.0A', detail: 'Rápido para tarefas do dia a dia', tier: 'nano' },
+  { id: 'prism-mini-1.0', name: 'Prism Mini 1.0A', short: 'Mini 1.0A', detail: 'Conversa, escrita e programação', tier: 'mini' },
+  { id: 'prism-edge-1.0', name: 'Prism Edge 1.0A', short: 'Edge 1.0A', detail: 'Análise mais profunda', tier: 'edge' },
+  { id: 'prism-tex-1.5', name: 'Prism Tex 1.5B', short: 'Tex 1.5B', detail: 'Código, documentação e arquitetura', tier: 'tex' },
+  { id: 'prism-taff-1.0', name: 'Prism Taff 1.0A', short: 'Taff 1.0A', detail: 'Projetos complexos e debugging', tier: 'taff' },
+  { id: 'prism-taff-2.0', name: 'Prism Taff 2.0', short: 'Taff 2.0', detail: 'O modelo mais forte da linha Prism', tier: 'taff2' },
 ];
 const EFFORTS = [
   { id: 'low', name: 'Baixo', note: 'mais rápido' },
@@ -70,29 +70,11 @@ function groupSessions(sessions) {
 }
 
 function CodeReference({ block, onOpen }) {
-  return (
-    <div className="code-reference">
-      <button type="button" onClick={() => onOpen(block.id)} aria-label={`Abrir ${block.filename}`}>
-        <span className="code-reference-main">
-          <span className="code-reference-file"><span>{block.filename}</span></span>
-          <span className="code-reference-meta">{block.languageLabel || block.language} · {block.code.split('\n').length} {block.code.split('\n').length === 1 ? 'linha' : 'linhas'}</span>
-        </span>
-        <span className="code-reference-action">Abrir código</span>
-      </button>
-    </div>
-  );
+  return <div className="code-reference"><button type="button" onClick={() => onOpen(block.id)} aria-label={`Abrir ${block.filename}`}><span className="code-reference-main"><span className="code-reference-file"><span>{block.filename}</span></span><span className="code-reference-meta">{block.languageLabel || block.language} · {block.code.split('\n').length} {block.code.split('\n').length === 1 ? 'linha' : 'linhas'}</span></span><span className="code-reference-action">Abrir código</span></button></div>;
 }
-
 function MessageBody({ message, onOpenCode }) {
   if (message.role !== 'assistant') return <span className="message-text">{message.content}</span>;
-  const parts = splitMessageContent(message.content, String(message.id));
-  return (
-    <>
-      {parts.map((part, index) => part.type === 'text'
-        ? <span className="message-text" key={`text-${index}`}>{part.value}</span>
-        : <div className="message-code-list" key={part.block.id}><CodeReference block={part.block} onOpen={onOpenCode} /></div>)}
-    </>
-  );
+  return <>{splitMessageContent(message.content, String(message.id)).map((part, index) => part.type === 'text' ? <span className="message-text" key={`text-${index}`}>{part.value}</span> : <div className="message-code-list" key={part.block.id}><CodeReference block={part.block} onOpen={onOpenCode} /></div>)}</>;
 }
 
 export default function Chat() {
@@ -142,200 +124,93 @@ export default function Chat() {
   }, [logout, navigate]);
 
   const refreshUsage = useCallback(async () => {
-    try {
-      const result = await api.get('/chat/usage');
-      setUsage(result || null);
-    } catch (err) {
-      if (!handleAuthError(err) && err?.status !== 404) console.warn('Prism usage refresh failed:', err);
-    }
+    try { setUsage(await api.get('/chat/usage')); }
+    catch (err) { if (!handleAuthError(err) && err?.status !== 404) console.warn('Prism usage refresh failed:', err); }
   }, [handleAuthError]);
 
   const openSession = useCallback(async (id) => {
     if (!id) return;
     const requestId = ++requestRef.current;
-    setActiveSession(id);
-    setLoadingMessages(true);
-    setError('');
-    setPickerMode('closed');
-    setMobileOpen(false);
-    setArtifactPanelOpen(false);
-    setActiveArtifactId(null);
-    setArtifacts([]);
+    setActiveSession(id); setLoadingMessages(true); setError(''); setPickerMode('closed'); setMobileOpen(false); setArtifactPanelOpen(false); setActiveArtifactId(null); setArtifacts([]);
     try {
       const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages`);
-      if (requestId !== requestRef.current) return;
-      setMessages(Array.isArray(result.messages) ? result.messages : []);
+      if (requestId === requestRef.current) setMessages(Array.isArray(result.messages) ? result.messages : []);
     } catch (err) {
       if (requestId === requestRef.current && !handleAuthError(err)) setError(err.message || 'Não foi possível carregar a conversa.');
-    } finally {
-      if (requestId === requestRef.current) setLoadingMessages(false);
-    }
+    } finally { if (requestId === requestRef.current) setLoadingMessages(false); }
   }, [handleAuthError]);
 
   const loadSessions = useCallback(async () => {
-    setLoadingSessions(true);
-    setError('');
+    setLoadingSessions(true); setError('');
     try {
       const result = await api.get('/chat/sessions');
       const next = Array.isArray(result.sessions) ? result.sessions : [];
       setSessions(next);
-      if (next.length) await openSession(next[0].id);
-      else { setActiveSession(null); setMessages([]); setArtifacts([]); }
-    } catch (err) {
-      if (!handleAuthError(err)) setError(err.message || 'Não foi possível carregar suas conversas.');
-    } finally { setLoadingSessions(false); }
+      if (next.length) await openSession(next[0].id); else { setActiveSession(null); setMessages([]); setArtifacts([]); }
+    } catch (err) { if (!handleAuthError(err)) setError(err.message || 'Não foi possível carregar suas conversas.'); }
+    finally { setLoadingSessions(false); }
   }, [handleAuthError, openSession]);
 
   useEffect(() => { loadSessions(); refreshUsage(); }, [loadSessions, refreshUsage]);
-  useEffect(() => { const timer = setInterval(refreshUsage, 30_000); return () => clearInterval(timer); }, [refreshUsage]);
-  useEffect(() => {
-    try {
-      localStorage.setItem('prism-model', model);
-      localStorage.setItem('prism-effort', effort);
-      localStorage.setItem('prism-chat-sidebar', sidebarCollapsed ? 'collapsed' : 'open');
-      localStorage.setItem('prism-chat-theme', dark ? 'dark' : 'light');
-    } catch {}
-  }, [model, effort, sidebarCollapsed, dark]);
+  useEffect(() => { const timer = setInterval(refreshUsage, 30000); return () => clearInterval(timer); }, [refreshUsage]);
+  useEffect(() => { try { localStorage.setItem('prism-model', model); localStorage.setItem('prism-effort', effort); localStorage.setItem('prism-chat-sidebar', sidebarCollapsed ? 'collapsed' : 'open'); localStorage.setItem('prism-chat-theme', dark ? 'dark' : 'light'); } catch {} }, [model, effort, sidebarCollapsed, dark]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto' }); }, [messages, sending]);
   useEffect(() => {
     if (!messages.length) return;
     setArtifacts((current) => {
-      const next = [...current];
-      const known = new Set(next.map((item) => item.id));
+      const next = [...current]; const known = new Set(next.map((item) => item.id));
       for (const message of messages) {
         if (message.role !== 'assistant') continue;
-        const blocks = extractCodeBlocks(message.content, String(message.id));
-        for (const block of blocks) if (!known.has(block.id)) { next.push(block); known.add(block.id); }
+        for (const block of extractCodeBlocks(message.content, String(message.id))) if (!known.has(block.id)) { next.push(block); known.add(block.id); }
       }
       return next;
     });
   }, [messages]);
   useEffect(() => {
-    const close = (event) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target)) setPickerMode('closed');
-      if (renameRef.current && !renameRef.current.contains(event.target)) setEditingId(null);
-    };
-    const escape = (event) => {
-      if (event.key !== 'Escape') return;
-      setPickerMode('closed'); setPlansOpen(false); setMobileOpen(false);
-      if (artifactPanelOpen) setArtifactPanelOpen(false);
-      setEditingId(null);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
+    const close = (event) => { if (pickerRef.current && !pickerRef.current.contains(event.target)) setPickerMode('closed'); if (renameRef.current && !renameRef.current.contains(event.target)) setEditingId(null); };
+    const escape = (event) => { if (event.key !== 'Escape') return; setPickerMode('closed'); setPlansOpen(false); setMobileOpen(false); setEditingId(null); if (artifactPanelOpen) setArtifactPanelOpen(false); };
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape); };
   }, [artifactPanelOpen]);
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
-  }, [input]);
+  useEffect(() => { const el = textareaRef.current; if (!el) return; el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 190)}px`; }, [input]);
 
   async function newSession() {
-    if (sending) return;
-    setError('');
-    try {
-      const result = await api.post('/chat/sessions', {});
-      setSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
-      setActiveSession(result.session.id);
-      setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null);
-      setMobileOpen(false);
-      requestAnimationFrame(() => textareaRef.current?.focus());
-    } catch (err) {
-      if (!handleAuthError(err)) setError(err.message || 'Não foi possível criar a conversa.');
-    }
+    if (sending) return; setError('');
+    try { const result = await api.post('/chat/sessions', {}); setSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]); setActiveSession(result.session.id); setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); setMobileOpen(false); requestAnimationFrame(() => textareaRef.current?.focus()); }
+    catch (err) { if (!handleAuthError(err)) setError(err.message || 'Não foi possível criar a conversa.'); }
   }
-
   async function renameSession(session) {
-    const title = editingTitle.trim();
-    if (!title || title === session.title) { setEditingId(null); return; }
-    try {
-      const result = await api.patch(`/chat/sessions/${encodeURIComponent(session.id)}`, { title });
-      setSessions((current) => current.map((item) => item.id === session.id ? result.session : item));
-      setEditingId(null);
-    } catch (err) {
-      if (!handleAuthError(err)) setError(err.message || 'Não foi possível renomear a conversa.');
-    }
+    const title = editingTitle.trim(); if (!title || title === session.title) { setEditingId(null); return; }
+    try { const result = await api.patch(`/chat/sessions/${encodeURIComponent(session.id)}`, { title }); setSessions((current) => current.map((item) => item.id === session.id ? result.session : item)); setEditingId(null); }
+    catch (err) { if (!handleAuthError(err)) setError(err.message || 'Não foi possível renomear a conversa.'); }
   }
-
   async function deleteSession(session, event) {
-    event?.stopPropagation();
-    if (sending) return;
-    if (!window.confirm(`Excluir “${session.title || 'Nova conversa'}”?`)) return;
+    event?.stopPropagation(); if (sending) return; if (!window.confirm(`Excluir “${session.title || 'Nova conversa'}”?`)) return;
     try {
-      await api.delete(`/chat/sessions/${encodeURIComponent(session.id)}`);
-      const next = sessions.filter((item) => item.id !== session.id);
-      setSessions(next);
-      if (activeSession === session.id) {
-        if (next[0]) await openSession(next[0].id);
-        else { setActiveSession(null); setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); }
-      }
-    } catch (err) {
-      if (!handleAuthError(err)) setError(err.message || 'Não foi possível excluir a conversa.');
-    }
+      await api.delete(`/chat/sessions/${encodeURIComponent(session.id)}`); const next = sessions.filter((item) => item.id !== session.id); setSessions(next);
+      if (activeSession === session.id) { if (next[0]) await openSession(next[0].id); else { setActiveSession(null); setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); } }
+    } catch (err) { if (!handleAuthError(err)) setError(err.message || 'Não foi possível excluir a conversa.'); }
   }
-
-  function chooseModel(id) {
-    const item = MODELS.find((entry) => entry.id === id);
-    if (!item) return;
-    if (isLocked(item)) { setRequestedModel(item.name); setPlansOpen(true); return; }
-    setModel(id); setPickerMode('closed');
-  }
-
-  function chooseEffort(id) {
-    if (id === 'ultracode' && rank < 4) { setRequestedModel('Ultra Code'); setPlansOpen(true); return; }
-    setEffort(id); setPickerMode('closed');
-  }
+  function chooseModel(id) { const item = MODELS.find((entry) => entry.id === id); if (!item) return; if (isLocked(item)) { setRequestedModel(item.name); setPlansOpen(true); return; } setModel(id); setPickerMode('closed'); }
+  function chooseEffort(id) { if (id === 'ultracode' && rank < 4) { setRequestedModel('Ultra Code'); setPlansOpen(true); return; } setEffort(id); setPickerMode('closed'); }
 
   async function send() {
-    const content = input.trim();
-    if (!content || sending) return;
-    setError(''); setSending(true);
-    let sid = activeSession;
-    const localId = `local-${Date.now()}`;
+    const content = input.trim(); if (!content || sending) return; setError(''); setSending(true); let sid = activeSession; const localId = `local-${Date.now()}`;
     try {
-      if (!sid) {
-        const created = await api.post('/chat/sessions', {});
-        sid = created.session.id;
-        setActiveSession(sid);
-        setSessions((current) => [created.session, ...current]);
-      }
-      setMessages((current) => [...current, { id: localId, role: 'user', content, model_id: model, effort }]);
-      setInput('');
+      if (!sid) { const created = await api.post('/chat/sessions', {}); sid = created.session.id; setActiveSession(sid); setSessions((current) => [created.session, ...current]); }
+      setMessages((current) => [...current, { id: localId, role: 'user', content, model_id: model, effort }]); setInput('');
       const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content, model, effort }, { timeout: 180000 });
-
-      if (result?.status === 'unavailable') {
-        setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]);
-        return;
-      }
-
+      if (result?.status === 'unavailable') { setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]); return; }
       if (!result?.message) throw new Error('O servidor não retornou uma resposta válida.');
       setMessages((current) => [...current, { ...result.message, tools_used: Array.isArray(result.tools_used) ? result.tools_used : [] }]);
       if (result.usage) setUsage(result.usage);
-      setSessions((current) => current
-        .map((item) => item.id === sid ? { ...item, title: item.title === 'Nova conversa' ? content.replace(/\s+/g, ' ').slice(0, 64) : item.title, updated_at: new Date().toISOString() } : item)
-        .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
+      setSessions((current) => current.map((item) => item.id === sid ? { ...item, title: item.title === 'Nova conversa' ? content.replace(/\s+/g, ' ').slice(0, 64) : item.title, updated_at: new Date().toISOString() } : item).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
     } catch (err) {
-      if (err?.payload?.status === 'unavailable' || err?.code === 'PROVIDERS_UNAVAILABLE' || err?.payload?.code === 'PROVIDERS_UNAVAILABLE') {
-        setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]);
-      } else if (err?.code === 'USAGE_LIMIT_REACHED' || err?.payload?.code === 'USAGE_LIMIT_REACHED' || err?.status === 429) {
-        if (err.payload?.usage) setUsage(err.payload.usage);
-        setError(err.message || 'Você atingiu o limite de uso desta janela.');
-        setMessages((current) => current.filter((message) => message.id !== localId));
-      } else if (err?.code === 'PLAN_UPGRADE_REQUIRED' || err?.payload?.code === 'PLAN_UPGRADE_REQUIRED' || err?.status === 403) {
-        const requested = err.payload?.model ? MODELS.find((item) => item.id === err.payload.model)?.name || err.payload.model : selectedModel.name;
-        setRequestedModel(err.payload?.requiredPlan ? `Plano ${err.payload.requiredPlan}` : requested);
-        setPlansOpen(true);
-        setMessages((current) => current.filter((message) => message.id !== localId));
-      } else if (!handleAuthError(err)) {
-        setMessages((current) => current.filter((message) => message.id !== localId));
-        setError(err.message || 'Não foi possível concluir a solicitação.');
-      }
-    } finally {
-      setSending(false);
-      requestAnimationFrame(() => textareaRef.current?.focus());
-    }
+      if (err?.payload?.status === 'unavailable' || err?.code === 'PROVIDERS_UNAVAILABLE' || err?.payload?.code === 'PROVIDERS_UNAVAILABLE') setMessages((current) => [...current, { id: `unavailable-${Date.now()}`, role: 'system', content: UNAVAILABLE_MESSAGE, status: 'unavailable', created_at: new Date().toISOString() }]);
+      else if (err?.code === 'USAGE_LIMIT_REACHED' || err?.payload?.code === 'USAGE_LIMIT_REACHED' || err?.status === 429) { if (err.payload?.usage) setUsage(err.payload.usage); setError(err.message || 'Você atingiu o limite de uso desta janela.'); setMessages((current) => current.filter((message) => message.id !== localId)); }
+      else if (err?.code === 'PLAN_UPGRADE_REQUIRED' || err?.payload?.code === 'PLAN_UPGRADE_REQUIRED' || err?.status === 403) { const requested = err.payload?.model ? MODELS.find((item) => item.id === err.payload.model)?.name || err.payload.model : selectedModel.name; setRequestedModel(err.payload?.requiredPlan ? `Plano ${err.payload.requiredPlan}` : requested); setPlansOpen(true); setMessages((current) => current.filter((message) => message.id !== localId)); }
+      else if (!handleAuthError(err)) { setMessages((current) => current.filter((message) => message.id !== localId)); setError(err.message || 'Não foi possível concluir a solicitação.'); }
+    } finally { setSending(false); requestAnimationFrame(() => textareaRef.current?.focus()); }
   }
 
   function suggestion(text) { setInput(text); requestAnimationFrame(() => textareaRef.current?.focus()); }
@@ -346,128 +221,30 @@ export default function Chat() {
   const sidebar = (
     <aside className={`chat-sidebar ${sidebarCollapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-top">
-        <div className="sidebar-brand-row">
-          <button className="brand" onClick={() => navigate('/chat')} aria-label="Ir para Home"><span className="brand-mark" /><span className="brand-copy">Prism IA</span></button>
-          <button className="sidebar-toggle" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}>{sidebarCollapsed ? '→' : '←'}</button>
-        </div>
+        <div className="sidebar-brand-row"><button className="brand" onClick={() => navigate('/chat')} aria-label="Ir para Home"><span className="brand-mark" /><span className="brand-copy">Prism IA</span></button><button className="sidebar-toggle" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}>{sidebarCollapsed ? '→' : '←'}</button></div>
         <div className="app-switcher" role="navigation" aria-label="Alternar aplicativo"><button className="app-switch active" onClick={() => navigate('/chat')}>Home</button><button className="app-switch" onClick={() => navigate('/codex')}>Codex</button></div>
-        <button className="new-chat" onClick={newSession} disabled={sending}><span>+</span><span className="nav-label">Novo chat</span></button>
+        <button className="new-chat" onClick={newSession} disabled={sending}><span>+</span><span className="nav-label">Novo</span></button>
+        <nav className="home-section-nav" aria-label="Prism Home"><button onClick={() => navigate('/studio')}><span className="nav-glyph">▱</span><span className="nav-label">Projetos</span></button><button onClick={() => { setArtifactPanelOpen(true); if (artifacts[0]) setActiveArtifactId(artifacts[0].id); }}><span className="nav-glyph">▤</span><span className="nav-label">Artefatos</span></button><button onClick={() => navigate('/codex')}><span className="nav-glyph">&lt;/&gt;</span><span className="nav-label">Código</span><b>Upgrade</b></button><button onClick={() => navigate('/configuracoes')}><span className="nav-glyph">□</span><span className="nav-label">Personalizar</span></button></nav>
       </div>
+      <div className="home-project-block"><div className="home-project-head"><span className="nav-label">Projetos</span><button onClick={() => navigate('/studio')} aria-label="Novo projeto">+</button></div><button className="home-project" onClick={() => navigate('/studio')}><span className="project-glyph">▱</span><span className="nav-label">prism ia</span></button></div>
       <div className="session-heading"><span className="nav-label">Conversas</span><span>{sessions.length || ''}</span></div>
       <div className="session-list">
         {loadingSessions && <div className="sidebar-loading"><span /><span /><span /></div>}
         {!loadingSessions && !sessions.length && <div className="sidebar-empty nav-label">Suas conversas aparecem aqui.</div>}
-        {!loadingSessions && groupedSessions.map((group) => (
-          <div className="session-group" key={group.label}>
-            <div className="session-group-label nav-label">{group.label}</div>
-            {group.items.map((session) => (
-              <div key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`}>
-                {editingId === session.id ? (
-                  <div className="session-rename" ref={renameRef}>
-                    <input value={editingTitle} maxLength={120} autoFocus onChange={(event) => setEditingTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') renameSession(session); if (event.key === 'Escape') setEditingId(null); }} aria-label="Novo nome da conversa" />
-                    <button onClick={() => renameSession(session)} aria-label="Salvar nome">OK</button>
-                  </div>
-                ) : (
-                  <>
-                    <button className="session-open" onClick={() => openSession(session.id)} disabled={sending}>
-                      <span className="session-title">{session.title || 'Nova conversa'}</span>
-                      <small>{formatConversationDate(session.updated_at || session.created_at)}</small>
-                    </button>
-                    <div className="session-actions">
-                      <button onClick={(event) => { event.stopPropagation(); setEditingId(session.id); setEditingTitle(session.title || ''); }} aria-label="Renomear conversa" title="Renomear">Editar</button>
-                      <button onClick={(event) => deleteSession(session, event)} aria-label="Excluir conversa" title="Excluir">Excluir</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
+        {!loadingSessions && groupedSessions.map((group) => <div className="session-group" key={group.label}><div className="session-group-label nav-label">{group.label}</div>{group.items.map((session) => <div key={session.id} className={`session-item ${session.id === activeSession ? 'active' : ''}`}>{editingId === session.id ? <div className="session-rename" ref={renameRef}><input value={editingTitle} maxLength={120} autoFocus onChange={(event) => setEditingTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') renameSession(session); if (event.key === 'Escape') setEditingId(null); }} aria-label="Novo nome da conversa" /><button onClick={() => renameSession(session)} aria-label="Salvar nome">OK</button></div> : <><button className="session-open" onClick={() => openSession(session.id)} disabled={sending}><span className="session-title">{session.title || 'Nova conversa'}</span><small>{formatConversationDate(session.updated_at || session.created_at)}</small></button><div className="session-actions"><button onClick={(event) => { event.stopPropagation(); setEditingId(session.id); setEditingTitle(session.title || ''); }} aria-label="Renomear conversa">Editar</button><button onClick={(event) => deleteSession(session, event)} aria-label="Excluir conversa">Excluir</button></div></>}</div>)}</div>)}
       </div>
-      <div className="sidebar-bottom">
-        <div className="sidebar-usage" title={`${usageLabel} · janela de ${usage?.windowHours || 5} horas`}>
-          <div className="sidebar-usage-head"><span className="nav-label">Uso</span><strong>{usageLabel}</strong></div>
-          <div className="usage-track" aria-label={usageLabel}><span style={{ width: `${usagePct}%` }} /></div>
-          <small className="usage-reset nav-label">{usage?.resetsAt ? `Renova às ${formatTime(usage.resetsAt)}` : 'Janela de 5 horas'}</small>
-        </div>
-        <button className="theme-button" onClick={() => setDark((value) => !value)}><span className="theme-glyph">{dark ? 'Sol' : 'Lua'}</span><span className="nav-label">{dark ? 'Modo claro' : 'Modo escuro'}</span></button>
-        <button className="profile-button" onClick={() => navigate('/configuracoes')}><span className="avatar">{initial(user?.name)}</span><span className="profile-text nav-label"><strong>{user?.name || 'Usuário'}</strong><small>{user?.plan || 'Grátis'}</small></span></button>
-      </div>
+      <div className="sidebar-bottom"><div className="sidebar-usage" title={`${usageLabel} · janela de ${usage?.windowHours || 5} horas`}><div className="sidebar-usage-head"><span className="nav-label">Uso</span><strong>{usageLabel}</strong></div><div className="usage-track" aria-label={usageLabel}><span style={{ width: `${usagePct}%` }} /></div><small className="usage-reset nav-label">{usage?.resetsAt ? `Renova às ${formatTime(usage.resetsAt)}` : 'Janela de 5 horas'}</small></div><button className="profile-button" onClick={() => navigate('/configuracoes')}><span className="avatar">{initial(user?.name)}</span><span className="profile-text nav-label"><strong>{user?.name || 'Usuário'}</strong><small>{user?.plan || 'Grátis'}</small></span></button></div>
     </aside>
   );
 
-  return (
-    <div className={`chat-app chat-theme-${dark ? 'dark' : 'light'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${artifactPanelOpen ? 'code-panel-open' : ''}`}>
-      <button className="mobile-menu-button" onClick={() => setMobileOpen((value) => !value)} aria-label="Abrir navegação">Menu</button>
-      {sidebar}
-      {mobileOpen && <button className="mobile-scrim" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
-
-      <main className="chat-main">
-        <header className="chat-topbar">
-          <div className="chat-context"><span>PRISM IA</span>{activeSession && <small>{sessions.find((item) => item.id === activeSession)?.title || 'Nova conversa'}</small>}</div>
-          <div className="model-control" ref={pickerRef}>
-            <button className="topbar-model" onClick={() => setPickerMode((current) => current === 'closed' ? 'models' : 'closed')} aria-expanded={pickerMode !== 'closed'}><span>{selectedModel.name}</span><small>{selectedEffort.name}</small><b>⌄</b></button>
-            {pickerMode !== 'closed' && (
-              <div className="model-picker">
-                {pickerMode === 'models' ? (
-                  <>
-                    <div className="picker-head"><span>MODELO</span><strong>Escolha o modelo</strong></div>
-                    <div className="picker-list">{MODELS.map((item) => { const locked = isLocked(item); return <button key={item.id} className={`picker-model ${model === item.id ? 'selected' : ''} ${locked ? 'locked' : ''}`} onClick={() => chooseModel(item.id)} aria-disabled={locked}><span><strong>{item.name}{item.badge && <em>{item.badge}</em>}</strong><small>{item.detail}</small></span><b>{locked ? 'Fazer Upgrade' : model === item.id ? 'Atual' : ''}</b></button>; })}</div>
-                    <button className="picker-submenu" onClick={() => setPickerMode('thinking')}><span><strong>Nível de pensamento</strong><small>{selectedEffort.name} · {selectedEffort.note}</small></span><b>→</b></button>
-                  </>
-                ) : (
-                  <>
-                    <div className="picker-head back"><button onClick={() => setPickerMode('models')} aria-label="Voltar">←</button><div><span>PENSAMENTO</span><strong>Quanto esforço aplicar</strong></div></div>
-                    <div className="thinking-list">{EFFORTS.map((item) => <button key={item.id} className={effort === item.id ? 'selected' : ''} onClick={() => chooseEffort(item.id)}><span><strong>{item.name}</strong><small>{item.note}</small></span><b>{effort === item.id ? 'Atual' : item.id === 'ultracode' && rank < 4 ? 'Upgrade' : ''}</b></button>)}</div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </header>
-
-        <section className="messages" aria-live="polite">
-          {loadingMessages ? <div className="message-loading"><span /><span /><span /></div> : !messages.length ? (
-            <div className="empty-chat"><span className="empty-kicker">PRISM IA</span><h1>Olá, {first}.</h1><p>O que vamos fazer hoje?</p><div className="prompt-suggestions">
-              <button onClick={() => suggestion('Organize essa ideia em um plano claro.')}><strong>Organizar uma ideia</strong><span>Transforme um rascunho em próximos passos.</span></button>
-              <button onClick={() => suggestion('Revise este código e aponte os problemas importantes.')}><strong>Revisar código</strong><span>Encontre riscos e melhorias antes de alterar.</span></button>
-              <button onClick={() => suggestion('Explique isso de um jeito simples.')}><strong>Explicar algo</strong><span>Deixe um assunto técnico fácil de entender.</span></button>
-            </div></div>
-          ) : (
-            <>{messages.map((message) => {
-              const isUnavailable = message.role === 'system' && message.status === 'unavailable';
-              if (isUnavailable) return <article key={message.id} className="message system-message" role="status"><div className="system-message-inner"><span className="system-message-icon" aria-hidden="true">!</span><span>{message.content}</span></div></article>;
-              return <article key={message.id} className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}>
-                <div className="message-head"><span className="message-author">{message.role === 'user' ? first : 'Prism IA'}</span>{message.role === 'assistant' && message.model_id && <span className="message-model">{MODELS.find((item) => item.id === message.model_id)?.short || message.model_id}</span>}</div>
-                <div className="message-content"><MessageBody message={message} onOpenCode={openArtifact} /></div>
-              </article>;
-            })}
-            {sending && <article className="message assistant"><div className="message-head"><span className="message-author">Prism IA</span><span className="message-model">{selectedModel.short}</span></div><div className="message-thinking"><span /><span /><span /><span className="typing-label">digitando...</span></div></article>}
-            <div ref={bottomRef} />
-          </>
-          )}
-        </section>
-
-        <div className="composer-area">
-          {error && <div className="chat-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>Fechar</button></div>}
-          <div className="composer">
-            <textarea ref={textareaRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Escreva uma mensagem" disabled={sending} aria-label="Mensagem" />
-            <div className="composer-footer"><button className="composer-model" onClick={() => setPickerMode('models')}>{selectedModel.short}<span>·</span>{selectedEffort.name}</button><button className="send-button" onClick={send} disabled={!input.trim() || sending}>{sending ? 'Enviando' : 'Enviar'}</button></div>
-          </div>
-          <p className="composer-note">Revise informações importantes antes de usá-las</p>
-          <p className="composer-shortcuts">Enter envia · Shift + Enter quebra a linha</p>
-        </div>
-      </main>
-
-      <CodeArtifactsPanel
-        open={artifactPanelOpen}
-        artifacts={artifacts}
-        activeId={activeArtifactId}
-        onSelect={setActiveArtifactId}
-        onClose={() => setArtifactPanelOpen(false)}
-        onUpdateArtifact={updateArtifact}
-      />
-      <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} />
-    </div>
-  );
+  return <div className={`chat-app chat-theme-${dark ? 'dark' : 'light'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${artifactPanelOpen ? 'code-panel-open' : ''}`}>
+    <button className="mobile-menu-button" onClick={() => setMobileOpen((value) => !value)} aria-label="Abrir navegação">Menu</button>{sidebar}{mobileOpen && <button className="mobile-scrim" onClick={() => setMobileOpen(false)} aria-label="Fechar navegação" />}
+    <main className="chat-main">
+      <header className="chat-topbar"><div className="chat-context">{activeSession && <small>{sessions.find((item) => item.id === activeSession)?.title || 'Nova conversa'}</small>}</div><div className="model-control" ref={pickerRef}><button className="topbar-model" onClick={() => setPickerMode((current) => current === 'closed' ? 'models' : 'closed')} aria-expanded={pickerMode !== 'closed'}><span>{selectedModel.name}</span><small>{selectedEffort.name}</small><b>⌄</b></button>{pickerMode !== 'closed' && <div className="model-picker">{pickerMode === 'models' ? <><div className="picker-head"><span>MODELO</span><strong>Escolha o modelo</strong></div><div className="picker-list">{MODELS.map((item) => { const locked = isLocked(item); return <button key={item.id} className={`picker-model ${model === item.id ? 'selected' : ''} ${locked ? 'locked' : ''}`} onClick={() => chooseModel(item.id)} aria-disabled={locked}><span><strong>{item.name}{item.badge && <em>{item.badge}</em>}</strong><small>{item.detail}</small></span><b>{locked ? 'Fazer Upgrade' : model === item.id ? 'Atual' : ''}</b></button>; })}</div><button className="picker-submenu" onClick={() => setPickerMode('thinking')}><span><strong>Nível de pensamento</strong><small>{selectedEffort.name} · {selectedEffort.note}</small></span><b>→</b></button></> : <><div className="picker-head back"><button onClick={() => setPickerMode('models')} aria-label="Voltar">←</button><div><span>PENSAMENTO</span><strong>Quanto esforço aplicar</strong></div></div><div className="thinking-list">{EFFORTS.map((item) => <button key={item.id} className={effort === item.id ? 'selected' : ''} onClick={() => chooseEffort(item.id)}><span><strong>{item.name}</strong><small>{item.note}</small></span><b>{effort === item.id ? 'Atual' : item.id === 'ultracode' && rank < 4 ? 'Upgrade' : ''}</b></button>)}</div></>}</div>}</div></header>
+      <section className="messages" aria-live="polite">{loadingMessages ? <div className="message-loading"><span /><span /><span /></div> : !messages.length ? <div className="empty-chat"><span className="empty-kicker">PRISM IA</span><h1>Olá, {first}.</h1><p>O que vamos fazer hoje?</p><div className="prompt-suggestions"><button onClick={() => suggestion('Organize essa ideia em um plano claro.')}><strong>Organizar uma ideia</strong><span>Transforme um rascunho em próximos passos.</span></button><button onClick={() => suggestion('Revise este código e aponte os problemas importantes.')}><strong>Revisar código</strong><span>Encontre riscos e melhorias antes de alterar.</span></button><button onClick={() => suggestion('Explique isso de um jeito simples.')}><strong>Explicar algo</strong><span>Deixe um assunto técnico fácil de entender.</span></button></div></div> : <>{messages.map((message) => { const isUnavailable = message.role === 'system' && message.status === 'unavailable'; if (isUnavailable) return <article key={message.id} className="message system-message" role="status"><div className="system-message-inner"><span className="system-message-icon" aria-hidden="true">!</span><span>{message.content}</span></div></article>; return <article key={message.id} className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}><div className="message-head"><span className="message-author">{message.role === 'user' ? first : 'Prism IA'}</span>{message.role === 'assistant' && message.model_id && <span className="message-model">{MODELS.find((item) => item.id === message.model_id)?.short || message.model_id}</span>}</div><div className="message-content"><MessageBody message={message} onOpenCode={openArtifact} /></div></article>; })}{sending && <article className="message assistant"><div className="message-head"><span className="message-author">Prism IA</span><span className="message-model">{selectedModel.short}</span></div><div className="message-thinking"><span /><span /><span /><span className="typing-label">digitando...</span></div></article>}<div ref={bottomRef} /></>}</section>
+      <div className="composer-area">{error && <div className="chat-error" role="alert"><span>{error}</span><button onClick={() => setError('')}>Fechar</button></div>}<div className="composer"><textarea ref={textareaRef} rows={1} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Escreva uma mensagem" disabled={sending} aria-label="Mensagem" /><div className="composer-footer"><button className="composer-model" onClick={() => setPickerMode('models')}>{selectedModel.short}<span>·</span>{selectedEffort.name}</button><button className="send-button" onClick={send} disabled={!input.trim() || sending}>{sending ? 'Enviando' : 'Enviar'}</button></div></div><p className="composer-note">Revise informações importantes antes de usá-las</p><p className="composer-shortcuts">Enter envia · Shift + Enter quebra a linha</p></div>
+    </main>
+    <CodeArtifactsPanel open={artifactPanelOpen} artifacts={artifacts} activeId={activeArtifactId} onSelect={setActiveArtifactId} onClose={() => setArtifactPanelOpen(false)} onUpdateArtifact={updateArtifact} />
+    <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} />
+  </div>;
 }

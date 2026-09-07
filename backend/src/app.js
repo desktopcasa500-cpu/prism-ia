@@ -16,6 +16,7 @@ import filesRoutes from './routes/files.js';
 import uploadsRoutes from './routes/uploads.js';
 import aiRoutes from './routes/ai.js';
 import mcpRoutes from './routes/mcp.js';
+import billingRoutes from './routes/billing.js';
 import { pool } from './db/pool.js';
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/files', filesRoutes);
 app.use('/api/uploads', uploadsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/mcp', mcpRoutes);
+app.use('/api/billing', billingRoutes);
 
 app.use(express.static(distPath, { index: false }));
 app.get('*', (req, res, next) => {

@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import Landing from './pages/Landing.jsx';
 import Info from './pages/Info.jsx';
 import Models from './pages/Models.jsx';
@@ -13,10 +14,24 @@ import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';
 import { useAuth } from './lib/auth.jsx';
+import { api } from './lib/api.js';
+import { detectUserTimeZone } from './lib/timezone.js';
 
 function LoadingScreen(){return <div className="app-loading" role="status"><div className="loading-wordmark">PRISM</div><div className="loading-line"/></div>}
 function PrivateRoute({children}){const {user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?children:<Navigate to="/login" replace/>}
 function PublicRoute({children}){const {user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?<Navigate to="/chat" replace/>:children}
 function StudioWithProfile(){const {user,updateUser,logout}=useAuth();return <><Studio/><StudioProfileMenu user={user} updateUser={updateUser} logout={logout}/></>}
 
-export default function App(){return <Routes><Route path="/" element={<Landing/>}/><Route path="/informacoes" element={<Info/>}/><Route path="/informacoes/:id" element={<PrismDetail type="info"/>}/><Route path="/modelos" element={<Models/>}/><Route path="/modelos/:id" element={<PrismDetail type="models"/>}/><Route path="/termos" element={<Terms/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><Chat/></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><Codex/></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><Settings/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes>}
+function TimezoneSync(){
+  const { user } = useAuth();
+  const syncedUserRef = useRef(null);
+  useEffect(() => {
+    if (!user?.id || syncedUserRef.current === user.id) return;
+    syncedUserRef.current = user.id;
+    const timezone = detectUserTimeZone();
+    api.patch('/user/me/timezone', { timezone }).catch(() => {});
+  }, [user?.id]);
+  return null;
+}
+
+export default function App(){return <><TimezoneSync/><Routes><Route path="/" element={<Landing/>}/><Route path="/informacoes" element={<Info/>}/><Route path="/informacoes/:id" element={<PrismDetail type="info"/>}/><Route path="/modelos" element={<Models/>}/><Route path="/modelos/:id" element={<PrismDetail type="models"/>}/><Route path="/termos" element={<Terms/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><Chat/></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><Codex/></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><Settings/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></>}

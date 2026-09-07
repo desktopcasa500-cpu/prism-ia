@@ -44,9 +44,7 @@ export function getDailyCredits(plan) {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
 }
 
-export function getWeeklyCredits(plan) {
-  return getDailyCredits(plan) * 7;
-}
+export function getWeeklyCredits(plan) { return getDailyCredits(plan) * 7; }
 
 function startOfDay(value = new Date()) {
   const date = new Date(value);
@@ -76,8 +74,21 @@ function snapshot(plan, dailyUsed, weeklyUsed, lockedUntil = null) {
   return {
     plan,
     planRank: normalizePlanRank(plan),
-    daily: { used: Math.max(0, Number(dailyUsed || 0)), limit: dailyLimit, remaining: Math.max(0, dailyLimit - Number(dailyUsed || 0)), percentage: percentUsed(dailyUsed, dailyLimit), resetsAt: nextDayReset().toISOString() },
-    weekly: { used: Math.max(0, Number(weeklyUsed || 0)), limit: weeklyLimit, remaining: Math.max(0, weeklyLimit - Number(weeklyUsed || 0)), percentage: percentUsed(weeklyUsed, weeklyLimit), resetsAt: new Date(weekStart().getTime() + USAGE_WEEK_MS).toISOString() },
+    windowHours: USAGE_WINDOW_HOURS,
+    daily: {
+      used: Math.max(0, Number(dailyUsed || 0)),
+      limit: dailyLimit,
+      remaining: Math.max(0, dailyLimit - Number(dailyUsed || 0)),
+      percentage: percentUsed(dailyUsed, dailyLimit),
+      resetsAt: nextDayReset().toISOString(),
+    },
+    weekly: {
+      used: Math.max(0, Number(weeklyUsed || 0)),
+      limit: weeklyLimit,
+      remaining: Math.max(0, weeklyLimit - Number(weeklyUsed || 0)),
+      percentage: percentUsed(weeklyUsed, weeklyLimit),
+      resetsAt: new Date(weekStart().getTime() + USAGE_WEEK_MS).toISOString(),
+    },
     lockedUntil: activeLock,
     canUseExtraFunds: normalizePlanRank(plan) >= 3,
   };
@@ -100,7 +111,10 @@ export async function getUsage(userId) {
   );
   if (!result.rows.length) return null;
   const row = result.rows[0];
-  return { ...snapshot(row.plan, Number(row.daily_used || 0), Number(row.weekly_used || 0), row.weekly_locked_until), lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null };
+  return {
+    ...snapshot(row.plan, Number(row.daily_used || 0), Number(row.weekly_used || 0), row.weekly_locked_until),
+    lastUsedAt: row.latest_usage_at ? new Date(row.latest_usage_at).toISOString() : null,
+  };
 }
 
 export async function getDailyUsage(userId, days = 35) {
@@ -149,33 +163,26 @@ export async function reserveUsage(userId, model) {
     const now = new Date();
     const lockTime = existingLock ? new Date(existingLock) : null;
     if (lockTime && lockTime.getTime() > now.getTime()) {
+      const currentWeekly = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, weekStart()]);
+      const currentDaily = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, startOfDay()]);
       await client.query('ROLLBACK');
-      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: snapshot(plan, 0, getWeeklyCredits(plan), lockTime), canUseExtraFunds: rank >= 3 };
+      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: snapshot(plan, Number(currentDaily.rows[0]?.used || 0), Number(currentWeekly.rows[0]?.used || 0), lockTime), canUseExtraFunds: rank >= 3 };
     }
-    if (lockTime && lockTime.getTime() <= now.getTime()) {
-      await client.query('UPDATE users SET weekly_locked_until=NULL WHERE id=$1', [userId]);
-    }
+    if (lockTime && lockTime.getTime() <= now.getTime()) await client.query('UPDATE users SET weekly_locked_until=NULL WHERE id=$1', [userId]);
 
     const dailyLimit = getDailyCredits(plan);
     const weeklyLimit = getWeeklyCredits(plan);
-    const daily = await client.query(
-      `SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used
-         FROM usage WHERE user_id=$1 AND created_at >= $2`,
-      [userId, startOfDay()],
-    );
-    const weekly = await client.query(
-      `SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used
-         FROM usage WHERE user_id=$1 AND created_at >= $2`,
-      [userId, weekStart()],
-    );
+    const daily = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, startOfDay()]);
+    const weekly = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, weekStart()]);
     const dailyUsed = Number(daily.rows[0]?.used || 0);
     const weeklyUsed = Number(weekly.rows[0]?.used || 0);
 
     if (weeklyUsed >= weeklyLimit) {
       const until = new Date(now.getTime() + USAGE_WEEK_MS);
       await client.query('UPDATE users SET weekly_locked_until=$2 WHERE id=$1', [userId, until]);
-      await client.query('ROLLBACK');
-      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: snapshot(plan, dailyUsed, weeklyUsed, until), canUseExtraFunds: rank >= 3 };
+      const usage = snapshot(plan, dailyUsed, weeklyUsed, until);
+      await client.query('COMMIT');
+      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage, canUseExtraFunds: rank >= 3 };
     }
 
     if (dailyUsed >= dailyLimit) {
@@ -183,12 +190,7 @@ export async function reserveUsage(userId, model) {
       return { ok: false, code: 'DAILY_CREDITS_EXHAUSTED', status: 429, usage: snapshot(plan, dailyUsed, weeklyUsed), canUseExtraFunds: false };
     }
 
-    const inserted = await client.query(
-      `INSERT INTO usage (user_id, model, provider, tokens, units, created_at)
-       VALUES ($1, $2, NULL, 0, 1, now())
-       RETURNING id`,
-      [userId, model || null],
-    );
+    const inserted = await client.query(`INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id`, [userId, model || null]);
     await client.query('COMMIT');
     return { ok: true, reservationId: inserted.rows[0]?.id || null, usage: snapshot(plan, dailyUsed + 1, weeklyUsed + 1) };
   } catch (error) {
@@ -234,7 +236,7 @@ export async function simulateTopUp(userId, amountCents) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const user = await client.query('SELECT plan, weekly_locked_until FROM users WHERE id=$1 FOR UPDATE', [userId]);
+    const user = await client.query('SELECT plan FROM users WHERE id=$1 FOR UPDATE', [userId]);
     if (!user.rows.length) { await client.query('ROLLBACK'); return { ok: false, code: 'AUTH_REQUIRED', status: 401 }; }
     if (normalizePlanRank(user.rows[0].plan) < 3) { await client.query('ROLLBACK'); return { ok: false, code: 'TOP_UP_NOT_AVAILABLE', status: 403 }; }
     const updated = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents+$2, weekly_locked_until=NULL WHERE id=$1 RETURNING wallet_balance_cents, weekly_locked_until', [userId, amount]);

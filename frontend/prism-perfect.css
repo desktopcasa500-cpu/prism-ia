@@ -1,0 +1,144 @@
+/* Prism IA — product-wide final polish. Keep it quiet, precise and editorial. */
+:root{
+  --prism-bg:#10100f;
+  --prism-surface:#151514;
+  --prism-surface-2:#1a1917;
+  --prism-line:#2a2824;
+  --prism-line-soft:#211f1c;
+  --prism-text:#e9e5de;
+  --prism-muted:#9c958c;
+  --prism-dim:#6f6961;
+  --prism-warm:#d8b58d;
+}
+
+html{scroll-behavior:smooth}
+body{background:var(--prism-bg);color:var(--prism-text)}
+button,input,textarea,select{font-synthesis:none}
+::selection{background:rgba(216,181,141,.22);color:#fff}
+
+/* Shared interaction language */
+a,button,.button,input,textarea,select{transition:color .16s ease,background-color .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease,opacity .16s ease}
+:focus-visible{outline:2px solid rgba(216,181,141,.68);outline-offset:3px}
+
+/* Home / landing */
+.home-redesign{background:#0f0f0e;color:#ebe6de}
+.home-redesign .pixel-nav{height:72px;padding:0 clamp(18px,4vw,54px);border-color:#24221f;background:rgba(15,15,14,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.home-redesign .pixel-brand{gap:11px;font-weight:700;letter-spacing:.08em}
+.home-redesign .pixel-logo{width:12px;height:12px;border-radius:2px;background:#ebe6de;box-shadow:none}
+.home-redesign .pixel-navlinks{gap:22px}
+.home-redesign .pixel-navlinks a{font-size:11px;color:#8f887e}
+.home-redesign .pixel-navlinks a:hover{color:#ece6dd}
+.home-redesign .pixel-login,.home-redesign .pixel-profile{border:1px solid #35312c;border-radius:8px;background:#151412;color:#d7d0c7;min-height:35px;padding:0 11px}
+.home-redesign .pixel-login:hover,.home-redesign .pixel-profile:hover{border-color:#514a42;background:#1a1816}
+.home-redesign .new-hero{min-height:calc(100vh - 72px);padding:clamp(80px,11vw,150px) clamp(22px,5vw,72px) 100px}
+.home-redesign .pixel-hero-main{max-width:850px}
+.home-redesign .pixel-kicker{color:#766f67;font-size:10px;letter-spacing:.16em}
+.home-redesign .pixel-title{font-size:clamp(64px,11vw,160px);line-height:.86;letter-spacing:-.075em;margin:25px 0 28px}
+.home-redesign .pixel-title .accent{color:#b7b0a6}
+.home-redesign .pixel-hero-copy{max-width:640px;font-size:clamp(16px,1.7vw,20px);line-height:1.65;color:#9d968d}
+.home-redesign .pixel-cta{min-height:43px;padding:0 15px;border-radius:8px;border:1px solid #39352f;font-size:11px}
+.home-redesign .pixel-cta-primary{background:#e0c19d;color:#17130f;border-color:#e0c19d}
+.home-redesign .pixel-cta-primary:hover{background:#ebceb0;border-color:#ebceb0;transform:translateY(-1px)}
+.home-redesign .pixel-cta.secondary{background:#141311;color:#b7b0a6}
+.home-redesign .pixel-cta.secondary:hover{background:#191816;border-color:#4a443d;color:#e2dbd1}
+.home-redesign .hero-proof{gap:10px;color:#69635b;font-size:9px;letter-spacing:.15em}
+.home-redesign .hero-proof i{width:3px;height:3px;background:#5c554d;border-radius:50%}
+.home-redesign .pixel-hero-side{opacity:.9}
+.home-redesign .hero-meta{color:#666059;font-size:9px;letter-spacing:.14em}
+.home-redesign .pixel-grid-art{opacity:.55}
+.home-redesign .hero-note{border-left-color:#514a42;color:#8b847b;font-size:12px}
+.home-redesign .hero-note b{color:#d8d0c5}
+.home-redesign .home-intro-expanded,.home-redesign .capability-section,.home-redesign .home-links,.home-redesign .home-system,.home-redesign .manifesto-section,.home-redesign .home-bottom{background:#11110f}
+.home-redesign .capability-card,.home-redesign .home-link{border-color:#282621}
+.home-redesign .capability-card:hover,.home-redesign .home-link:hover{background:#151412}
+.home-redesign .capability-top span,.home-redesign .section-index,.home-redesign .manifesto-label,.home-redesign .system-label{color:#746e65}
+.home-redesign .home-link h3,.home-redesign .capability-card h3{color:#e3ddd4}
+.home-redesign .home-link p,.home-redesign .capability-card p,.home-redesign .system-copy p,.home-redesign .manifesto-copy>p:last-child,.home-redesign .home-bottom p{color:#858078}
+.home-redesign .system-art{background:#11110f}
+.home-redesign .manifesto-section{border-top-color:#26241f}
+.home-redesign .pixel-footer{border-top-color:#282621;color:#625d55;background:#10100f}
+
+/* TAFF presentation stays the lighter editorial island */
+.taff-presentation{margin-top:0}
+
+/* Chat */
+.chat-app{background:#10100f}
+.chat-sidebar{background:#121211;border-right-color:#272520}
+.sidebar-top{border-bottom-color:#211f1c}
+.new-chat{border-color:#34312b;background:#181715;color:#d9d2c9}
+.new-chat:hover{background:#1d1b18;border-color:#4a443c}
+.session-item{color:#8d877e}
+.session-item:hover{background:#191816;color:#d4cec5}
+.session-item.active{background:#1f1c18;color:#eee7de;box-shadow:inset 2px 0 0 #b39a7d}
+.chat-topbar{height:62px;border-bottom-color:#24221f;background:rgba(16,16,15,.9);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px)}
+.topbar-model{background:#141311;border-color:#302d27}
+.topbar-model:hover{border-color:#484138;background:#191816}
+.messages{max-width:850px;padding-top:56px}
+.empty-chat h1{font-size:clamp(42px,5vw,64px);letter-spacing:-.06em;color:#eee8df}
+.empty-chat p{max-width:600px;color:#8b847b}
+.prompt-suggestions button{background:#141311;border-color:#2c2924;color:#8f887f}
+.prompt-suggestions button:hover{background:#191816;border-color:#474139;color:#d2cbc2;transform:translateY(-1px)}
+.message{margin-bottom:38px}
+.message-meta{color:#706960}
+.message.user .message-meta{color:#9b8166}
+.message-content{color:#d9d2ca;font-size:15px;line-height:1.8}
+.composer-area{max-width:850px;padding-bottom:25px}
+.composer{background:#141311;border-color:#36322c;border-radius:13px;box-shadow:0 18px 50px rgba(0,0,0,.24)}
+.composer:focus-within{border-color:#514940;box-shadow:0 22px 60px rgba(0,0,0,.3)}
+.composer textarea{min-height:64px;padding:18px 18px 11px}
+.composer-footer{padding:9px 10px 10px 15px}
+.send-button{box-shadow:none}
+.send-button:hover{transform:translateY(-1px)}
+
+/* Codex */
+.codex-final{background:#f6f5f1;color:#252521}
+.codex-final .codex-rebuild{background:#f6f5f1}
+.codex-final .codex-sidebar-rebuilt{background:#ecece7;border-right-color:#d3d2cb}
+.codex-final .codex-session.active{background:#dcdcd5;box-shadow:inset 2px 0 0 #4f4c45}
+.codex-final .codex-new{box-shadow:0 4px 14px rgba(28,28,24,.07)}
+.codex-final .codex-header-rebuild{height:58px}
+.codex-final .codex-scroll-rebuild{padding-top:52px}
+.codex-final .codex-message-content{font-size:15px;line-height:1.82}
+.codex-final .codex-composer-box{box-shadow:0 12px 36px rgba(25,25,22,.055)}
+.codex-final .codex-composer-box:focus-within{transform:translateY(-1px)}
+.codex-final .codex-live-workspace{background:#f0f0eb}
+
+/* Studio / authenticated shells */
+.studio-page{background:#10100f}
+.studio-topbar{background:#121211;border-bottom-color:#292721}
+.studio-nav{border-right-color:#292721;background:#11110f}
+.studio-nav nav button:hover,.studio-nav nav button.selected{background:#191816;color:#ddd6cd}
+.studio-content{color:#e7e1d8}
+
+/* Authentication */
+.auth-page{background:#10100f}
+.auth-side{background:radial-gradient(circle at 20% 20%,#1b1814 0,transparent 44%),#11110f}
+.auth-panel{background:#10100f}
+.auth-box h2{color:#eee8df}
+.input{background:#141311;border-color:#312e28}
+.input:focus{border-color:#665849;box-shadow:0 0 0 3px rgba(216,181,141,.07)}
+
+/* Small screens: calm, deliberate stacking */
+@media(max-width:860px){
+  .home-redesign .pixel-navlinks{display:none}
+  .home-redesign .new-hero{grid-template-columns:1fr;padding-top:76px}
+  .home-redesign .pixel-hero-side{display:none}
+  .home-redesign .pixel-title{font-size:clamp(58px,17vw,106px)}
+  .home-redesign .hero-proof{flex-wrap:wrap}
+}
+@media(max-width:640px){
+  .home-redesign .pixel-nav{padding-inline:16px}
+  .home-redesign .pixel-profile span:last-child{display:none}
+  .home-redesign .pixel-hero-actions{flex-direction:column;align-items:stretch}
+  .home-redesign .pixel-cta{text-align:center}
+  .messages,.composer-area{width:calc(100% - 28px)}
+  .chat-topbar{padding:0 14px}
+  .topbar-kicker{display:none}
+  .auth-page{grid-template-columns:1fr}
+  .auth-side{display:none}
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}

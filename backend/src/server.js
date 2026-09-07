@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import app from './app.js';
 import { pool } from './db/pool.js';
+import { resetExpiredWeeklyLocks } from './services/weeklyUsageReset.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,8 +31,24 @@ const server = await ensureDatabase()
     return null;
   });
 
+let resetJobTimer = null;
+if (server) {
+  const runResetJob = async () => {
+    try {
+      const resetCount = await resetExpiredWeeklyLocks();
+      if (resetCount > 0) console.log(`Reset semanal: ${resetCount} conta(s) desbloqueada(s).`);
+    } catch (error) {
+      console.error('Falha no reset semanal:', error);
+    }
+  };
+  await runResetJob();
+  resetJobTimer = setInterval(runResetJob, 60_000);
+  resetJobTimer.unref?.();
+}
+
 async function shutdown(signal) {
   console.log(`Recebido ${signal}; encerrando Prism IA.`);
+  if (resetJobTimer) clearInterval(resetJobTimer);
   if (server) await new Promise((resolve) => server.close(resolve));
   await pool.end().catch(() => {});
   process.exit(0);

@@ -1,8 +1,95 @@
-.codex-final .code-artifacts-panel{position:fixed!important;top:0;right:0;bottom:0;width:min(620px,52vw)!important;height:100dvh!important;z-index:3000!important;display:flex!important;flex-direction:column!important;background:#fbfbf9!important;border-left:1px solid #d8d8d2!important;box-shadow:-24px 0 70px rgba(20,20,18,.16)!important;overflow:hidden!important}
-.codex-final .code-artifacts-panel .code-artifacts-file-tabs{display:flex!important;flex:0 0 auto!important;overflow-x:auto!important;max-width:100%!important}
-.codex-final .code-artifacts-panel .code-viewer,.codex-final .code-artifacts-panel .code-preview-shell{flex:1 1 auto!important;min-height:0!important}
-.codex-final .code-artifacts-panel .code-viewer{overflow:auto!important}
-.codex-final .code-artifacts-panel .code-preview-shell{overflow:hidden!important}
-.codex-final .code-artifacts-panel .code-preview-frame{width:100%!important;height:100%!important;border:0!important}
-.codex-final .codex-body-rebuild:has(+ *){min-width:0}
-@media(max-width:820px){.codex-final .code-artifacts-panel{width:100%!important;left:0!important;right:0!important}}
+.codex-final{position:relative!important;isolation:isolate!important}
+.codex-final .codex-rebuild{position:relative!important;isolation:isolate!important}
+
+/* The artifact drawer is an application surface, not a grid child. */
+.codex-final .code-artifacts-panel{
+  position:fixed!important;
+  inset:0 0 0 auto!important;
+  width:min(720px,58vw)!important;
+  height:100dvh!important;
+  max-height:100dvh!important;
+  z-index:9999!important;
+  display:flex!important;
+  flex-direction:column!important;
+  min-width:0!important;
+  min-height:0!important;
+  overflow:hidden!important;
+  background:#fbfbf9!important;
+  border-left:1px solid #d5d5ce!important;
+  box-shadow:-32px 0 90px rgba(20,20,18,.18)!important;
+  animation:prismArtifactDrawerIn .18s ease-out both!important;
+}
+
+.codex-final .code-artifacts-panel::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  right: min(720px,58vw);
+  background:rgba(25,25,22,.10);
+  pointer-events:none;
+  z-index:-1;
+}
+
+.codex-final .code-artifacts-header{
+  flex:0 0 60px!important;
+  min-height:60px!important;
+}
+.codex-final .code-artifacts-file-tabs{
+  flex:0 0 auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+}
+.codex-final .code-artifacts-file-tabs button{
+  flex:0 0 auto!important;
+}
+.codex-final .code-artifacts-view-tabs{
+  flex:0 0 auto!important;
+}
+.codex-final .code-artifact-toolbar{
+  flex:0 0 auto!important;
+  min-width:0!important;
+}
+.codex-final .code-viewer,
+.codex-final .code-preview-shell{
+  flex:1 1 auto!important;
+  min-width:0!important;
+  min-height:0!important;
+  height:auto!important;
+  overflow:auto!important;
+}
+.codex-final .code-preview-shell{overflow:hidden!important}
+.codex-final .code-preview-frame{display:block!important;width:100%!important;height:100%!important;border:0!important;background:#fff!important}
+
+/* Make every generated-code entry obviously clickable. */
+.codex-final .codex-code-card,
+.codex-final .code-reference button{
+  position:relative!important;
+  width:100%!important;
+  cursor:pointer!important;
+}
+.codex-final .codex-code-card:hover,
+.codex-final .code-reference button:hover{
+  border-color:#bcbcb4!important;
+  transform:translateY(-1px)!important;
+}
+
+@keyframes prismArtifactDrawerIn{
+  from{opacity:0;transform:translateX(18px)}
+  to{opacity:1;transform:translateX(0)}
+}
+
+@media(max-width:820px){
+  .codex-final .code-artifacts-panel{
+    inset:0!important;
+    width:100%!important;
+    max-width:none!important;
+    border-left:0!important;
+    box-shadow:none!important;
+  }
+  .codex-final .code-artifacts-panel::before{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .codex-final .code-artifacts-panel{animation:none!important}
+}

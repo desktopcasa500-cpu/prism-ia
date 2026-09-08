@@ -61,11 +61,12 @@ async function persistArtifacts(projectId, userId, artifacts, onArtifact) {
     if (existing.rows.length) {
       await pool.query("UPDATE project_files SET content=$1,kind='file',updated_at=now() WHERE id=$2 AND user_id=$3", [artifact.content, existing.rows[0].id, userId]);
       changed.push(artifact.path);
+      onArtifact?.({ path: artifact.path, content: artifact.content, action: 'updated' });
     } else {
       await pool.query("INSERT INTO project_files(project_id,user_id,path,content,kind) VALUES($1,$2,$3,$4,'file')", [projectId, userId, artifact.path, artifact.content]);
       created.push(artifact.path);
+      onArtifact?.({ path: artifact.path, content: artifact.content, action: 'created' });
     }
-    onArtifact?.({ path: artifact.path, content: artifact.content, action: existing.rows.length ? 'updated' : 'created' });
   }
   await pool.query('UPDATE projects SET updated_at=now() WHERE id=$1 AND user_id=$2', [projectId, userId]);
   return { filesChanged: changed, filesCreated: created };
@@ -85,28 +86,47 @@ function buildProjectPrompt(prompt, project, files) {
   ].join('\n\n');
 }
 
+async function validateSession(sessionId, userId) {
+  if (!sessionId) return null;
+  const result = await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]);
+  if (!result.rows.length) throw Object.assign(new Error('Sessão não encontrada.'), { status: 404, code: 'SESSION_NOT_FOUND' });
+  return result.rows[0];
+}
+
+async function persistGenerationMessages(sessionId, userId, prompt, result, thinking, model) {
+  const session = await validateSession(sessionId, userId);
+  if (!session) return null;
+  const title = session.title === 'Nova conversa' ? prompt.replace(/\s+/g, ' ').slice(0, 64) || 'Nova conversa' : session.title;
+  await pool.query('INSERT INTO messages (session_id,user_id,role,content,effort,model_id) VALUES ($1,$2,\'user\',$3,$4,$5)', [sessionId, userId, prompt, thinking, model]);
+  const tokens = Number.isFinite(Number(result?.tokens)) ? Math.max(0, Math.floor(Number(result.tokens))) : 0;
+  const saved = await pool.query(
+    `INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata)
+     VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9)
+     RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`,
+    [sessionId, userId, String(result?.text || '').trim() || 'Projeto atualizado.', thinking, tokens, result?.providers?.[0] || null, model, 'Geração concluída pelo Codex.', JSON.stringify({ tools_used: result?.tools_used || [], files_changed: result?.files_changed || [], files_created: result?.files_created || [] })],
+  );
+  await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3', [title, sessionId, userId]);
+  return saved.rows[0] || null;
+}
+
 async function executeGeneration({ model, thinking, prompt, context, projectId, userId, mcpServerIds = [], onPhase, onArtifact }) {
   const workspace = await loadProjectContext(projectId, userId);
   onPhase?.({ phase: 'analyzing', label: 'Analisando o projeto', detail: `${workspace.files.filter((file) => file.kind !== 'folder').length} arquivos no workspace` });
   const agentPrompt = workspace.project ? buildProjectPrompt(prompt, workspace.project, workspace.files) : prompt;
   onPhase?.({ phase: 'planning', label: 'Planejando', detail: 'Definindo a implementação antes de editar' });
-
   const safeMcpIds = Array.isArray(mcpServerIds) ? mcpServerIds.map(String).filter(Boolean).slice(0, 32) : [];
   const result = await runOrchestration(agentPrompt, thinking, { ...getModelProfile(model), id: model }, context, userId, { mcpServerIds: safeMcpIds });
   if (result?.status === 'unavailable') return result;
-
   onPhase?.({ phase: 'writing', label: 'Escrevendo arquivos', detail: 'Recebendo os arquivos produzidos pelo agente' });
   const artifacts = parseArtifacts(result.text);
   const persisted = await persistArtifacts(projectId, userId, artifacts, onArtifact);
   onPhase?.({ phase: 'reviewing', label: 'Revisando', detail: 'Verificando arquivos e resultados produzidos' });
   onPhase?.({ phase: 'updating', label: 'Atualizando o workspace', detail: `${artifacts.length} arquivo(s) recebido(s)` });
-
   const cleanedText = String(result.text || '')
     .replace(/<file\s+path=["'][^"']+["']\s*>[\s\S]*?<\/file>/gi, '')
     .replace(/<prism:summary>([\s\S]*?)<\/prism:summary>/gi, '$1')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-
   return { model, thinking, ...result, text: cleanedText || (artifacts.length ? 'Alterações aplicadas ao projeto real.' : result.text), project_id: projectId, files_changed: persisted.filesChanged, files_created: persisted.filesCreated };
 }
 
@@ -114,11 +134,14 @@ function readGenerationInput(req) {
   const model = String(req.body?.model || 'prism-mini-1.0').trim();
   const rawThinking = String(req.body?.thinking || 'medium').trim().toLowerCase();
   const mcpServerIds = Array.isArray(req.body?.mcpServerIds) ? req.body.mcpServerIds.map(String).filter(Boolean).slice(0, 32) : [];
-  return { model, rawThinking, thinking: normalizeEffort(rawThinking), prompt: String(req.body?.prompt || '').trim(), context: String(req.body?.context || '').slice(-30_000), projectId: req.body?.projectId ? String(req.body.projectId) : null, mcpServerIds };
+  const sessionId = req.body?.sessionId ? String(req.body.sessionId) : null;
+  return { model, rawThinking, thinking: normalizeEffort(rawThinking), prompt: String(req.body?.prompt || '').replace(/\u0000/g, '').trim(), context: String(req.body?.context || '').replace(/\u0000/g, '').slice(-30_000), projectId: req.body?.projectId ? String(req.body.projectId) : null, sessionId, mcpServerIds };
 }
 
 async function runGeneration(req, res, stream = false) {
   let reservation = null;
+  let heartbeat = null;
+  let closed = false;
   try {
     const input = readGenerationInput(req);
     if (!input.prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
@@ -126,58 +149,62 @@ async function runGeneration(req, res, stream = false) {
     if (!ALLOWED_EFFORTS.has(input.rawThinking)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
     const authorization = await authorizeGeneration(req.userId, input.model, input.thinking);
     if (!authorization.ok) return res.status(authorization.status).json(authorization);
-
+    await validateSession(input.sessionId, req.userId);
     reservation = await reserveUsage(req.userId, input.model);
     if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
     if (!stream) {
       const result = await executeGeneration({ ...input, userId: req.userId });
-      if (result?.status === 'unavailable') {
-        await releaseUsage(reservation.reservationId).catch(() => {});
-        reservation = null;
-        return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
-      }
+      if (result?.status === 'unavailable') { await releaseUsage(reservation.reservationId).catch(() => {}); reservation = null; return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE }); }
       await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0);
+      const saved = await persistGenerationMessages(input.sessionId, req.userId, input.prompt, result, input.thinking, input.model);
       reservation = null;
-      return res.json(result);
+      return res.json({ ...result, message: saved });
     }
 
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders?.();
-
-    let closed = false;
-    const heartbeat = setInterval(() => { if (!closed) res.write(`: heartbeat ${Date.now()}\n\n`); }, 1500);
-    const send = (payload) => { if (!closed) res.write(`data: ${JSON.stringify(payload)}\n\n`); };
+    const close = () => {
+      closed = true;
+      if (heartbeat) clearInterval(heartbeat);
+      if (reservation?.reservationId) releaseUsage(reservation.reservationId).catch(() => {});
+      reservation = null;
+    };
+    req.on('aborted', close);
+    res.on('close', () => { if (!res.writableEnded) close(); });
+    heartbeat = setInterval(() => { if (!closed && !res.writableEnded) res.write(`: heartbeat ${Date.now()}\n\n`); }, 1500);
+    const send = (payload) => { if (!closed && !res.writableEnded) res.write(`data: ${JSON.stringify(payload)}\n\n`); };
     const startedAt = Date.now();
     try {
       send({ type: 'phase', phase: 'received', label: 'Pedido recebido', detail: 'Preparando o agente' });
       const result = await executeGeneration({ ...input, userId: req.userId, onPhase: (phase) => send({ type: 'phase', ...phase, elapsedMs: Date.now() - startedAt }), onArtifact: (artifact) => send({ type: 'artifact', ...artifact, elapsedMs: Date.now() - startedAt }) });
+      if (closed) return;
       if (result?.status === 'unavailable') {
-        await releaseUsage(reservation.reservationId).catch(() => {});
-        reservation = null;
+        await releaseUsage(reservation.reservationId).catch(() => {}); reservation = null;
         send({ type: 'error', code: 'PROVIDERS_UNAVAILABLE', message: UNAVAILABLE_MESSAGE });
       } else {
-        await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0);
-        reservation = null;
+        await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0); reservation = null;
+        const saved = await persistGenerationMessages(input.sessionId, req.userId, input.prompt, result, input.thinking, input.model);
         send({ type: 'phase', phase: 'completed', label: 'Concluído', detail: 'O workspace recebeu o resultado do agente', elapsedMs: Date.now() - startedAt });
-        send({ type: 'result', data: result });
+        send({ type: 'result', data: { ...result, message: saved } });
       }
     } catch (error) {
       if (reservation?.reservationId) { await releaseUsage(reservation.reservationId).catch(() => {}); reservation = null; }
-      send({ type: 'error', code: error?.code || 'GENERATION_FAILED', message: error?.code === 'PROJECT_NOT_FOUND' ? 'Projeto não encontrado.' : UNAVAILABLE_MESSAGE });
+      if (!closed) send({ type: 'error', code: error?.code || 'GENERATION_FAILED', message: error?.code === 'PROJECT_NOT_FOUND' ? 'Projeto não encontrado.' : error?.code === 'SESSION_NOT_FOUND' ? 'Sessão não encontrada.' : UNAVAILABLE_MESSAGE });
     } finally {
       closed = true;
-      clearInterval(heartbeat);
-      res.end();
+      if (heartbeat) clearInterval(heartbeat);
+      if (!res.writableEnded) res.end();
     }
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
     console.error(`${stream ? 'AI streaming' : 'AI'} generation error:`, { code: error?.code, status: error?.status, message: error?.message });
-    if (!res.headersSent) return res.status(error?.status || 502).json(error?.code === 'PROJECT_NOT_FOUND' ? { error: 'Projeto não encontrado.', code: error.code } : { error: error?.message || 'Não foi possível iniciar a geração.', code: error?.code || 'GENERATION_FAILED' });
-    res.end();
+    if (!res.headersSent) return res.status(error?.status || 502).json(error?.code === 'PROJECT_NOT_FOUND' ? { error: 'Projeto não encontrado.', code: error.code } : error?.code === 'SESSION_NOT_FOUND' ? { error: 'Sessão não encontrada.', code: error.code } : { error: error?.message || 'Não foi possível iniciar a geração.', code: error?.code || 'GENERATION_FAILED' });
+    if (!res.writableEnded) res.end();
   }
 }
 

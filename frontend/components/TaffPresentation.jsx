@@ -1,22 +1,38 @@
 import './taff-presentation.css';
 
+const LOGO = '/prism-logo.svg';
 const skyA = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_163941_afe19265-9c6b-478a-9f11-38b88fb78361.png';
 const skyB = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_164039_58d2db10-831c-4cb0-9beb-16ad40d3a051.png';
 const skyC = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_163911_b08367dd-5849-4588-a997-13e1f426c5b9.png';
+const tree = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_162947_51f32417-a589-4722-a16e-2e51d670fb12.png';
 const macaw = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_163911_27315a30-630f-4aef-b11f-0088d93b0f41.png';
 const toucan = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_164513_5eb13b1c-33c9-4384-988c-2e8667a2e9ca.png';
-const reveal = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_163910_c3ea17b8-7ea6-4d4d-8c1c-51734aa7e8f0.png';
+const hummingbird = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_162730_b68b811d-2567-44cd-8e8b-ec92a5a50c91.png';
+const owl = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_162731_3400832c-2d59-4703-aa04-eba25f7c9da2.png';
+const finalSky = 'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_161759_cb110b6e-acea-481f-8eee-bb81fd783f6d.png';
 
-function Scene({ image, eyebrow, title, copy, className = '', position = 'center' }) {
+function Scene({ image, kicker, title, description, className = '', objectPosition = 'center' }) {
   return (
     <article className={`taff-scene ${className}`}>
-      <img src={image} alt="" loading="lazy" style={{ objectPosition: position }} />
+      <img src={image} alt="" loading="lazy" style={{ objectPosition }} />
+      <div className="taff-scene-wash" aria-hidden="true" />
       <div className="taff-scene-grain" aria-hidden="true" />
-      <div className="taff-scene-shade" aria-hidden="true" />
       <div className="taff-scene-copy">
-        <span>{eyebrow}</span>
-        <h3>{title}</h3>
-        {copy && <p>{copy}</p>}
+        <span>{kicker}</span>
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </div>
+    </article>
+  );
+}
+
+function Bird({ image, species, index }) {
+  return (
+    <article className="taff-bird">
+      <img src={image} alt="" loading="lazy" />
+      <div className="taff-bird-copy">
+        <span>{String(index).padStart(2, '0')}</span>
+        <strong>{species}</strong>
       </div>
     </article>
   );
@@ -24,66 +40,48 @@ function Scene({ image, eyebrow, title, copy, className = '', position = 'center
 
 export default function TaffPresentation() {
   return (
-    <section className="taff-presentation" aria-label="TAFF 2.0">
+    <section className="taff-presentation" aria-label="Prism Taff 2.0">
       <header className="taff-presentation-head">
-        <span>PRISM / TAFF 2.0</span>
-        <span>VISUAL STUDY / 01</span>
+        <div className="taff-head-brand"><img src={LOGO} alt="Prism IA" /><span>PRISM IA</span></div>
+        <span>TAFF 2.0 / VISUAL STUDY</span>
       </header>
 
-      <Scene
-        image={skyA}
-        eyebrow="TAFF 2.0 / DESCENT"
-        title="Da altura, tudo desacelera."
-        copy="Uma passagem aérea suave abre a sequência antes da fauna aparecer."
-        className="taff-sky taff-sky-primary"
-        position="center 54%"
-      />
-
-      <Scene
-        image={skyB}
-        eyebrow="TAFF 2.0 / ATMOSPHERE"
-        title="A paisagem vira textura."
-        copy="Azul, pêssego, rosa queimado e creme permanecem no mesmo registro pictórico."
-        className="taff-sky taff-sky-secondary"
-        position="center 48%"
-      />
-
-      <Scene
-        image={skyC}
-        eyebrow="TAFF 2.0 / APPROACH"
-        title="Até o horizonte parece pintado."
-        copy="A câmera se aproxima do mundo natural sem trocar de linguagem."
-        className="taff-sky taff-sky-tertiary"
-        position="center 44%"
-      />
-
-      <Scene
-        image={macaw}
-        eyebrow="TAFF 2.0 / FAUNA 01"
-        title="Brasil, observado de perto."
-        copy="A arara-azul entra como uma prancha de história natural, leve e detalhada."
-        className="taff-fauna"
-        position="center 46%"
-      />
-
-      <Scene
-        image={toucan}
-        eyebrow="TAFF 2.0 / FAUNA 02"
-        title="Outra espécie. O mesmo mundo."
-        copy="O tucano amplia a sequência sem quebrar a linguagem pictórica e a paleta do filme."
-        className="taff-fauna taff-fauna-secondary"
-        position="center 42%"
-      />
-
-      <article className="taff-reveal">
-        <img src={reveal} alt="" loading="lazy" />
-        <div className="taff-reveal-overlay" aria-hidden="true" />
-        <div className="taff-reveal-grain" aria-hidden="true" />
-        <div className="taff-reveal-center">
-          <span>PRISM PRESENTS</span>
-          <div className="taff-reveal-title">TAFF 2.0</div>
+      <section className="taff-intro">
+        <div className="taff-intro-stage">
+          <img className="taff-intro-logo" src={LOGO} alt="Prism IA" />
+          <div className="taff-intro-rule" aria-hidden="true" />
+          <h1>TAFF <b>2.0</b></h1>
         </div>
-      </article>
+      </section>
+
+      <Scene image={skyA} kicker="I" title="Começamos no céu." description="Uma passagem simples. Luz, espaço e movimento quase imperceptível." className="taff-sky" objectPosition="center 54%" />
+      <Scene image={skyB} kicker="II" title="O mundo vai descendo." description="A paisagem muda de escala sem mudar de linguagem." className="taff-sky taff-sky-alt" objectPosition="center 48%" />
+      <Scene image={skyC} kicker="III" title="Até encontrar o chão." description="A câmera continua baixa, devagar, até a forma da árvore surgir." className="taff-sky taff-sky-low" objectPosition="center 44%" />
+      <Scene image={tree} kicker="IV" title="Uma árvore no papel." description="Desenhada como uma página de caderno: simples, silenciosa, imperfeita." className="taff-tree" objectPosition="center" />
+
+      <section className="taff-birds" aria-label="Pássaros brasileiros">
+        <header>
+          <span>V / FAUNA BRASILEIRA</span>
+          <h2>Depois, uma espécie de cada vez.</h2>
+        </header>
+        <div className="taff-bird-grid">
+          <Bird image={macaw} species="Arara" index={1} />
+          <Bird image={toucan} species="Tucano" index={2} />
+          <Bird image={hummingbird} species="Beija-flor" index={3} />
+          <Bird image={owl} species="Coruja" index={4} />
+        </div>
+      </section>
+
+      <section className="taff-end">
+        <img src={finalSky} alt="" loading="lazy" />
+        <div className="taff-end-wash" aria-hidden="true" />
+        <div className="taff-end-grain" aria-hidden="true" />
+        <div className="taff-end-copy">
+          <img src={LOGO} alt="Prism IA" />
+          <span>PRISM IA</span>
+          <strong>NEW PRISM TAFF 2.0</strong>
+        </div>
+      </section>
     </section>
   );
 }

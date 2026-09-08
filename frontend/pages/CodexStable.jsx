@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 import { usePersistentCodex } from '../lib/usePersistentCodex.js';
 import PrismCodexIntro, { INTRO_KEY } from '../components/PrismCodexIntro.jsx';
 import CodexSidebar from '../components/codex/CodexSidebar.jsx';
@@ -229,7 +230,7 @@ export default function CodexStable() {
     try {
       if (!sid) { const created = await api.post('/chat/sessions', { title: value.slice(0, 64) }); sid = created.session.id; setSessionId(sid); setSessions((current) => [created.session, ...current]); }
       const nextMessages = [...messages, localMessage]; setMessages(nextMessages); setPrompt(''); setRunning(true); setError('');
-      const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content: value, model, effort }, { timeout: 180000, signal: controller.signal });
+      const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content: value, model, effort, clientRequestId: `codex-${Date.now()}-${Math.random().toString(36).slice(2)}` }, { timeout: 180000, signal: controller.signal });
       if (!result?.message) throw new Error('O servidor não retornou uma resposta válida.');
       const answer = normalizeMessage(result.message); const finalMessages = [...nextMessages, answer]; setMessages(finalMessages); cacheSession(sid, finalMessages).catch(() => {});
       const generated = extractCode(answer.text, String(answer.id));
@@ -247,7 +248,7 @@ export default function CodexStable() {
     const localMessage = { id: `local-${Date.now()}`, role: 'user', text: value, tools: [] };
     setMessages((current) => [...current, localMessage]); setPrompt(''); setRunning(true); setError(''); setPhase('received'); setSteps([]); startedAtRef.current = Date.now(); setElapsed(0); setMode('vibe');
     try {
-      const result = await api.streamPost('/ai/generate/stream', { model, thinking: 'ultracode', prompt: value, context, projectId }, (event) => {
+      const result = await api.streamPost('/ai/generate/stream', { model, thinking: 'ultracode', prompt: value, context, projectId, clientRequestId: `vibe-${Date.now()}-${Math.random().toString(36).slice(2)}` }, (event) => {
         if (event.type === 'phase') { setPhase(event.phase); setSteps((current) => [...current.filter((item) => item.phase !== event.phase), event]); }
         if (event.type === 'artifact' && event.path) {
           const file = { path: event.path, kind: 'file', content: String(event.content || '') }; const artifact = fileArtifact(file);
@@ -290,7 +291,7 @@ export default function CodexStable() {
           <button type="button" className="codex-command-trigger" onClick={() => setCommandOpen(true)}>⌘K</button>
         </div>
       </header>
-      <McpContextBar servers={mcpServers} activeIds={mcpActive} onToggle={(id) => setMcpActive((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} />
+      {mode === 'vibe' && <McpContextBar servers={mcpServers} activeIds={mcpActive} onToggle={(id) => setMcpActive((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} />}
       <section className="codex-body-rebuild">
         <section className="codex-conversation-rebuild">
           <div className="codex-scroll-rebuild">

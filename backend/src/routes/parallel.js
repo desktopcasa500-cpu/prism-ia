@@ -3,18 +3,20 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { runParallelOrchestration } from '../services/parallelOrchestrator.js';
 import { normalizeEffort } from '../services/modelRouter.js';
-import { getUsage, reserveUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
+import { getUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS, normalizePlanRank, PLAN_FEATURES } from '../services/usage.js';
 
 const router = Router();
 router.use(requireAuth);
 const ALLOWED_PROVIDERS = new Set(['anthropic', 'openai', 'gemini']);
+const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_MODELS = 3;
 
 router.post('/', async (req, res, next) => {
   const sessionId = String(req.body?.sessionId || '').trim();
   const content = typeof req.body?.content === 'string' ? req.body.content.replace(/\u0000/g, '').trim() : '';
-  const effort = normalizeEffort(String(req.body?.effort || 'medium'));
+  const rawEffort = String(req.body?.effort || 'medium').trim().toLowerCase();
+  const effort = normalizeEffort(rawEffort);
   const context = String(req.body?.context || '').slice(-30_000);
   const requestedModels = Array.isArray(req.body?.models)
     ? req.body.models.filter((item) => item && ALLOWED_PROVIDERS.has(String(item.provider)) && String(item.model || '').length <= 100).slice(0, MAX_MODELS)
@@ -23,8 +25,10 @@ router.post('/', async (req, res, next) => {
 
   if (!sessionId || !content) return res.status(400).json({ error: 'Sessão e mensagem são obrigatórias.' });
   if (content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa.' });
+  if (!ALLOWED_EFFORTS.has(rawEffort)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
   if (!requestedModels.length) return res.status(400).json({ error: 'Selecione pelo menos um modelo.' });
 
+  let reservation = null;
   try {
     const owns = await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, req.userId]);
     if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' });
@@ -49,7 +53,7 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    const reservation = await reserveUsage(req.userId, 'parallel');
+    reservation = await reserveUsage(req.userId, 'parallel');
     if (!reservation.ok) return res.status(429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
     const previous = await pool.query(
@@ -89,11 +93,20 @@ router.post('/', async (req, res, next) => {
       );
       saved.push(row.rows[0]);
     }
+
+    if (!saved.length) {
+      await releaseUsage(reservation.reservationId).catch(() => {});
+      reservation = null;
+      return res.status(502).json({ error: 'Nenhum provedor retornou uma resposta válida.', code: 'PARALLEL_NO_RESULT' });
+    }
+
     await recordTokens(reservation.reservationId, 'parallel', totalTokens);
+    reservation = null;
 
     const usage = await getUsage(req.userId);
     res.json({ sessionId, results: result.results || [], saved, mcp_errors: result.mcp_errors || [], elapsed_ms: result.elapsed_ms || 0, usage });
   } catch (error) {
+    if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
     next(error);
   }
 });

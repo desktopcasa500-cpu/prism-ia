@@ -19,14 +19,15 @@ export function validateThinking(model, effort) {
 }
 
 export function normalizeEffort(effort = 'medium') {
-  return ALL_EFFORTS.includes(effort) ? effort : 'medium';
+  if (!ALL_EFFORTS.includes(effort)) return 'medium';
+  if (effort === 'max' || effort === 'ultracode') return 'high';
+  return effort;
 }
 
 export function resolveExecutionEffort(requestedEffort = 'medium', supportedEfforts = EXECUTION_EFFORTS) {
   const requested = normalizeEffort(requestedEffort);
   const supported = EXECUTION_EFFORTS.filter((level) => supportedEfforts.includes(level));
   if (!supported.length) return 'medium';
-  if (requested === 'ultracode' || requested === 'max') return supported.includes('high') ? 'high' : supported.includes('medium') ? 'medium' : 'low';
   if (supported.includes(requested)) return requested;
   const target = EXECUTION_EFFORTS.indexOf(requested);
   return [...supported].sort((a, b) => Math.abs(EXECUTION_EFFORTS.indexOf(a) - target) - Math.abs(EXECUTION_EFFORTS.indexOf(b) - target))[0];

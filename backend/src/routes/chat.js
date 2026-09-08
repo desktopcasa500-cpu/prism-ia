@@ -48,6 +48,15 @@ async function loadHistory(sessionId, userId) {
   return result.rows.reverse().map((message) => `${message.role}: ${message.content}`).join('\n');
 }
 
+async function findRequestResult(userId, clientRequestId) {
+  if (!clientRequestId) return null;
+  const result = await pool.query(`SELECT id,session_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE user_id=$1 AND metadata->>'client_request_id'=$2 ORDER BY created_at ASC`, [userId, clientRequestId]);
+  if (!result.rows.length) return null;
+  const assistant = result.rows.find((message) => message.role === 'assistant');
+  if (assistant) return { status: 'completed', message: assistant };
+  return { status: 'processing', message: result.rows[0] };
+}
+
 router.get('/usage', async (req, res, next) => {
   try {
     const usage = await getUsage(req.userId);
@@ -119,6 +128,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
   const content = cleanText(req.body?.content);
   const model = cleanText(req.body?.model, 80) || 'prism-mini-1.0';
   const effort = normalizeEffort(cleanText(req.body?.effort, 20) || 'medium');
+  const clientRequestId = cleanText(req.body?.clientRequestId, 120).replace(/[^a-zA-Z0-9._:-]/g, '');
 
   if (!content) return res.status(400).json({ error: 'Mensagem vazia.', code: 'EMPTY_MESSAGE' });
   if (typeof req.body?.content === 'string' && req.body.content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa.', code: 'MESSAGE_TOO_LONG' });
@@ -129,6 +139,14 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
   try {
     const owns = await pool.query('SELECT id,title FROM sessions WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
     if (!owns.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.', code: 'SESSION_NOT_FOUND' });
+
+    const existing = await findRequestResult(req.userId, clientRequestId);
+    if (existing?.status === 'completed') {
+      return res.json({ message: existing.message, providers_used: existing.message.provider ? [existing.message.provider] : [], tools_used: Array.isArray(existing.message.metadata?.tools_used) ? existing.message.metadata.tools_used : [], model: existing.message.model_id || model, effort: existing.message.effort || effort, usage: await getUsage(req.userId) });
+    }
+    if (existing?.status === 'processing') {
+      return res.status(409).json({ error: 'Esta solicitação já está sendo processada.', code: 'REQUEST_IN_PROGRESS' });
+    }
 
     const authorization = await authorizeModel(req.userId, model, effort);
     if (!authorization.ok) return res.status(authorization.status).json({ ...authorization, status: undefined });
@@ -142,18 +160,33 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     }
 
     const conversationContext = await loadHistory(req.params.id, req.userId);
-    await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,model_id) VALUES ($1,$2,'user',$3,$4,$5)`, [req.params.id, req.userId, content, effort, model]);
+    const requestMetadata = clientRequestId ? JSON.stringify({ client_request_id: clientRequestId }) : '{}';
+    try {
+      await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,model_id,metadata) VALUES ($1,$2,'user',$3,$4,$5,$6)`, [req.params.id, req.userId, content, effort, model, requestMetadata]);
+    } catch (error) {
+      if (error?.code !== '23505' || !clientRequestId) throw error;
+      if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
+      reservation = null;
+      const duplicate = await findRequestResult(req.userId, clientRequestId);
+      if (duplicate?.status === 'completed') {
+        return res.json({ message: duplicate.message, providers_used: duplicate.message.provider ? [duplicate.message.provider] : [], tools_used: Array.isArray(duplicate.message.metadata?.tools_used) ? duplicate.message.metadata.tools_used : [], model: duplicate.message.model_id || model, effort: duplicate.message.effort || effort, usage: await getUsage(req.userId) });
+      }
+      return res.status(409).json({ error: 'Esta solicitação já está sendo processada.', code: 'REQUEST_IN_PROGRESS' });
+    }
+
     await pool.query(`UPDATE sessions SET title=$1, updated_at=now() WHERE id=$2 AND user_id=$3`, [sessionTitle(owns.rows[0].title, content), req.params.id, req.userId]);
 
     const result = await runOrchestration(content, effort, { model }, conversationContext, req.userId);
     if (result?.status === 'unavailable') {
       await releaseUsage(reservation.reservationId).catch(() => {});
+      await pool.query(`DELETE FROM messages WHERE session_id=$1 AND user_id=$2 AND role='user' AND metadata->>'client_request_id'=$3`, [req.params.id, req.userId, clientRequestId]).catch(() => {});
       return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
     }
 
     const text = typeof result?.text === 'string' ? result.text.trim() : '';
     if (!text) {
       await releaseUsage(reservation.reservationId).catch(() => {});
+      await pool.query(`DELETE FROM messages WHERE session_id=$1 AND user_id=$2 AND role='user' AND metadata->>'client_request_id'=$3`, [req.params.id, req.userId, clientRequestId]).catch(() => {});
       return res.status(502).json({ error: 'O serviço de geração retornou uma resposta vazia.', code: 'EMPTY_GENERATION' });
     }
 
@@ -162,14 +195,17 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     const tools = Array.isArray(result?.tools_used) ? result.tools_used : [];
     await recordTokens(reservation.reservationId, providers[0] || null, tokens);
 
-    const saved = await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata) VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9) RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`, [req.params.id, req.userId, text, effort, tokens, providers[0] || null, model, 'Resposta gerada e revisada.', JSON.stringify({ tools_used: tools })]);
+    const assistantMetadata = JSON.stringify({ ...(clientRequestId ? { client_request_id: clientRequestId } : {}), tools_used: tools });
+    const saved = await pool.query(`INSERT INTO messages (session_id,user_id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata) VALUES ($1,$2,'assistant',$3,$4,$5,$6,$7,$8,$9) RETURNING id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at`, [req.params.id, req.userId, text, effort, tokens, providers[0] || null, model, 'Resposta gerada e revisada.', assistantMetadata]);
     const usage = await getUsage(req.userId);
     res.json({ message: saved.rows[0], providers_used: providers, tools_used: tools, mcp_errors: Array.isArray(result?.mcp_errors) ? result.mcp_errors : [], model, effort, usage });
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
+    if (clientRequestId) await pool.query(`DELETE FROM messages WHERE session_id=$1 AND user_id=$2 AND role='user' AND metadata->>'client_request_id'=$3 AND NOT EXISTS (SELECT 1 FROM messages a WHERE a.session_id=messages.session_id AND a.user_id=messages.user_id AND a.role='assistant' AND a.metadata->>'client_request_id'=messages.metadata->>'client_request_id')`, [req.params.id, req.userId, clientRequestId]).catch(() => {});
     console.error('Prism chat generation error:', { code: error?.code, status: error?.status, message: error?.message });
     if (error?.code === 'PROVIDER_CONFIGURATION') return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
     if (error?.status === 401) return res.status(401).json({ error: 'Sessão expirada.', code: 'AUTH_REQUIRED' });
+    if (error?.code === 'REQUEST_IN_PROGRESS') return res.status(409).json({ error: 'Esta solicitação já está sendo processada.', code: 'REQUEST_IN_PROGRESS' });
     return res.status(502).json({ error: 'Não foi possível concluir a resposta. Tente novamente.', code: 'GENERATION_FAILED' });
   }
 });

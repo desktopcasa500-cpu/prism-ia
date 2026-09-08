@@ -1,4 +1,5 @@
 const ALL_EFFORTS = ['low', 'medium', 'high', 'max', 'ultracode'];
+const EXECUTION_EFFORTS = ['low', 'medium', 'high'];
 
 export const MODEL_PROFILES = {
   'prism-nano-1.0': { effort: ALL_EFFORTS, tier: 'fast', description: 'Rápido e econômico', gemini: 'gemini-3.5-flash-lite' },
@@ -19,4 +20,24 @@ export function validateThinking(model, effort) {
 
 export function normalizeEffort(effort = 'medium') {
   return ALL_EFFORTS.includes(effort) ? effort : 'medium';
+}
+
+export function resolveExecutionEffort(requestedEffort = 'medium', supportedEfforts = EXECUTION_EFFORTS) {
+  const requested = normalizeEffort(requestedEffort);
+  const supported = EXECUTION_EFFORTS.filter((level) => supportedEfforts.includes(level));
+  if (!supported.length) return 'medium';
+  if (requested === 'ultracode' || requested === 'max') return supported.includes('high') ? 'high' : supported.includes('medium') ? 'medium' : 'low';
+  if (supported.includes(requested)) return requested;
+  const target = EXECUTION_EFFORTS.indexOf(requested);
+  return [...supported].sort((a, b) => Math.abs(EXECUTION_EFFORTS.indexOf(a) - target) - Math.abs(EXECUTION_EFFORTS.indexOf(b) - target))[0];
+}
+
+export function getProviderEffort(provider, requestedEffort) {
+  const capabilities = {
+    gemini: ['low', 'medium', 'high'],
+    groq: ['low', 'medium', 'high'],
+    openrouter: ['low', 'medium', 'high'],
+    'nvidia-nim': ['low', 'medium', 'high'],
+  };
+  return resolveExecutionEffort(requestedEffort, capabilities[provider] || EXECUTION_EFFORTS);
 }

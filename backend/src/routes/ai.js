@@ -10,6 +10,7 @@ router.use(requireAuth);
 
 const MAX_FILE_CONTENT = 2_000_000;
 const PLAN_NAMES = ['Grátis', 'Base', 'Medium', 'Pro', 'Empresarial'];
+const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
 const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
 
 function parseArtifacts(text) {
@@ -35,10 +36,7 @@ async function getAccount(userId) {
 }
 
 async function authorizeGeneration(userId, model, thinking) {
-  if (!MODEL_REQUIREMENTS[model]) {
-    if (MODEL_REQUIREMENTS[model] !== 0) return { ok: false, status: 400, code: 'INVALID_MODEL', error: 'Modelo inválido.' };
-  }
-  if (!MODEL_REQUIREMENTS.hasOwnProperty(model)) return { ok: false, status: 400, code: 'INVALID_MODEL', error: 'Modelo inválido.' };
+  if (!Object.prototype.hasOwnProperty.call(MODEL_REQUIREMENTS, model)) return { ok: false, status: 400, code: 'INVALID_MODEL', error: 'Modelo inválido.' };
   const account = await getAccount(userId);
   if (!account) return { ok: false, status: 401, code: 'AUTH_REQUIRED', error: 'Sessão expirada.' };
   const requiredRank = MODEL_REQUIREMENTS[model];
@@ -121,29 +119,33 @@ async function executeGeneration({ model, thinking, prompt, context, projectId, 
   };
 }
 
+function readGenerationInput(req) {
+  const model = String(req.body?.model || 'prism-mini-1.0').trim();
+  const rawThinking = String(req.body?.thinking || 'medium').trim().toLowerCase();
+  return { model, rawThinking, thinking: normalizeEffort(rawThinking), prompt: String(req.body?.prompt || '').trim(), context: String(req.body?.context || '').slice(-30_000), projectId: req.body?.projectId ? String(req.body.projectId) : null };
+}
+
 router.post('/generate', async (req, res) => {
   let reservation = null;
   try {
-    const model = String(req.body?.model || 'prism-mini-1.0');
-    const thinking = normalizeEffort(req.body?.thinking || 'medium');
-    const prompt = String(req.body?.prompt || '').trim();
-    const context = String(req.body?.context || '').slice(-30_000);
-    const projectId = req.body?.projectId ? String(req.body.projectId) : null;
-
-    if (!prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
-    if (prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo', code: 'PROMPT_TOO_LONG' });
-    const authorization = await authorizeGeneration(req.userId, model, thinking);
+    const input = readGenerationInput(req);
+    if (!input.prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
+    if (input.prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo', code: 'PROMPT_TOO_LONG' });
+    if (!ALLOWED_EFFORTS.has(input.rawThinking)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
+    const authorization = await authorizeGeneration(req.userId, input.model, input.thinking);
     if (!authorization.ok) return res.status(authorization.status).json(authorization);
 
-    reservation = await reserveUsage(req.userId, model);
+    reservation = await reserveUsage(req.userId, input.model);
     if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
-    const result = await executeGeneration({ model, thinking, prompt, context, projectId, userId: req.userId });
+    const result = await executeGeneration({ ...input, userId: req.userId });
     if (result?.status === 'unavailable') {
       await releaseUsage(reservation.reservationId).catch(() => {});
+      reservation = null;
       return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
     }
     await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0);
+    reservation = null;
     return res.json(result);
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
@@ -156,17 +158,14 @@ router.post('/generate', async (req, res) => {
 router.post('/generate/stream', async (req, res) => {
   let reservation = null;
   try {
-    const model = String(req.body?.model || 'prism-mini-1.0');
-    const thinking = normalizeEffort(req.body?.thinking || 'medium');
-    const prompt = String(req.body?.prompt || '').trim();
-    const context = String(req.body?.context || '').slice(-30_000);
-    const projectId = req.body?.projectId ? String(req.body.projectId) : null;
-    if (!prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
-    if (prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo', code: 'PROMPT_TOO_LONG' });
+    const input = readGenerationInput(req);
+    if (!input.prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
+    if (input.prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo', code: 'PROMPT_TOO_LONG' });
+    if (!ALLOWED_EFFORTS.has(input.rawThinking)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
 
-    const authorization = await authorizeGeneration(req.userId, model, thinking);
+    const authorization = await authorizeGeneration(req.userId, input.model, input.thinking);
     if (!authorization.ok) return res.status(authorization.status).json(authorization);
-    reservation = await reserveUsage(req.userId, model);
+    reservation = await reserveUsage(req.userId, input.model);
     if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
     res.status(200);
@@ -182,16 +181,7 @@ router.post('/generate/stream', async (req, res) => {
 
     try {
       send({ type: 'phase', phase: 'received', label: 'Pedido recebido', detail: 'Preparando o agente' });
-      const result = await executeGeneration({
-        model,
-        thinking,
-        prompt,
-        context,
-        projectId,
-        userId: req.userId,
-        onPhase: (phase) => send({ type: 'phase', ...phase, elapsedMs: Date.now() - startedAt }),
-        onArtifact: (artifact) => send({ type: 'artifact', ...artifact, elapsedMs: Date.now() - startedAt }),
-      });
+      const result = await executeGeneration({ ...input, userId: req.userId, onPhase: (phase) => send({ type: 'phase', ...phase, elapsedMs: Date.now() - startedAt }), onArtifact: (artifact) => send({ type: 'artifact', ...artifact, elapsedMs: Date.now() - startedAt }) });
 
       if (result?.status === 'unavailable') {
         await releaseUsage(reservation.reservationId).catch(() => {});

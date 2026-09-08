@@ -17,14 +17,12 @@ function parseArtifacts(text) {
   const artifacts = [];
   const pattern = /<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi;
   let match;
-
   while ((match = pattern.exec(String(text || ''))) !== null) {
     const path = match[1].trim().replace(/^\/+/, '');
     if (!path || path.includes('..') || path.length > 500) continue;
     const content = match[2].replace(/^\n/, '').replace(/\n$/, '');
     if (content.length <= MAX_FILE_CONTENT) artifacts.push({ path, content });
   }
-
   return artifacts.filter((item, index, array) => array.findIndex((entry) => entry.path === item.path) === index);
 }
 
@@ -87,13 +85,14 @@ function buildProjectPrompt(prompt, project, files) {
   ].join('\n\n');
 }
 
-async function executeGeneration({ model, thinking, prompt, context, projectId, userId, onPhase, onArtifact }) {
+async function executeGeneration({ model, thinking, prompt, context, projectId, userId, mcpServerIds = [], onPhase, onArtifact }) {
   const workspace = await loadProjectContext(projectId, userId);
   onPhase?.({ phase: 'analyzing', label: 'Analisando o projeto', detail: `${workspace.files.filter((file) => file.kind !== 'folder').length} arquivos no workspace` });
   const agentPrompt = workspace.project ? buildProjectPrompt(prompt, workspace.project, workspace.files) : prompt;
   onPhase?.({ phase: 'planning', label: 'Planejando', detail: 'Definindo a implementação antes de editar' });
 
-  const result = await runOrchestration(agentPrompt, thinking, { ...getModelProfile(model), id: model }, context, userId, { mcpServerIds: undefined });
+  const safeMcpIds = Array.isArray(mcpServerIds) ? mcpServerIds.map(String).filter(Boolean).slice(0, 32) : [];
+  const result = await runOrchestration(agentPrompt, thinking, { ...getModelProfile(model), id: model }, context, userId, { mcpServerIds: safeMcpIds });
   if (result?.status === 'unavailable') return result;
 
   onPhase?.({ phase: 'writing', label: 'Escrevendo arquivos', detail: 'Recebendo os arquivos produzidos pelo agente' });
@@ -108,24 +107,17 @@ async function executeGeneration({ model, thinking, prompt, context, projectId, 
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return {
-    model,
-    thinking,
-    ...result,
-    text: cleanedText || (artifacts.length ? 'Alterações aplicadas ao projeto real.' : result.text),
-    project_id: projectId,
-    files_changed: persisted.filesChanged,
-    files_created: persisted.filesCreated,
-  };
+  return { model, thinking, ...result, text: cleanedText || (artifacts.length ? 'Alterações aplicadas ao projeto real.' : result.text), project_id: projectId, files_changed: persisted.filesChanged, files_created: persisted.filesCreated };
 }
 
 function readGenerationInput(req) {
   const model = String(req.body?.model || 'prism-mini-1.0').trim();
   const rawThinking = String(req.body?.thinking || 'medium').trim().toLowerCase();
-  return { model, rawThinking, thinking: normalizeEffort(rawThinking), prompt: String(req.body?.prompt || '').trim(), context: String(req.body?.context || '').slice(-30_000), projectId: req.body?.projectId ? String(req.body.projectId) : null };
+  const mcpServerIds = Array.isArray(req.body?.mcpServerIds) ? req.body.mcpServerIds.map(String).filter(Boolean).slice(0, 32) : [];
+  return { model, rawThinking, thinking: normalizeEffort(rawThinking), prompt: String(req.body?.prompt || '').trim(), context: String(req.body?.context || '').slice(-30_000), projectId: req.body?.projectId ? String(req.body.projectId) : null, mcpServerIds };
 }
 
-router.post('/generate', async (req, res) => {
+async function runGeneration(req, res, stream = false) {
   let reservation = null;
   try {
     const input = readGenerationInput(req);
@@ -138,35 +130,17 @@ router.post('/generate', async (req, res) => {
     reservation = await reserveUsage(req.userId, input.model);
     if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
-    const result = await executeGeneration({ ...input, userId: req.userId });
-    if (result?.status === 'unavailable') {
-      await releaseUsage(reservation.reservationId).catch(() => {});
+    if (!stream) {
+      const result = await executeGeneration({ ...input, userId: req.userId });
+      if (result?.status === 'unavailable') {
+        await releaseUsage(reservation.reservationId).catch(() => {});
+        reservation = null;
+        return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
+      }
+      await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0);
       reservation = null;
-      return res.status(503).json({ status: 'unavailable', message: UNAVAILABLE_MESSAGE });
+      return res.json(result);
     }
-    await recordTokens(reservation.reservationId, result.providers?.[0] || null, result.tokens || 0);
-    reservation = null;
-    return res.json(result);
-  } catch (error) {
-    if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
-    console.error('AI generation error:', { code: error?.code, status: error?.status, message: error?.message });
-    const status = error?.status || 502;
-    return res.status(status).json(error?.code === 'PROJECT_NOT_FOUND' ? { error: 'Projeto não encontrado.', code: error.code } : { error: 'Não foi possível concluir a geração. Tente novamente.', code: error?.code || 'GENERATION_FAILED' });
-  }
-});
-
-router.post('/generate/stream', async (req, res) => {
-  let reservation = null;
-  try {
-    const input = readGenerationInput(req);
-    if (!input.prompt) return res.status(400).json({ error: 'Prompt vazio', code: 'EMPTY_PROMPT' });
-    if (input.prompt.length > 50_000) return res.status(413).json({ error: 'Pedido muito longo', code: 'PROMPT_TOO_LONG' });
-    if (!ALLOWED_EFFORTS.has(input.rawThinking)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
-
-    const authorization = await authorizeGeneration(req.userId, input.model, input.thinking);
-    if (!authorization.ok) return res.status(authorization.status).json(authorization);
-    reservation = await reserveUsage(req.userId, input.model);
-    if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
 
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -178,11 +152,9 @@ router.post('/generate/stream', async (req, res) => {
     const heartbeat = setInterval(() => { if (!closed) res.write(`: heartbeat ${Date.now()}\n\n`); }, 1500);
     const send = (payload) => { if (!closed) res.write(`data: ${JSON.stringify(payload)}\n\n`); };
     const startedAt = Date.now();
-
     try {
       send({ type: 'phase', phase: 'received', label: 'Pedido recebido', detail: 'Preparando o agente' });
       const result = await executeGeneration({ ...input, userId: req.userId, onPhase: (phase) => send({ type: 'phase', ...phase, elapsedMs: Date.now() - startedAt }), onArtifact: (artifact) => send({ type: 'artifact', ...artifact, elapsedMs: Date.now() - startedAt }) });
-
       if (result?.status === 'unavailable') {
         await releaseUsage(reservation.reservationId).catch(() => {});
         reservation = null;
@@ -194,10 +166,7 @@ router.post('/generate/stream', async (req, res) => {
         send({ type: 'result', data: result });
       }
     } catch (error) {
-      if (reservation?.reservationId) {
-        await releaseUsage(reservation.reservationId).catch(() => {});
-        reservation = null;
-      }
+      if (reservation?.reservationId) { await releaseUsage(reservation.reservationId).catch(() => {}); reservation = null; }
       send({ type: 'error', code: error?.code || 'GENERATION_FAILED', message: error?.code === 'PROJECT_NOT_FOUND' ? 'Projeto não encontrado.' : UNAVAILABLE_MESSAGE });
     } finally {
       closed = true;
@@ -206,10 +175,13 @@ router.post('/generate/stream', async (req, res) => {
     }
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
-    console.error('AI streaming preparation error:', { code: error?.code, status: error?.status, message: error?.message });
-    if (!res.headersSent) return res.status(error?.status || 502).json({ error: error?.message || 'Não foi possível iniciar a execução.', code: error?.code || 'GENERATION_FAILED' });
+    console.error(`${stream ? 'AI streaming' : 'AI'} generation error:`, { code: error?.code, status: error?.status, message: error?.message });
+    if (!res.headersSent) return res.status(error?.status || 502).json(error?.code === 'PROJECT_NOT_FOUND' ? { error: 'Projeto não encontrado.', code: error.code } : { error: error?.message || 'Não foi possível iniciar a geração.', code: error?.code || 'GENERATION_FAILED' });
     res.end();
   }
-});
+}
+
+router.post('/generate', (req, res) => runGeneration(req, res, false));
+router.post('/generate/stream', (req, res) => runGeneration(req, res, true));
 
 export default router;

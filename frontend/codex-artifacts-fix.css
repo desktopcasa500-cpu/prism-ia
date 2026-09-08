@@ -1,0 +1,8 @@
+.codex-final .code-artifacts-panel{position:fixed!important;top:0;right:0;bottom:0;width:min(620px,52vw)!important;height:100dvh!important;z-index:3000!important;display:flex!important;flex-direction:column!important;background:#fbfbf9!important;border-left:1px solid #d8d8d2!important;box-shadow:-24px 0 70px rgba(20,20,18,.16)!important;overflow:hidden!important}
+.codex-final .code-artifacts-panel .code-artifacts-file-tabs{display:flex!important;flex:0 0 auto!important;overflow-x:auto!important;max-width:100%!important}
+.codex-final .code-artifacts-panel .code-viewer,.codex-final .code-artifacts-panel .code-preview-shell{flex:1 1 auto!important;min-height:0!important}
+.codex-final .code-artifacts-panel .code-viewer{overflow:auto!important}
+.codex-final .code-artifacts-panel .code-preview-shell{overflow:hidden!important}
+.codex-final .code-artifacts-panel .code-preview-frame{width:100%!important;height:100%!important;border:0!important}
+.codex-final .codex-body-rebuild:has(+ *){min-width:0}
+@media(max-width:820px){.codex-final .code-artifacts-panel{width:100%!important;left:0!important;right:0!important}}

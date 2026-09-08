@@ -20,7 +20,7 @@ const MODELS = [
   ['prism-taff-1.0', 'Prism Taff 1.0A'],
   ['prism-taff-2.0', 'Prism Taff 2.0'],
 ];
-const EFFORTS = ['low', 'medium', 'high', 'max', 'ultracode'];
+const EFFORTS = ['low', 'medium', 'high'];
 const PLAN_RANK = { Grátis: 0, free: 0, Base: 1, base: 1, Medium: 2, medium: 2, Pro: 3, pro: 3, Empresarial: 4, enterprise: 4 };
 const MODEL_RANK = { 'prism-nano-1.0': 0, 'prism-mini-1.0': 0, 'prism-edge-1.0': 2, 'prism-tex-1.5': 2, 'prism-taff-1.0': 3, 'prism-taff-2.0': 3 };
 const PHASES = [['received', 'Pedido recebido'], ['analyzing', 'Analisando'], ['planning', 'Planejando'], ['writing', 'Escrevendo arquivos'], ['reviewing', 'Revisando'], ['updating', 'Atualizando workspace'], ['completed', 'Concluído']];
@@ -35,14 +35,12 @@ function normalizeMessage(message) {
   try { metadata = typeof message?.metadata === 'string' ? JSON.parse(message.metadata) : (message?.metadata || {}); } catch {}
   return { id: message?.id, role: message?.role, text: message?.content || '', model: message?.model_id || '', tools: Array.isArray(metadata.tools_used) ? metadata.tools_used : [] };
 }
-
 function extensionOf(path) { return String(path || '').split('.').pop()?.toLowerCase() || 'txt'; }
 function fileArtifact(file) {
   const extension = extensionOf(file.path);
   const language = { html: 'markup', htm: 'markup', css: 'css', js: 'javascript', jsx: 'jsx', ts: 'typescript', tsx: 'tsx', json: 'json', md: 'markdown', py: 'python' }[extension] || 'text';
   return { id: `workspace:${file.path}`, filename: file.path, language, languageLabel: extension.toUpperCase(), code: String(file.content || ''), info: extension };
 }
-
 function extractCode(text, messageId) {
   const source = String(text || '').replace(/\r\n?/g, '\n');
   const regex = /(^|\n)\s*(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)\n\s*\2\s*(?=\n|$)/g;
@@ -59,7 +57,6 @@ function extractCode(text, messageId) {
   }
   return blocks;
 }
-
 function previewFor(files) {
   const real = files.filter((file) => file.kind !== 'folder');
   const html = real.find((file) => /(^|\/)index\.html$/i.test(file.path)) || real.find((file) => /\.html?$/i.test(file.path));
@@ -67,12 +64,11 @@ function previewFor(files) {
   const css = real.filter((file) => /\.css$/i.test(file.path)).map((file) => file.content || '').join('\n');
   const js = real.filter((file) => /\.js$/i.test(file.path)).map((file) => file.content || '').join('\n');
   let doc = String(html.content || '');
-  if (!/<html\b/i.test(doc)) doc = `<!doctype html><html><head></head><body>${doc}</body></html>`;
+  if (!/<html\b/i.test(doc)) doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${doc}</body></html>`;
   if (css) doc = doc.replace(/<\/head>/i, `<style>${css.replace(/<\/style/gi, '<\\/style')}</style></head>`);
   if (js) doc = doc.replace(/<\/body>/i, `<script>${js.replace(/<\/script/gi, '<\\/script')}</script></body>`);
   return doc;
 }
-
 function groupOrder(sessions) {
   const order = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Este mês', 'Mais antigas'];
   const now = new Date();
@@ -94,7 +90,7 @@ export default function CodexStable() {
   const [showTaffPresentation, setShowTaffPresentation] = useState(false);
   const [mode, setMode] = useState('chat');
   const [model, setModel] = useState(preferences.model || 'prism-mini-1.0');
-  const [effort, setEffort] = useState(preferences.effort || 'medium');
+  const [effort, setEffort] = useState(preferences.effort === 'low' || preferences.effort === 'high' ? preferences.effort : 'medium');
   const [sessions, setSessions] = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -121,6 +117,7 @@ export default function CodexStable() {
   const requestIdRef = useRef(0);
   const sendLockRef = useRef(false);
   const controllerRef = useRef(null);
+  const bootRef = useRef(false);
   const startedAtRef = useRef(0);
 
   const planRank = PLAN_RANK[user?.plan] ?? 0;
@@ -130,51 +127,77 @@ export default function CodexStable() {
   const context = useMemo(() => messages.slice(-12).map((item) => `${item.role}: ${item.text}`).join('\n'), [messages]);
   const preview = useMemo(() => previewFor(files), [files]);
 
+  const syncWorkspaceArtifacts = useCallback((nextFiles) => {
+    setArtifacts((current) => {
+      const map = new Map(current.map((item) => [item.id, item]));
+      nextFiles.filter((file) => file.kind !== 'folder').map(fileArtifact).forEach((item) => map.set(item.id, item));
+      return [...map.values()];
+    });
+  }, []);
+
   const loadProject = useCallback(async () => {
     const result = await api.get('/projects');
     let project = result.projects?.[0];
     if (!project) {
       const created = await api.post('/projects', { name: 'Novo projeto' });
       project = created.project;
-      await Promise.all(STARTER.map((file) => api.post('/files', { projectId: project.id, path: file.path, content: file.content, kind: 'file' })));
+      if (!project?.id) throw new Error('O servidor não retornou o projeto criado.');
+      for (const file of STARTER) await api.post('/files', { projectId: project.id, path: file.path, content: file.content, kind: 'file' });
     }
-    const detail = await api.get(`/projects/${project.id}`);
+    const detail = await api.get(`/projects/${encodeURIComponent(project.id)}`);
     const nextFiles = detail.files?.length ? detail.files.map((file) => ({ ...file, kind: file.kind || 'file' })) : STARTER;
-    setProjectId(project.id); setProjectName(project.name || 'Novo projeto'); setFiles(nextFiles);
-    setArtifacts((current) => { const loaded = nextFiles.filter((file) => file.kind !== 'folder').map(fileArtifact); const map = new Map(current.map((item) => [item.id, item])); loaded.forEach((item) => map.set(item.id, item)); return [...map.values()]; });
-  }, []);
+    setProjectId(project.id);
+    setProjectName(project.name || 'Novo projeto');
+    setFiles(nextFiles);
+    syncWorkspaceArtifacts(nextFiles);
+    return { project, files: nextFiles };
+  }, [syncWorkspaceArtifacts]);
 
   const openSession = useCallback(async (id) => {
     if (!id) return;
     const requestId = ++requestIdRef.current;
-    setSessionId(id); setMobileOpen(false); setError(''); setArtifactPanelOpen(false); setActiveArtifactId(null); setArtifacts([]);
-    const cached = await cachedSession(id).catch(() => null);
-    if (requestId !== requestIdRef.current) return;
-    if (cached) setMessages(cached);
+    setSessionId(id);
+    setMobileOpen(false);
+    setError('');
+    setArtifactPanelOpen(false);
+    setActiveArtifactId(null);
     try {
+      const cached = await cachedSession(id).catch(() => null);
+      if (requestId !== requestIdRef.current) return;
+      if (cached?.length) setMessages(cached);
       const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages`);
       if (requestId !== requestIdRef.current) return;
       const next = (result.messages || []).map(normalizeMessage);
-      setMessages(next); cacheSession(id, next).catch(() => {});
+      setMessages(next);
+      cacheSession(id, next).catch(() => {});
       const generated = next.flatMap((item) => item.role === 'assistant' ? extractCode(item.text, String(item.id)) : []);
-      if (generated.length) { setArtifacts(generated); setActiveArtifactId(generated[0].id); }
-    } catch (cause) { if (requestId === requestIdRef.current && !cached) setError(cause.message || 'Não foi possível carregar a conversa.'); }
+      if (generated.length) {
+        setArtifacts((current) => mergeArtifacts(current, generated));
+        setActiveArtifactId(generated[0].id);
+      }
+    } catch (cause) {
+      if (requestId === requestIdRef.current) setError(cause.message || 'Não foi possível carregar a conversa.');
+    }
   }, [cacheSession, cachedSession]);
 
   useEffect(() => {
+    if (bootRef.current) return undefined;
+    bootRef.current = true;
     let alive = true;
     (async () => {
       try {
         const [sessionResult] = await Promise.all([
           api.get('/chat/sessions'),
           loadProject(),
-          api.get('/mcp').then((result) => alive && setMcpServers(result.servers || [])).catch(() => {}),
+          api.get('/mcp').then((result) => alive && setMcpServers(Array.isArray(result.servers) ? result.servers : [])).catch(() => {}),
         ]);
         if (!alive) return;
         const list = Array.isArray(sessionResult.sessions) ? sessionResult.sessions : [];
         setSessions(list);
-        if (list[0]) setSessionId((current) => current || list[0].id);
-      } catch (cause) { if (alive) setError(cause.message || 'Não foi possível carregar o Codex.'); }
+        if (list[0]) setSessionId(list[0].id);
+      } catch (cause) {
+        if (alive) setError(cause.message || 'Não foi possível carregar o Codex.');
+      }
     })();
     return () => { alive = false; controllerRef.current?.abort(); };
   }, [loadProject]);
@@ -183,30 +206,44 @@ export default function CodexStable() {
   useEffect(() => { updatePreference('model', model); updatePreference('effort', effort); }, [model, effort, updatePreference]);
   useEffect(() => { if (!running) return undefined; const timer = window.setInterval(() => setElapsed(Date.now() - startedAtRef.current), 100); return () => window.clearInterval(timer); }, [running]);
   useEffect(() => { const handler = (event) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandOpen(true); } if (event.key === 'Escape') { setCommandOpen(false); setModelOpen(false); setPlansOpen(false); setMobileOpen(false); setShowTaffPresentation(false); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
+  useEffect(() => { const viewport = document.querySelector('.codex-scroll-rebuild'); viewport?.lastElementChild?.scrollIntoView?.({ behavior: running ? 'auto' : 'smooth', block: 'end' }); }, [messages, running, phase]);
 
-  const resetConversation = () => { setMessages([]); setArtifacts([]); setArtifactPanelOpen(false); setActiveArtifactId(null); setError(''); };
+  const resetConversation = () => { setMessages([]); setArtifactPanelOpen(false); setActiveArtifactId(null); setError(''); setArtifacts((current) => current.filter((item) => item.id.startsWith('workspace:'))); };
 
   async function newSession() {
     if (running) return;
     try {
       const result = await api.post('/chat/sessions', { title: 'Nova conversa' });
-      setSessions((current) => [result.session, ...current]); setSessionId(result.session.id); setMode('chat'); resetConversation(); setPrompt(''); setMobileOpen(false);
+      if (!result?.session?.id) throw new Error('O servidor não retornou a nova conversa.');
+      setSessions((current) => [result.session, ...current.filter((item) => item.id !== result.session.id)]);
+      setSessionId(result.session.id);
+      setMode('chat');
+      resetConversation();
+      setPrompt('');
+      setMobileOpen(false);
     } catch (cause) { setError(cause.message || 'Não foi possível criar a conversa.'); }
   }
 
   async function renameSession(session) {
     const nextTitle = window.prompt('Nome da conversa', session.title || 'Nova conversa')?.trim();
     if (!nextTitle || nextTitle === session.title) return;
-    try { const result = await api.patch(`/chat/sessions/${encodeURIComponent(session.id)}`, { title: nextTitle }); setSessions((current) => current.map((item) => item.id === session.id ? result.session : item)); }
-    catch (cause) { setError(cause.message || 'Não foi possível renomear a conversa.'); }
+    try {
+      const result = await api.patch(`/chat/sessions/${encodeURIComponent(session.id)}`, { title: nextTitle });
+      setSessions((current) => current.map((item) => item.id === session.id ? result.session : item));
+    } catch (cause) { setError(cause.message || 'Não foi possível renomear a conversa.'); }
   }
 
   async function deleteSession(session) {
+    if (running) return;
     if (!window.confirm(`Excluir “${session.title || 'Nova conversa'}”?`)) return;
     try {
       await api.delete(`/chat/sessions/${encodeURIComponent(session.id)}`);
-      const next = sessions.filter((item) => item.id !== session.id); setSessions(next);
-      if (session.id === sessionId) { setSessionId(next[0]?.id || null); resetConversation(); }
+      const next = sessions.filter((item) => item.id !== session.id);
+      setSessions(next);
+      if (session.id === sessionId) {
+        setSessionId(next[0]?.id || null);
+        resetConversation();
+      }
     } catch (cause) { setError(cause.message || 'Não foi possível excluir a conversa.'); }
   }
 
@@ -215,64 +252,109 @@ export default function CodexStable() {
     const item = MODELS.find(([modelId]) => modelId === id);
     if (!item) return;
     if (rank > planRank) { setRequestedModel(item[1]); setPlansOpen(true); return; }
-    setModel(id); setModelOpen(false);
+    setModel(id);
+    setModelOpen(false);
   }
 
+  function chooseEffort(id) { setEffort(id); setModelOpen(false); }
   function stopGeneration() { controllerRef.current?.abort(); }
 
   async function sendChat(value) {
     if (sendLockRef.current) return;
     sendLockRef.current = true;
     let sid = sessionId;
+    const controller = new AbortController();
+    controllerRef.current = controller;
     const localId = `local-${Date.now()}`;
-    const localMessage = { id: localId, role: 'user', text: value, tools: [] };
-    const controller = new AbortController(); controllerRef.current = controller;
     try {
-      if (!sid) { const created = await api.post('/chat/sessions', { title: value.slice(0, 64) }); sid = created.session.id; setSessionId(sid); setSessions((current) => [created.session, ...current]); }
-      const nextMessages = [...messages, localMessage]; setMessages(nextMessages); setPrompt(''); setRunning(true); setError('');
-      const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content: value, model, effort, clientRequestId: `codex-${Date.now()}-${Math.random().toString(36).slice(2)}` }, { timeout: 180000, signal: controller.signal });
+      if (!sid) {
+        const created = await api.post('/chat/sessions', { title: value.slice(0, 64) });
+        if (!created?.session?.id) throw new Error('O servidor não retornou a sessão.');
+        sid = created.session.id;
+        setSessionId(sid);
+        setSessions((current) => [created.session, ...current]);
+      }
+      const localMessage = { id: localId, role: 'user', text: value, tools: [] };
+      setMessages((current) => [...current.filter((item) => item.id !== localId), localMessage]);
+      setPrompt('');
+      setRunning(true);
+      setError('');
+      const result = await api.post(`/chat/sessions/${encodeURIComponent(sid)}/messages`, { content: value, model, effort }, { timeout: 180000, signal: controller.signal });
       if (!result?.message) throw new Error('O servidor não retornou uma resposta válida.');
-      const answer = normalizeMessage(result.message); const finalMessages = [...nextMessages, answer]; setMessages(finalMessages); cacheSession(sid, finalMessages).catch(() => {});
+      const answer = normalizeMessage(result.message);
+      setMessages((current) => mergeMessages(current, [answer]));
+      if (result.usage) setUsageSafe?.(result.usage);
       const generated = extractCode(answer.text, String(answer.id));
-      if (generated.length) { setArtifacts((current) => { const merged = new Map(current.map((item) => [item.id, item])); generated.forEach((item) => merged.set(item.id, item)); return [...merged.values()]; }); setActiveArtifactId(generated[0].id); setArtifactPanelOpen(true); }
-      setSessions((current) => current.map((item) => item.id === sid ? { ...item, title: item.title === 'Nova conversa' ? value.slice(0, 64) : item.title, updated_at: new Date().toISOString() } : item));
+      if (generated.length) { setArtifacts((current) => mergeArtifacts(current, generated)); setActiveArtifactId(generated[0].id); setArtifactPanelOpen(true); }
+      setSessions((current) => current.map((item) => item.id === sid ? { ...item, title: item.title === 'Nova conversa' ? value.slice(0, 64) : item.title, updated_at: new Date().toISOString() } : item).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)));
+      cacheSession(sid, (await cachedSession(sid).catch(() => null)) || []).catch(() => {});
     } catch (cause) {
       if (cause?.name !== 'AbortError') { setMessages((current) => current.filter((item) => item.id !== localId)); setError(cause.message || 'Não foi possível concluir a resposta.'); }
-    } finally { setRunning(false); controllerRef.current = null; sendLockRef.current = false; }
+    } finally {
+      setRunning(false);
+      controllerRef.current = null;
+      sendLockRef.current = false;
+    }
   }
 
   async function sendVibe(value) {
     if (sendLockRef.current || !projectId) return;
     sendLockRef.current = true;
-    const controller = new AbortController(); controllerRef.current = controller;
+    const controller = new AbortController();
+    controllerRef.current = controller;
     const localMessage = { id: `local-${Date.now()}`, role: 'user', text: value, tools: [] };
-    setMessages((current) => [...current, localMessage]); setPrompt(''); setRunning(true); setError(''); setPhase('received'); setSteps([]); startedAtRef.current = Date.now(); setElapsed(0); setMode('vibe');
+    setMessages((current) => [...current, localMessage]);
+    setPrompt('');
+    setRunning(true);
+    setError('');
+    setPhase('received');
+    setSteps([]);
+    startedAtRef.current = Date.now();
+    setElapsed(0);
     try {
-      const result = await api.streamPost('/ai/generate/stream', { model, thinking: 'ultracode', prompt: value, context, projectId, clientRequestId: `vibe-${Date.now()}-${Math.random().toString(36).slice(2)}` }, (event) => {
+      const result = await api.streamPost('/ai/generate/stream', { model, thinking: effort, prompt: value, context, projectId, sessionId, mcpServerIds: mcpActive }, (event) => {
         if (event.type === 'phase') { setPhase(event.phase); setSteps((current) => [...current.filter((item) => item.phase !== event.phase), event]); }
         if (event.type === 'artifact' && event.path) {
-          const file = { path: event.path, kind: 'file', content: String(event.content || '') }; const artifact = fileArtifact(file);
+          const file = { path: event.path, kind: 'file', content: String(event.content || '') };
+          const artifact = fileArtifact(file);
           setFiles((current) => current.some((item) => item.path === file.path) ? current.map((item) => item.path === file.path ? file : item) : [...current, file]);
-          setArtifacts((current) => { const merged = new Map(current.map((item) => [item.id, item])); merged.set(artifact.id, artifact); return [...merged.values()]; });
-          setActiveArtifactId(artifact.id); setArtifactPanelOpen(true);
+          setArtifacts((current) => mergeArtifacts(current, [artifact]));
+          setActiveArtifactId(artifact.id);
+          setArtifactPanelOpen(true);
         }
       }, { timeout: 180000, signal: controller.signal });
-      const assistant = { id: `assistant-${Date.now()}`, role: 'assistant', text: result?.text || 'Projeto atualizado.', tools: [] };
-      setMessages((current) => [...current, assistant]); setPhase('completed');
-      if (sessionId) cacheSession(sessionId, [...messages, localMessage, assistant]).catch(() => {});
+      const assistantMessage = result?.message ? normalizeMessage(result.message) : { id: `assistant-${Date.now()}`, role: 'assistant', text: result?.text || 'Projeto atualizado.', tools: [] };
+      setMessages((current) => mergeMessages(current, [assistantMessage]));
+      setPhase('completed');
       await loadProject();
-    } catch (cause) { if (cause?.name !== 'AbortError') setError(cause.message || 'O agente não conseguiu concluir a tarefa.'); }
-    finally { setRunning(false); controllerRef.current = null; sendLockRef.current = false; }
+    } catch (cause) {
+      if (cause?.name !== 'AbortError') setError(cause.message || 'O agente não conseguiu concluir a tarefa.');
+    } finally {
+      setRunning(false);
+      controllerRef.current = null;
+      sendLockRef.current = false;
+    }
   }
 
   async function send() {
-    const value = prompt.trim(); if (!value || running || sendLockRef.current) return;
+    const value = prompt.trim();
+    if (!value || running || sendLockRef.current) return;
     if (mode === 'vibe') await sendVibe(value); else await sendChat(value);
   }
 
   function setCodexMode(next) { setMode(next); setError(''); }
   function replayIntro() { setShowTaffPresentation(true); setMobileOpen(false); }
-  function openArtifacts() { if (!artifacts.length) return; setActiveArtifactId((current) => current || artifacts[0].id); setArtifactPanelOpen(true); }
+  function openArtifacts() {
+    if (!artifacts.length) return;
+    setActiveArtifactId((current) => current || artifacts[0].id);
+    setArtifactPanelOpen(true);
+  }
+  function openCodeArtifact(id, block) {
+    if (!block) return;
+    setArtifacts((current) => mergeArtifacts(current, [{ ...block, id }]));
+    setActiveArtifactId(id);
+    setArtifactPanelOpen(true);
+  }
 
   return <div className={`codex-rebuild ${mode === 'vibe' ? 'vibe-mode' : 'chat-mode'} ${mobileOpen ? 'mobile-sidebar-open' : ''}`}>
     {showIntro && <PrismCodexIntro userName={user?.name || 'você'} onComplete={() => setShowIntro(false)} />}
@@ -285,9 +367,12 @@ export default function CodexStable() {
         <div className="codex-header-title"><span>PRISM IA</span><strong>{mode === 'vibe' ? 'Código' : 'Codex'}</strong></div>
         <div className="codex-header-actions">
           <div className="codex-model-wrap"><button type="button" onClick={() => setModelOpen((current) => !current)}>{activeModelLabel}<span>⌄</span></button>
-            {modelOpen && <div className="codex-model-popover">{MODELS.map(([id, label]) => <button type="button" key={id} className={id === model ? 'active' : ''} onClick={() => chooseModel(id)}>{label}{(MODEL_RANK[id] ?? 0) > planRank && <small>Upgrade</small>}{id === model && <small>Atual</small>}</button>)}</div>}
+            {modelOpen && <div className="codex-model-popover">
+              {MODELS.map(([id, label]) => <button type="button" key={id} className={id === model ? 'active' : ''} onClick={() => chooseModel(id)}>{label}{(MODEL_RANK[id] ?? 0) > planRank && <small>Upgrade</small>}{id === model && <small>Atual</small>}</button>)}
+              <div className="codex-effort-title">Nível de execução</div>
+              {EFFORTS.map((id) => <button type="button" key={id} className={id === effort ? 'active' : ''} onClick={() => chooseEffort(id)}>{id === 'low' ? 'Baixo' : id === 'medium' ? 'Médio' : 'Alto'}{id === effort && <small>Atual</small>}</button>)}
+            </div>}
           </div>
-          <button type="button" onClick={() => setEffort(EFFORTS[(EFFORTS.indexOf(effort) + 1) % EFFORTS.length])}>{effort}</button>
           <button type="button" className="codex-command-trigger" onClick={() => setCommandOpen(true)}>⌘K</button>
         </div>
       </header>
@@ -295,13 +380,13 @@ export default function CodexStable() {
       <section className="codex-body-rebuild">
         <section className="codex-conversation-rebuild">
           <div className="codex-scroll-rebuild">
-            {!messages.length && <div className="codex-welcome-rebuild"><span>PRISM CODEX</span><h1>Construa sem sair do fluxo.</h1><p>Converse, planeje e programe em um espaço único. O código fica em uma superfície dedicada, sem poluir a conversa.</p><div><button type="button" onClick={() => { setMode('vibe'); setPrompt('Crie um site institucional moderno em HTML, CSS e JavaScript.'); }}>Criar um site</button><button type="button" onClick={() => { setMode('vibe'); setPrompt('Revise meu projeto e aponte os problemas mais importantes.'); }}>Revisar projeto</button></div></div>}
-            {messages.map((message) => <article className={`codex-message-rebuild ${message.role}`} key={String(message.id)}><div className="codex-message-meta"><span>{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</span></div><div className="codex-message-content">{message.role === 'assistant' ? <MarkdownMessage content={message.text} messageId={String(message.id)} onOpenCode={(id, block) => { setArtifacts((current) => mergeArtifacts(current, [block])); setActiveArtifactId(id); setArtifactPanelOpen(true); }} /> : <p>{message.text}</p>}</div>{message.tools?.length ? <small className="codex-tools">Ferramentas · {message.tools.map((item) => item.tool).filter(Boolean).join(', ')}</small> : null}</article>)}
+            {!messages.length && <div className="codex-welcome-rebuild"><span>PRISM CODEX</span><h1>Construa sem sair do fluxo.</h1><p>Converse, planeje e programe em um espaço único. O código fica em uma superfície dedicada.</p><div><button type="button" onClick={() => { setMode('vibe'); setPrompt('Crie um site institucional moderno em HTML, CSS e JavaScript.'); }}>Criar um site</button><button type="button" onClick={() => { setMode('vibe'); setPrompt('Revise meu projeto e aponte os problemas mais importantes.'); }}>Revisar projeto</button></div></div>}
+            {messages.map((message) => <article className={`codex-message-rebuild ${message.role}`} key={String(message.id)}><div className="codex-message-meta"><span>{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</span></div><div className="codex-message-content">{message.role === 'assistant' ? <MarkdownMessage content={message.text} messageId={String(message.id)} onOpenCode={openCodeArtifact} /> : <p>{message.text}</p>}</div>{message.tools?.length ? <small className="codex-tools">Ferramentas · {message.tools.map((item) => item.tool).filter(Boolean).join(', ')}</small> : null}</article>)}
             {running && <div className="codex-running-rebuild"><span />{mode === 'vibe' ? 'Trabalhando no projeto…' : 'Prism está pensando…'}</div>}
             {mode === 'vibe' && phase && <div className="codex-progress-rebuild"><header><strong>{PHASES.find(([id]) => id === phase)?.[1] || 'Trabalhando'}</strong><span>{(elapsed / 1000).toFixed(1)}s</span></header><div className="codex-steps">{PHASES.map(([id, label], index) => <div className={`codex-step ${index < PHASES.findIndex(([item]) => item === phase) ? 'done' : ''} ${id === phase ? 'active' : ''}`} key={id}><span>{index < PHASES.findIndex(([item]) => item === phase) ? '✓' : id === phase ? '·' : ''}</span><div><strong>{label}</strong><small>{steps.find((item) => item.phase === id)?.detail || ''}</small></div></div>)}</div></div>}
           </div>
           {error && <div className="codex-error-rebuild"><span>{error}</span><button type="button" onClick={() => setError('')}>Fechar</button></div>}
-          <footer className="codex-composer-rebuild"><div className="codex-composer-box"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} disabled={running} rows={1} placeholder={mode === 'vibe' ? 'Descreva o que você quer construir…' : 'Escreva uma mensagem'} /><div><span>{mode === 'vibe' ? 'Código' : 'Enter envia · Shift + Enter quebra a linha'}</span>{running ? <button type="button" onClick={stopGeneration}>Parar</button> : <button type="button" className={canSend ? 'ready' : ''} onClick={send} disabled={!canSend}>Enviar</button>}</div></div><small>Revise informações importantes antes de usá-las.</small></footer>
+          <footer className="codex-composer-rebuild"><div className="codex-composer-box"><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} disabled={running} rows={1} placeholder={mode === 'vibe' ? 'Descreva o que você quer construir…' : 'Escreva uma mensagem'} /><div><span>{mode === 'vibe' ? `${effort === 'low' ? 'Baixo' : effort === 'medium' ? 'Médio' : 'Alto'} · Código` : `${effort === 'low' ? 'Baixo' : effort === 'medium' ? 'Médio' : 'Alto'} · Enter envia`}</span>{running ? <button type="button" onClick={stopGeneration}>Parar</button> : <button type="button" className={canSend ? 'ready' : ''} onClick={send} disabled={!canSend}>Enviar</button>}</div></div><small>Revise informações importantes antes de usá-las.</small></footer>
         </section>
         {mode === 'vibe' && <section className="codex-live-workspace"><header><div><span>PROJETO</span><strong>{projectName}</strong></div><button type="button" onClick={openArtifacts}>Abrir arquivos</button></header><div>{preview ? <iframe title="Preview do projeto" srcDoc={preview} sandbox="allow-scripts" /> : <div className="codex-no-preview">Gere um arquivo HTML para abrir o preview.</div>}</div></section>}
       </section>
@@ -317,3 +402,11 @@ function mergeArtifacts(current, incoming) {
   incoming.forEach((item) => map.set(item.id, item));
   return [...map.values()];
 }
+
+function mergeMessages(current, incoming) {
+  const map = new Map(current.map((item) => [String(item.id), item]));
+  incoming.forEach((item) => map.set(String(item.id), item));
+  return [...map.values()];
+}
+
+function setUsageSafe() {}

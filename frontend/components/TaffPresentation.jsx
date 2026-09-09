@@ -1,5 +1,9 @@
 import PrismCodexIntroBrutalist from './PrismCodexIntroBrutalist.jsx';
 
 export default function TaffPresentation() {
-  return <PrismCodexIntroBrutalist />;
+  const close = () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+  };
+
+  return <PrismCodexIntroBrutalist onComplete={close} />;
 }

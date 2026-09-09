@@ -1,0 +1,43 @@
+.codex-final{height:100dvh!important;width:100%!important;overflow:hidden!important;background:#fbfaf8!important;color:#292722!important}
+.codex-final .codex-v2-root{height:100dvh!important;width:100%!important;display:grid!important;grid-template-columns:258px minmax(0,1fr)!important;overflow:hidden!important;background:#fbfaf8!important;color:#292722!important}
+.codex-final .codex-v2-main{min-width:0!important;min-height:0!important;height:100dvh!important;display:flex!important;flex-direction:column!important;background:#fff!important}
+.codex-final .codex-v2-header{height:56px!important;flex:none!important;padding:0 22px!important;border-bottom:1px solid #e4e0d9!important;background:#fff!important}
+.codex-final .codex-v2-header>div:first-child{gap:8px!important}
+.codex-final .codex-v2-header span{display:inline-flex!important;align-items:center!important;gap:8px!important;font:600 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace!important;letter-spacing:.14em!important;color:#9a958c!important}
+.codex-final .codex-v2-header span::before{content:"";width:18px;height:18px;display:inline-block;background:url('/prism-logo.svg') center/contain no-repeat!important}
+.codex-final .codex-v2-header strong{font-size:13px!important;font-weight:650!important;color:#292722!important}
+.codex-final .codex-v2-model{height:34px!important;border:1px solid #d9d5ce!important;border-radius:9px!important;background:#fff!important;color:#45413a!important;padding:0 11px!important;font-size:10px!important;box-shadow:none!important}
+.codex-final .codex-v2-body{min-height:0!important;flex:1!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(420px,.82fr)!important;overflow:hidden!important}
+.codex-final .codex-v2-root:not(.is-vibe) .codex-v2-body{grid-template-columns:1fr!important}
+.codex-final .codex-v2-conversation{min-width:0!important;min-height:0!important;display:flex!important;flex-direction:column!important;background:#fff!important}
+.codex-final .codex-v2-scroll{min-height:0!important;flex:1!important;overflow:auto!important;padding:44px clamp(28px,8vw,110px) 26px!important;scrollbar-width:thin!important}
+.codex-final .codex-v2-welcome{max-width:790px!important;margin:17vh auto 0!important}
+.codex-final .codex-v2-welcome>span{font-size:10px!important;letter-spacing:.16em!important;color:#aaa59c!important}
+.codex-final .codex-v2-welcome h1{font:500 50px/1.02 Georgia,"Times New Roman",serif!important;letter-spacing:-.05em!important;color:#292722!important;margin:0 0 12px!important}
+.codex-final .codex-v2-welcome p{font-size:15px!important;line-height:1.7!important;color:#817b72!important;max-width:650px!important}
+.codex-final .codex-v2-welcome>div{gap:9px!important;margin-top:28px!important}
+.codex-final .codex-v2-welcome button{height:38px!important;border:1px solid #ddd9d2!important;border-radius:9px!important;background:#fbfaf7!important;color:#5a554d!important;padding:0 13px!important;font-size:10px!important}
+.codex-final .codex-v2-message{max-width:860px!important;margin:0 auto 34px!important}
+.codex-final .codex-v2-message-head strong{font-size:11px!important}.codex-final .codex-v2-message-head small{font-size:9px!important}
+.codex-final .codex-v2-user-bubble{padding:14px 16px!important;border-left:2px solid #d9d5ce!important;background:#faf9f6!important}
+.codex-final .codex-v2-user-bubble p,.codex-final .codex-v2-assistant{font-size:15px!important;line-height:1.82!important}
+.codex-final .codex-v2-meta{font-size:9px!important;color:#9a958c!important}
+.codex-final .codex-v2-actions button{height:27px!important;padding:0 9px!important;font-size:9px!important}
+.codex-final .codex-v2-live{max-width:860px!important;margin:15px auto 28px!important;border:1px solid #dfdbd4!important;border-radius:11px!important;background:#faf9f6!important;padding:14px 15px!important}
+.codex-final .live-title strong{font-size:12px!important}.codex-final .live-title span{font-size:9px!important}
+.codex-final .trace-item{grid-template-columns:88px minmax(0,1fr)!important;padding:6px!important}
+.codex-final .trace-item span,.codex-final .trace-item strong{font-size:10px!important}
+.codex-final .codex-v2-composer-wrap{flex:none!important;padding:0 24px 16px!important;background:#fff!important}
+.codex-final .codex-v2-composer{width:min(860px,100%)!important;border:1px solid #cbc7c0!important;border-radius:14px!important;box-shadow:0 7px 30px rgba(37,33,27,.06)!important}
+.codex-final .codex-v2-composer textarea{min-height:66px!important;padding:17px 16px!important;font-size:15px!important;line-height:1.65!important}
+.codex-final .codex-v2-composer>div:last-child{height:42px!important;font-size:9px!important}
+.codex-final .codex-v2-composer>div:last-child button{height:30px!important;font-size:10px!important}
+.codex-final .codex-v2-workspace{min-width:0!important;min-height:0!important;background:#f4f2ed!important;border-left:1px solid #ddd8d0!important}
+.codex-final .codex-v2-workspace>header{height:58px!important;padding:0 15px!important;background:#faf9f6!important}
+.codex-final .workspace-file-list{max-height:92px!important;overflow:auto!important;gap:5px!important;padding:8px 9px!important}
+.codex-final .workspace-file-list button{height:30px!important;max-width:210px!important;font-size:9px!important;border-radius:7px!important}
+.codex-final .workspace-preview{background:#fff!important}
+.codex-final .codex-v2-taff{position:fixed!important;inset:0!important;z-index:9999!important}
+.codex-final .codex-v2-taff>button{top:16px!important;right:16px!important;height:32px!important;font-size:10px!important}
+@media(max-width:1100px){.codex-final .codex-v2-root{grid-template-columns:232px minmax(0,1fr)!important}.codex-final .codex-v2-body.is-vibe{grid-template-columns:1fr!important}.codex-final .codex-v2-body{grid-template-columns:1fr!important}.codex-final .codex-v2-workspace{position:absolute!important;inset:56px 0 0 232px!important;z-index:50!important;box-shadow:-14px 0 36px rgba(34,31,26,.12)!important}}
+@media(max-width:760px){.codex-final .codex-v2-root{display:block!important}.codex-final .codex-v2-main{height:100dvh!important}.codex-final .codex-v2-header{padding:0 12px 0 46px!important}.codex-final .codex-v2-scroll{padding:30px 15px 18px!important}.codex-final .codex-v2-welcome{margin-top:10vh!important}.codex-final .codex-v2-welcome h1{font-size:40px!important}.codex-final .codex-v2-composer-wrap{padding:0 12px max(12px,env(safe-area-inset-bottom))!important}.codex-final .codex-v2-workspace{position:fixed!important;inset:56px 0 0!important}.codex-final .codex-v2-root>.codex-sidebar{display:none!important}}

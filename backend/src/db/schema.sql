@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
   timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
   wallet_balance_cents INTEGER NOT NULL DEFAULT 0,
   weekly_locked_until TIMESTAMPTZ,
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  stripe_price_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -19,15 +22,22 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_balance_cents INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_locked_until TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_price_id TEXT;
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL DEFAULT 'Nova conversa',
+  surface TEXT NOT NULL DEFAULT 'home' CHECK (surface IN ('home','codex')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS surface TEXT NOT NULL DEFAULT 'home';
+ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_surface_check;
+ALTER TABLE sessions ADD CONSTRAINT sessions_surface_check CHECK (surface IN ('home','codex'));
 
 CREATE TABLE IF NOT EXISTS messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,6 +90,19 @@ CREATE TABLE IF NOT EXISTS uploads (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS builds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  filename TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'building' CHECK (status IN ('building','completed','failed')),
+  error_message TEXT,
+  output_path TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS github_connections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -117,6 +140,7 @@ ALTER TABLE usage ADD COLUMN IF NOT EXISTS units INTEGER NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON sessions(user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_surface ON sessions(user_id, surface, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_provider ON messages(session_id, provider, created_at ASC);
@@ -128,3 +152,6 @@ CREATE INDEX IF NOT EXISTS idx_project_files_user ON project_files(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_user ON mcp_servers(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_user_created ON usage(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_builds_user_project ON builds(user_id, project_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_stripe_customer ON users(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_stripe_subscription ON users(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;

@@ -34,6 +34,7 @@ import './codex-stable.css';
 import './codex-stable-fixes.css';
 import './production-polish.css';
 import './codex-artifacts-fix.css';
+import './home-artifacts-stable.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

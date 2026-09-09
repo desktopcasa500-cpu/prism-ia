@@ -17,6 +17,8 @@ import uploadsRoutes from './routes/uploads.js';
 import aiRoutes from './routes/ai.js';
 import mcpRoutes from './routes/mcp.js';
 import billingRoutes from './routes/billing.js';
+import buildRoutes from './routes/builds.js';
+import { handleStripeWebhook } from './services/stripe.js';
 import { pool } from './db/pool.js';
 
 const app = express();
@@ -38,10 +40,17 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Stripe-Signature'],
 }));
-app.use(express.json({ limit: '12mb' }));
-app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const result = await handleStripeWebhook(req.body, req.headers['stripe-signature']);
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error || 'Webhook inválido.', code: result.code });
+  return res.json({ received: true, eventType: result.eventType });
+});
+
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: false, limit: '2mb' }));
 
 const apiLimiter = rateLimit({
   windowMs: 60_000,
@@ -55,21 +64,9 @@ app.use('/api', apiLimiter);
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({
-      ok: true,
-      database: 'connected',
-      auth: Boolean(process.env.JWT_SECRET),
-      ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY),
-      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
-    });
+    res.json({ ok: true, database: 'connected', auth: Boolean(process.env.JWT_SECRET), ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY), mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
   } catch {
-    res.status(503).json({
-      ok: false,
-      database: 'unreachable',
-      auth: Boolean(process.env.JWT_SECRET),
-      ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY),
-      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
-    });
+    res.status(503).json({ ok: false, database: 'unreachable', auth: Boolean(process.env.JWT_SECRET), ai: Boolean(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY), mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
   }
 });
 
@@ -86,19 +83,15 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/builds', buildRoutes);
 
 app.use(express.static(distPath, { index: false }));
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
-  return res.sendFile(path.join(distPath, 'index.html'), (error) => {
-    if (error) next(error);
-  });
+  return res.sendFile(path.join(distPath, 'index.html'), (error) => { if (error) next(error); });
 });
 
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint não encontrado.', code: 'NOT_FOUND' });
-});
-
+app.use((req, res) => res.status(404).json({ error: 'Endpoint não encontrado.', code: 'NOT_FOUND' }));
 app.use((err, _req, res, _next) => {
   console.error('Prism API error:', err);
   const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;

@@ -33,6 +33,7 @@ import './artifacts-layout-final.css';
 import './codex-stable.css';
 import './codex-stable-fixes.css';
 import './production-polish.css';
+import './codex-artifacts-fix.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

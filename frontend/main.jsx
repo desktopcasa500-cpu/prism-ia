@@ -38,7 +38,6 @@ import './home-artifacts-stable.css';
 import './home-artifacts-v2.css';
 import './release-hardened.css';
 import './release-hotfix.css';
-import './claude-bolt-experience.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

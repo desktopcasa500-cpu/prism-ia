@@ -8,19 +8,38 @@ import TermDetail from './pages/TermDetail.jsx';
 import PrismDetail from './pages/PrismDetail.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
-import Chat from './pages/Chat.jsx';
-import Codex from './pages/CodexFinal.jsx';
+import ChatRelease from './pages/ChatRelease.jsx';
+import CodexRelease from './pages/CodexRelease.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { api } from './lib/api.js';
 import { detectUserTimeZone } from './lib/timezone.js';
+import './release-hardened.css';
 
-function LoadingScreen(){return <div className="app-loading" role="status"><div className="loading-wordmark">PRISM</div><div className="loading-line"/></div>}
-function PrivateRoute({children}){const {user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?children:<Navigate to="/login" replace/>}
-function PublicRoute({children}){const {user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?<Navigate to="/chat" replace/>:children}
-function StudioWithProfile(){const {user,updateUser,logout}=useAuth();return <><Studio/><StudioProfileMenu user={user} updateUser={updateUser} logout={logout}/></>}
-function TimezoneSync(){const {user}=useAuth();const syncedUserRef=useRef(null);useEffect(()=>{if(!user?.id||syncedUserRef.current===user.id)return;syncedUserRef.current=user.id;api.patch('/user/me/timezone',{timezone:detectUserTimeZone()}).catch(()=>{});},[user?.id]);return null}
+function LoadingScreen() { return <div className="app-loading" role="status"><div className="loading-wordmark">PRISM</div><div className="loading-line" /></div>; }
+function PrivateRoute({ children }) { const { user, loading } = useAuth(); if (loading) return <LoadingScreen />; return user ? children : <Navigate to="/login" replace />; }
+function PublicRoute({ children }) { const { user, loading } = useAuth(); if (loading) return <LoadingScreen />; return user ? <Navigate to="/chat" replace /> : children; }
+function StudioWithProfile() { const { user, updateUser, logout } = useAuth(); return <><Studio /><StudioProfileMenu user={user} updateUser={updateUser} logout={logout} /></>; }
+function TimezoneSync() { const { user } = useAuth(); const syncedUserRef = useRef(null); useEffect(() => { if (!user?.id || syncedUserRef.current === user.id) return; syncedUserRef.current = user.id; api.patch('/user/me/timezone', { timezone: detectUserTimeZone() }).catch(() => {}); }, [user?.id]); return null; }
 
-export default function App(){return <><TimezoneSync/><Routes><Route path="/" element={<Landing/>}/><Route path="/informacoes" element={<Info/>}/><Route path="/informacoes/:id" element={<PrismDetail type="info"/>}/><Route path="/modelos" element={<Models/>}/><Route path="/modelos/:id" element={<PrismDetail type="models"/>}/><Route path="/termos" element={<Terms/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><Chat/></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><Codex/></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><Settings/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></>}
+export default function App() {
+  return <><TimezoneSync /><Routes>
+    <Route path="/" element={<Landing />} />
+    <Route path="/informacoes" element={<Info />} />
+    <Route path="/informacoes/:id" element={<PrismDetail type="info" />} />
+    <Route path="/modelos" element={<Models />} />
+    <Route path="/modelos/:id" element={<PrismDetail type="models" />} />
+    <Route path="/termos" element={<Terms />} />
+    <Route path="/termos/:topic" element={<TermDetail />} />
+    <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+    <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+    <Route path="/chat" element={<PrivateRoute><ChatRelease /></PrivateRoute>} />
+    <Route path="/codex" element={<PrivateRoute><CodexRelease /></PrivateRoute>} />
+    <Route path="/studio" element={<PrivateRoute><StudioWithProfile /></PrivateRoute>} />
+    <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
+    <Route path="/workspace" element={<Navigate to="/studio" replace />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes></>;
+}

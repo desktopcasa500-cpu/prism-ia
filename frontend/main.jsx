@@ -36,6 +36,7 @@ import './production-polish.css';
 import './codex-artifacts-fix.css';
 import './home-artifacts-stable.css';
 import './home-artifacts-v2.css';
+import './release-hardened.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

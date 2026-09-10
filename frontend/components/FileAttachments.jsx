@@ -4,6 +4,7 @@ import './file-attachments.css';
 
 const ACCEPT = '.pdf,.docx,.csv,.txt,.html,.odt,.rtf,.epub,.json,.xlsx,.js,.ts,.jsx,.tsx,.css,.md,.py,.java,.go,.rs,.sql,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip';
 const MAX = 10 * 1024 * 1024;
+const MAX_FILES = 20;
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -51,6 +52,10 @@ export default function FileAttachments({ value = [], onChange, projectId = null
   async function addFiles(fileList) {
     const files = [...(fileList || [])].filter(Boolean);
     if (!files.length) return;
+    if (value.length + files.length > MAX_FILES) {
+      setError(`Você pode anexar no máximo ${MAX_FILES} arquivos por mensagem.`);
+      return;
+    }
     setError('');
     setUploading(true);
     try {
@@ -60,7 +65,7 @@ export default function FileAttachments({ value = [], onChange, projectId = null
         if (!name) continue;
         if (file.size > MAX) throw new Error(`${name} excede o limite de 10 MB.`);
         const dataBase64 = await readBase64(file);
-        const result = await api.post('/uploads', { name, mimeType: file.type, dataBase64, projectId });
+        const result = await api.post('/uploads', { name, mimeType: file.type || undefined, dataBase64, projectId });
         if (!result?.upload?.id) throw new Error(`Não foi possível enviar ${name}.`);
         next.push({ ...result.upload, size_bytes: file.size });
       }
@@ -80,8 +85,8 @@ export default function FileAttachments({ value = [], onChange, projectId = null
       event.preventDefault();
       addFiles(files);
     };
-    window.addEventListener('paste', onPaste);
-    return () => window.removeEventListener('paste', onPaste);
+    document.addEventListener('paste', onPaste, true);
+    return () => document.removeEventListener('paste', onPaste, true);
   }, [disabled, uploading, value, projectId]);
 
   function remove(id) {

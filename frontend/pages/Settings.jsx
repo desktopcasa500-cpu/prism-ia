@@ -36,7 +36,8 @@ export default function Settings() {
   function updateCompact(value) { setCompact(value); localStorage.setItem('prism-compact-sidebar', String(value)); }
   function signOut() { logout(); navigate('/login', { replace: true }); }
 
-  const canTopUp = wallet?.canUseExtraFunds === true;
+  const canSimulateBilling = billing?.billingSimulation === true;
+  const canTopUp = wallet?.canUseExtraFunds === true && canSimulateBilling;
   const locked = Boolean(usage?.lockedUntil);
 
   return <div className="settings-page settings-simple">
@@ -61,7 +62,7 @@ export default function Settings() {
         <div className="usage-summary-grid">
           <div className="usage-stat"><span>Uso diário</span><strong>{formatNumber(usage?.daily?.used)} <small>/ {formatNumber(usage?.daily?.limit)}</small></strong><em>Janela móvel de 24h · próxima renovação {formatDate(usage?.daily?.resetsAt)}</em></div>
           <div className="usage-stat"><span>Uso semanal</span><strong>{formatNumber(usage?.weekly?.used)} <small>/ {formatNumber(usage?.weekly?.limit)}</small></strong><em>Reset fixo no domingo às 00:00 · {formatDate(usage?.weekly?.resetsAt)}</em></div>
-          <div className="usage-stat"><span>Fundos extras</span><strong>{canTopUp ? 'Disponível' : 'Indisponível'}</strong><em>Elegível a partir do plano Medium · mínimo US$ 5</em></div>
+          <div className="usage-stat"><span>Fundos extras</span><strong>{wallet?.canUseExtraFunds ? 'Disponível' : 'Indisponível'}</strong><em>Elegível a partir do plano Medium · mínimo US$ 5</em></div>
         </div>
         {locked && <div className="usage-lock"><strong>Limite semanal atingido</strong><span>Grátis e Base aguardam o próximo domingo. Planos Medium+ podem adicionar fundos para continuar imediatamente.</span>{canTopUp && <button onClick={simulateTopUp}>{topUpState === 'loading' ? 'Processando…' : topUpState === 'done' ? 'Fundos simulados' : 'Adicionar US$ 5'}</button>}</div>}
         {!locked && canTopUp && <div className="usage-extra"><span>Fundos extras simulados podem ser usados quando a cota semanal acabar.</span><button onClick={simulateTopUp}>{topUpState === 'loading' ? 'Processando…' : topUpState === 'done' ? 'Fundos simulados' : 'Adicionar US$ 5'}</button></div>}
@@ -70,8 +71,8 @@ export default function Settings() {
 
       <section className="settings-card">
         <div className="settings-card-header"><div><span>Cobrança</span><h2>Stripe</h2></div><span className="settings-badge">{billing?.enabled ? 'Ativo' : 'Inativo'}</span></div>
-        <div className="settings-list-row"><div><strong>Estado da cobrança</strong><p>{billing?.enabled ? 'Checkout e webhooks estão disponíveis.' : 'A infraestrutura está preparada, mas nenhuma cobrança real é processada.'}</p></div><span className="settings-badge">{billing?.enabled ? 'Conectado' : 'Simulação'}</span></div>
-        {!billing?.enabled && <div className="usage-extra"><span>A cobrança ainda não está conectada.</span><strong>Upgrades no ambiente atual são simulados sem cobrança real.</strong></div>}
+        <div className="settings-list-row"><div><strong>Estado da cobrança</strong><p>{billing?.enabled ? 'Checkout e webhooks estão disponíveis.' : 'A infraestrutura está preparada, mas nenhuma cobrança real é processada.'}</p></div><span className="settings-badge">{billing?.enabled ? 'Conectado' : canSimulateBilling ? 'Simulação' : 'Não configurado'}</span></div>
+        {!billing?.enabled && <div className="usage-extra"><span>{canSimulateBilling ? 'Ambiente de desenvolvimento.' : 'Este ambiente não possui cobrança conectada.'}</span><strong>{canSimulateBilling ? 'Upgrades locais são simulados sem cobrança real.' : 'Configure o Stripe antes de liberar upgrades.'}</strong></div>}
       </section>
 
       <section className="settings-danger"><div><small>Sessão</small><h2>Sair da Prism IA</h2></div><button onClick={signOut}>Sair</button></section>

@@ -6,21 +6,26 @@ import { requireAuth } from '../middleware/auth.js';
 import { buildProject } from '../services/buildService.js';
 
 const router = Router();
-const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
+const configuredDownloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+const downloadSecret = configuredDownloadSecret || (process.env.NODE_ENV === 'production' ? null : 'dev-only-build-secret');
 const buildCache = new Map();
 const BUILD_TTL_MS = 60 * 60 * 1000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function validUuid(value) { return UUID_RE.test(String(value || '')); }
 function signDownload(buildId, userId, expiresAt) {
+  if (!downloadSecret) throw Object.assign(new Error('Segredo de download não configurado.'), { code: 'BUILD_DOWNLOAD_SECRET_MISSING', status: 503 });
   const payload = `${buildId}.${userId}.${expiresAt}`;
   const sig = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
   return Buffer.from(`${payload}.${sig}`).toString('base64url');
 }
 
 function verifyDownload(token, buildId) {
+  if (!downloadSecret || !validUuid(buildId)) return null;
   try {
     const value = Buffer.from(String(token || ''), 'base64url').toString('utf8');
     const [id, userId, expiresAt, sig] = value.split('.');
-    if (id !== buildId || !userId || !sig || Number(expiresAt) <= Date.now()) return null;
+    if (id !== buildId || !userId || !sig || !Number.isFinite(Number(expiresAt)) || Number(expiresAt) <= Date.now()) return null;
     const payload = `${id}.${userId}.${expiresAt}`;
     const expected = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
     const left = Buffer.from(sig);
@@ -33,6 +38,7 @@ function verifyDownload(token, buildId) {
 }
 
 async function loadProject(projectId, userId) {
+  if (!validUuid(projectId)) throw Object.assign(new Error('Identificador de projeto inválido.'), { code: 'INVALID_PROJECT_ID', status: 400 });
   const project = await pool.query('SELECT id,name FROM projects WHERE id=$1 AND user_id=$2', [projectId, userId]);
   if (!project.rows.length) throw Object.assign(new Error('Projeto não encontrado.'), { code: 'PROJECT_NOT_FOUND', status: 404 });
   const files = await pool.query("SELECT path,content,kind FROM project_files WHERE project_id=$1 AND user_id=$2 AND kind='file' ORDER BY path", [projectId, userId]);
@@ -60,6 +66,7 @@ setInterval(cleanup, 60_000).unref();
 
 router.get('/:id/download', async (req, res) => {
   try {
+    if (!validUuid(req.params.id)) return res.status(400).json({ error: 'Identificador de build inválido.', code: 'INVALID_BUILD_ID' });
     const userId = verifyDownload(req.query?.token, req.params.id);
     if (!userId) return res.status(401).json({ error: 'Token de download inválido ou expirado.', code: 'BUILD_DOWNLOAD_UNAUTHORIZED' });
     const row = await pool.query('SELECT filename,output_path,status,expires_at FROM builds WHERE id=$1 AND user_id=$2', [req.params.id, userId]);
@@ -71,7 +78,7 @@ router.get('/:id/download', async (req, res) => {
     await fs.access(filePath);
     return res.download(filePath, row.rows[0].filename);
   } catch (error) {
-    return res.status(404).json({ error: error?.message || 'Arquivo não encontrado.', code: 'BUILD_FILE_NOT_FOUND' });
+    return res.status(Number.isInteger(error?.status) ? error.status : 404).json({ error: error?.message || 'Arquivo não encontrado.', code: error?.code || 'BUILD_FILE_NOT_FOUND' });
   }
 });
 
@@ -83,6 +90,7 @@ router.post('/', async (req, res) => {
   const projectId = String(req.body?.projectId || '').trim();
   if (!projectId) return res.status(400).json({ error: 'Projeto não informado.', code: 'PROJECT_REQUIRED' });
   if (!target) return res.status(400).json({ error: 'Destino de compilação não suportado. Use "jar" ou "win32-x64".', code: 'TARGET_UNSUPPORTED' });
+  if (process.env.NODE_ENV === 'production' && !downloadSecret) return res.status(503).json({ error: 'O serviço de build não está configurado.', code: 'BUILD_DOWNLOAD_SECRET_MISSING' });
 
   try {
     const { project, files } = await loadProject(projectId, req.userId);
@@ -94,16 +102,7 @@ router.post('/', async (req, res) => {
       [build.buildId, req.userId, projectId, target, build.filename, build.outputPath, expiresAt],
     );
     const token = signDownload(build.buildId, req.userId, expiresAt);
-    return res.json({
-      ok: true,
-      buildId: build.buildId,
-      target,
-      filename: build.filename,
-      size: build.size,
-      expiresAt: new Date(expiresAt).toISOString(),
-      downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`,
-      details: build.details,
-    });
+    return res.json({ ok: true, buildId: build.buildId, target, filename: build.filename, size: build.size, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`, details: build.details });
   } catch (error) {
     if (build?.tempDir) await fs.rm(build.tempDir, { recursive: true, force: true }).catch(() => {});
     const code = error?.code || 'BUILD_FAILED';

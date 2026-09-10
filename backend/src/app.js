@@ -33,13 +33,16 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || process.env.APP_URL || ''
   .split(',')
   .map((value) => value.trim().replace(/\/$/, ''))
   .filter(Boolean);
+const allowUnconfiguredOrigins = process.env.NODE_ENV !== 'production' && process.env.PRISM_ALLOW_UNCONFIGURED_CORS === 'true';
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowUnconfiguredOrigins) return callback(null, true);
     return callback(null, false);
   },
   credentials: true,

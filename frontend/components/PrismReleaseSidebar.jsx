@@ -14,6 +14,23 @@ function groupSessions(sessions = []) {
   return ORDER.map((label) => ({ label, items: map.get(label) })).filter((group) => group.items.length);
 }
 
+function PrismLogo({ size = 30 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="prism-logo-orange" x1="24" y1="6" x2="24" y2="42" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#f06a36" />
+          <stop offset="0.24" stopColor="#ffffff" />
+          <stop offset="0.74" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#ef6b37" />
+        </linearGradient>
+      </defs>
+      <circle cx="24" cy="24" r="23" fill="#20201f" />
+      <path d="M24 6.4 28.2 18.2 41.7 24l-13.5 5.8L24 42.6l-4.2-12.8L6.3 24l13.5-5.8L24 6.4Z" fill="url(#prism-logo-orange)" />
+    </svg>
+  );
+}
+
 export default function PrismReleaseSidebar({
   mode,
   sessions,
@@ -42,7 +59,7 @@ export default function PrismReleaseSidebar({
     <div className="prism-release-sidebar__top">
       <button className="prism-sidebar-mobile-toggle" onClick={() => onMobileOpen?.(false)} aria-label="Fechar navegação">×</button>
       <button className="prism-release-brand" onClick={onHome} aria-label="Prism IA">
-        <span className="prism-star" />
+        <PrismLogo size={28} />
         <span className="prism-brand-text">Prism IA</span>
       </button>
       <button className="prism-sidebar-toggle" onClick={() => onCollapse?.(!collapsed)} aria-label={collapsed ? 'Expandir navegação' : 'Recolher navegação'}>{collapsed ? '→' : '←'}</button>

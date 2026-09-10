@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { promises as fs } from 'node:fs';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -8,9 +9,12 @@ const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function validUuid(value) { return UUID_RE.test(String(value || '')); }
 function safeArchivePath(value) {
-  const normalized = String(value || '').replace(/\\/g, '/').replace(/^\/+/, '');
-  const parts = normalized.split('/').filter((part) => part && part !== '.' && part !== '..');
-  return parts.join('/').slice(0, 500) || 'file.txt';
+  const normalized = String(value || '').replace(/\\/g, '/').trim();
+  const parts = normalized.split('/');
+  if (!normalized || parts.some((part) => part === '..' || part === '.' || part === '') || normalized.startsWith('/')) return null;
+  const path = parts.join('/');
+  if (path.length > 500) return null;
+  return path;
 }
 
 function crc32(bytes) {
@@ -22,8 +26,8 @@ function crc32(bytes) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function u16(value) { const b = Buffer.alloc(2); b.writeUInt16LE(value, 0); return b; }
-function u32(value) { const b = Buffer.alloc(4); b.writeUInt32LE(value >>> 0, 0); return b; }
+function u16(value) { const b = Buffer.alloc(2); b.writeUInt16LE(value); return b; }
+function u32(value) { const b = Buffer.alloc(4); b.writeUInt32LE(value >>> 0); return b; }
 
 function zip(files) {
   const local = [];
@@ -31,18 +35,16 @@ function zip(files) {
   let offset = 0;
   let totalBytes = 0;
   for (const file of files) {
-    const name = Buffer.from(safeArchivePath(file.path), 'utf8');
+    const safePath = safeArchivePath(file.path);
+    if (!safePath) throw Object.assign(new Error(`Caminho de arquivo inválido: ${String(file.path || '')}`), { code: 'INVALID_PROJECT_PATH', status: 422 });
+    const name = Buffer.from(safePath, 'utf8');
     const data = Buffer.from(String(file.content ?? ''), 'utf8');
     totalBytes += data.length;
     if (totalBytes > MAX_ARCHIVE_BYTES) return null;
     const crc = crc32(data);
-    const header = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x03, 0x04]), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name,
-    ]);
+    const header = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), u16(20), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), name]);
     local.push(header, data);
-    const directory = Buffer.concat([
-      Buffer.from([0x50, 0x4b, 0x01, 0x02]), Buffer.from([20, 0, 20, 0]), u16(0), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), name,
-    ]);
+    const directory = Buffer.concat([Buffer.from([0x50, 0x4b, 0x01, 0x02]), Buffer.from([20, 0, 20, 0]), u16(0), u16(0), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), name]);
     central.push(directory);
     offset += header.length + data.length;
   }
@@ -66,7 +68,7 @@ router.get('/:id/download', async (req, res, next) => {
     res.setHeader('Content-Length', archive.length);
     res.setHeader('Cache-Control', 'private, no-store');
     return res.end(archive);
-  } catch (error) { next(error); }
+  } catch (error) { return next(error); }
 });
 
 export default router;

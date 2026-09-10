@@ -4,7 +4,10 @@ import { acquireTrafficSlot, trafficSnapshot, trafficStatusMessage } from '../se
 
 function isGenerationRequest(req) {
   if (req.method !== 'POST') return false;
-  return /\/api\/chat\/sessions\/[^/]+\/messages$/.test(req.originalUrl || req.path || '') || /\/api\/ai\/generate(?:\/stream)?$/.test(req.originalUrl || req.path || '');
+  const path = req.originalUrl || req.path || '';
+  return /\/api\/chat\/sessions\/[^/]+\/messages$/.test(path)
+    || /\/api\/chat\/parallel$/.test(path)
+    || /\/api\/ai\/generate(?:\/stream)?$/.test(path);
 }
 
 async function resolvePlan(req) {

@@ -41,16 +41,18 @@ function isImage(file) {
 
 export default function FileAttachments({ value = [], onChange, projectId = null, disabled = false, label = 'Adicionar arquivo', onUploadingChange }) {
   const inputRef = useRef(null);
+  const valueRef = useRef(value);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  valueRef.current = value;
 
   useEffect(() => {
     onUploadingChange?.(uploading);
   }, [onUploadingChange, uploading]);
 
   useEffect(() => () => {
-    for (const file of value) if (file.preview_url) URL.revokeObjectURL(file.preview_url);
-  }, [value]);
+    for (const file of valueRef.current) if (file.preview_url) URL.revokeObjectURL(file.preview_url);
+  }, []);
 
   async function addFiles(fileList) {
     const files = [...(fileList || [])].filter(Boolean);

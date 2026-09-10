@@ -27,7 +27,6 @@ function clipboardFiles(data) {
     .filter((item) => item.kind === 'file')
     .map((item) => item.getAsFile?.())
     .filter(Boolean);
-
   const unique = new Map();
   for (const file of [...files, ...itemFiles]) {
     const key = `${file.name || ''}|${file.size || 0}|${file.type || ''}|${file.lastModified || 0}`;
@@ -49,6 +48,10 @@ export default function FileAttachments({ value = [], onChange, projectId = null
     onUploadingChange?.(uploading);
   }, [onUploadingChange, uploading]);
 
+  useEffect(() => () => {
+    for (const file of value) if (file.preview_url) URL.revokeObjectURL(file.preview_url);
+  }, [value]);
+
   async function addFiles(fileList) {
     const files = [...(fileList || [])].filter(Boolean);
     if (!files.length) return;
@@ -67,7 +70,7 @@ export default function FileAttachments({ value = [], onChange, projectId = null
         const dataBase64 = await readBase64(file);
         const result = await api.post('/uploads', { name, mimeType: file.type || undefined, dataBase64, projectId });
         if (!result?.upload?.id) throw new Error(`Não foi possível enviar ${name}.`);
-        next.push({ ...result.upload, size_bytes: file.size });
+        next.push({ ...result.upload, size_bytes: file.size, preview_url: isImage(file) ? URL.createObjectURL(file) : null });
       }
       onChange?.(next.filter((item, index, array) => array.findIndex((entry) => entry.id === item.id) === index));
     } catch (cause) {
@@ -90,6 +93,8 @@ export default function FileAttachments({ value = [], onChange, projectId = null
   }, [disabled, uploading, value, projectId]);
 
   function remove(id) {
+    const file = value.find((item) => item.id === id);
+    if (file?.preview_url) URL.revokeObjectURL(file.preview_url);
     onChange?.(value.filter((item) => item.id !== id));
   }
 
@@ -104,7 +109,7 @@ export default function FileAttachments({ value = [], onChange, projectId = null
         {value.map((file) => (
           isImage(file) ? (
             <div className="attachment-image-card" key={file.id}>
-              <img src={`/api/uploads/${encodeURIComponent(file.id)}`} alt={file.name || 'Imagem anexada'} />
+              <img src={file.preview_url || ''} alt={file.name || 'Imagem anexada'} />
               <button type="button" onClick={() => remove(file.id)} disabled={disabled} aria-label={`Remover ${file.name || 'imagem'}`}>×</button>
             </div>
           ) : (

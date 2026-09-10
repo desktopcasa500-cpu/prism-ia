@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { OAuth2Client } from 'google-auth-library';
 import { pool } from '../db/pool.js';
 
@@ -9,6 +10,14 @@ const googleClient = new OAuth2Client();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
 const MAX_PASSWORD_LENGTH = 128;
+const authLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  max: Number(process.env.PRISM_AUTH_RATE_LIMIT || 30),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  handler: (_req, res) => res.status(429).json({ error: 'Muitas tentativas de autenticação. Aguarde alguns minutos e tente novamente.', code: 'AUTH_RATE_LIMIT' }),
+});
 
 function issueToken(user) {
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET não configurado');
@@ -26,7 +35,7 @@ function normalizeCredentials(body = {}) {
   return { name, email, password };
 }
 
-router.post('/register', async (req, res, next) => {
+router.post('/register', authLimiter, async (req, res, next) => {
   try {
     const { name, email, password } = normalizeCredentials(req.body);
     if (name.length < 2 || name.length > MAX_NAME_LENGTH) return res.status(400).json({ error: 'Digite um nome válido.' });
@@ -46,7 +55,7 @@ router.post('/register', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/login', async (req, res, next) => {
+router.post('/login', authLimiter, async (req, res, next) => {
   try {
     const { email, password } = normalizeCredentials(req.body);
     if (!EMAIL_RE.test(email) || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
@@ -62,7 +71,7 @@ router.post('/login', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/google', async (req, res, next) => {
+router.post('/google', authLimiter, async (req, res, next) => {
   try {
     const credential = req.body?.credential;
     const audience = process.env.GOOGLE_CLIENT_ID;

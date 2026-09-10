@@ -20,6 +20,7 @@ import billingRoutes from './routes/billing.js';
 import trafficRoutes from './routes/traffic.js';
 import buildRoutes from './routes/builds.js';
 import { trafficGate } from './middleware/trafficGate.js';
+import { quotaGate } from './middleware/quotaGate.js';
 import { handleStripeWebhook } from './services/stripe.js';
 import { pool } from './db/pool.js';
 
@@ -63,6 +64,7 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 app.use(trafficGate);
+app.use(quotaGate);
 
 app.get('/api/health', async (_req, res) => {
   try {

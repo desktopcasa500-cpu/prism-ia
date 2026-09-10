@@ -30,7 +30,10 @@ GROQ_API_KEY=<chave, se usada>
 OPENROUTER_NVIDIA_API_KEY=<chave, se usada>
 NVIDIA_BUILDER_API_KEY=<chave, se usada>
 MCP_ENCRYPTION_KEY=<chave longa e aleatória, se MCP persistido for usado>
+BRAVE_SEARCH_API_KEY=<chave da Brave Search API, para busca web e atualização das notícias>
 ```
+
+`BRAVE_SEARCH_API_KEY` é opcional para inicializar o serviço: quando não estiver configurada, a busca web retorna um estado explícito de não configuração e o job de notícias registra `skipped` sem derrubar o servidor. Para habilitar busca e atualização real de notícias em produção, configure a chave como variável secreta no Web Service do Render; nunca a coloque no código ou no Git.
 
 Como frontend e API são servidos pelo mesmo Web Service, o cliente usa `/api` por padrão e normalmente não precisa de `VITE_API_URL`.
 
@@ -50,7 +53,7 @@ npm run build
 npm start
 ```
 
-Para preparar o PostgreSQL localmente, use `backend/.env.example` como referência e execute:
+Para preparar o PostgreSQL localmente, use um arquivo `.env` no backend com as variáveis necessárias, incluindo `BRAVE_SEARCH_API_KEY` quando a busca web for desejada, e execute:
 
 ```bash
 npm run migrate

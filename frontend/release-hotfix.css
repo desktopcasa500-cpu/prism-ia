@@ -44,10 +44,12 @@ body { overflow-x: hidden; }
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  grid-template-columns: 268px minmax(0, 1fr);
+  grid-template-columns: 252px minmax(0, 1fr);
   background: var(--prism-bg);
 }
 .prism-release-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+.prism-release-shell,
+.prism-release-shell * { box-sizing: border-box; }
 
 .prism-release-sidebar {
   height: 100dvh;
@@ -56,7 +58,7 @@ body { overflow-x: hidden; }
   background: #f3f1ec;
   color: var(--prism-text);
 }
-.prism-release-sidebar__top { padding: 16px 16px 12px; }
+.prism-release-sidebar__top { padding: 16px 14px 12px; }
 .prism-release-brand { color: #312e2a; font-size: 14px; font-weight: 650; }
 .prism-star {
   width: 18px;
@@ -126,6 +128,9 @@ body { overflow-x: hidden; }
 
 .prism-sidebar-history {
   padding: 12px 9px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d2ccc4 transparent;
 }
 .prism-sidebar-history h4 {
   margin: 15px 10px 7px;
@@ -164,7 +169,9 @@ body { overflow-x: hidden; }
 .prism-chat-main {
   height: 100dvh;
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
+  grid-template-rows: 64px minmax(0, 1fr) auto;
   background: #fff;
 }
 .prism-chat-topbar {
@@ -207,8 +214,13 @@ body { overflow-x: hidden; }
 .prism-model-menu b { color: var(--prism-accent); }
 
 .prism-chat-scroll {
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d6d0c8 transparent;
+  scrollbar-gutter: stable;
   padding: 34px max(22px, calc((100vw - 900px)/2));
   background: #fff;
 }
@@ -299,6 +311,7 @@ body { overflow-x: hidden; }
 
 .prism-artifact-drawer {
   top: 64px;
+  max-height: calc(100dvh - 64px);
   background: #fbfaf8;
   border-left: 1px solid #e1dcd5;
   box-shadow: -18px 0 42px rgba(42,34,28,.10);
@@ -321,6 +334,7 @@ body { overflow-x: hidden; }
 }
 .prism-artifact-drawer__file { border-bottom: 1px solid #e6e1da; color: #8b847c; }
 .prism-artifact-drawer__file strong { color: #3b3530; }
+.prism-artifact-drawer__editor { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #d6d0c8 transparent; }
 .prism-artifact-drawer__editor pre { color: #38322d; }
 
 @media (max-width: 700px) {
@@ -338,7 +352,7 @@ body { overflow-x: hidden; }
   .prism-release-shell.sidebar-collapsed .prism-release-sidebar { width: min(300px, 88vw); }
   .prism-sidebar-switch { padding-top: 2px; }
   .prism-chat-topbar { padding: 0 14px; }
-  .prism-chat-scroll { padding: 24px 16px 26px; }
+  .prism-chat-scroll { padding: 24px 16px 26px; scrollbar-gutter: auto; }
   .prism-composer-wrap { padding: 12px 12px 16px; }
   .prism-artifact-drawer { top: 64px; width: min(94vw, 520px); }
 }

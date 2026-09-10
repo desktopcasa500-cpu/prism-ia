@@ -10,14 +10,10 @@ const PLANS = [
   { name: 'Empresarial', price: 'R$140', models: 'Todos os modelos · Ultracode disponível', usage: '6.000 usos em 24h · 30.000 usos por semana' },
 ];
 
-export default function PlanPanel({ open, onClose, currentPlan = 'Grátis', requestedModel = '' }) {
-  const [upgrade, setUpgrade] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [result, setResult] = useState(null);
+export default function PlanPanel({ open, onClose, currentPlan = 'Grátis', requestedModel = '', quotaBlocked = false }) {
+  const [upgrade, setUpgrade] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [result, setResult] = useState(null);
   useEffect(() => { if (!open) { setUpgrade(null); setBusy(false); setError(''); setResult(null); } }, [open]);
   if (!open) return null;
-
   async function checkout() {
     if (!upgrade || busy) return;
     setBusy(true); setError('');
@@ -25,7 +21,7 @@ export default function PlanPanel({ open, onClose, currentPlan = 'Grátis', requ
       const response = await api.get('/billing/status');
       if (response.billingSimulation || !response.enabled) {
         const simulated = await api.post('/billing/checkout', { plan: upgrade.name });
-        setResult({ simulated: true, message: simulated.message || 'Upgrade simulado com sucesso. A cobrança ainda não está conectada.' });
+        setResult({ message: simulated.message || 'Upgrade simulado com sucesso. A cobrança ainda não está conectada.' });
       } else {
         const created = await api.post('/billing/checkout', { plan: upgrade.name, successUrl: `${window.location.origin}/configuracoes?billing=success`, cancelUrl: `${window.location.origin}/configuracoes?billing=cancelled` });
         if (!created?.url) throw new Error('O provedor de pagamento não retornou a página de checkout.');
@@ -33,10 +29,11 @@ export default function PlanPanel({ open, onClose, currentPlan = 'Grátis', requ
       }
     } catch (cause) { setError(cause.payload?.error || cause.message || 'Não foi possível iniciar o upgrade.'); setBusy(false); }
   }
-
+  const introTitle = quotaBlocked ? 'Adicione créditos para usar este modelo' : upgrade ? `Upgrade para ${upgrade.name}` : 'Planos';
+  const introText = quotaBlocked ? 'Sua cota atual não é suficiente para processar este modelo. Escolha um plano com maior capacidade.' : upgrade ? `Continue com ${upgrade.name} e libere mais capacidade.` : requestedModel ? `${requestedModel} pede um plano acima do seu.` : 'Escolha o plano que acompanha o seu trabalho.';
   return <div className="plans-overlay" role="dialog" aria-modal="true" aria-label="Planos Prism" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose?.(); }}>
     <section className="plans-panel">
-      <header><div><span>PRISM IA / PLANO</span><h2>{upgrade ? `Upgrade para ${upgrade.name}` : 'Planos'}</h2><p>{upgrade ? `Continue com ${upgrade.name} e libere mais capacidade.` : requestedModel ? `${requestedModel} pede um plano acima do seu.` : 'Escolha o plano que acompanha o seu trabalho.'}</p></div><button className="plans-close" onClick={onClose} disabled={busy}>Fechar</button></header>
+      <header><div><span>PRISM IA / PLANO</span><h2>{introTitle}</h2><p>{introText}</p></div><button className="plans-close" onClick={onClose} disabled={busy}>Fechar</button></header>
       {result ? <div className="upgrade-view"><div className="upgrade-summary"><span>CONCLUÍDO</span><strong>{upgrade?.name}</strong><p>{result.message}</p><small>Modo de cobrança: simulação local. A cobrança ainda não está conectada.</small></div><div className="upgrade-actions"><button className="upgrade-primary" onClick={onClose}>Concluir</button></div></div> : !upgrade ? <><div className="plans-grid">{PLANS.map((plan) => <article className={plan.name === currentPlan ? 'current' : ''} key={plan.name}><div className="plan-head"><span>{plan.name}</span>{plan.name === currentPlan && <small>ATUAL</small>}</div><strong>{plan.price}</strong><p>{plan.models}</p><small>{plan.usage}</small><button disabled={plan.name === currentPlan} onClick={() => { setUpgrade(plan); setError(''); }}>{plan.name === currentPlan ? 'Plano atual' : 'Fazer upgrade'}</button></article>)}</div><footer className="plans-foot"><span>Stripe está preparado para ativação.</span><b>Quando desativado, o upgrade é simulado sem cobrança real.</b></footer></> : <div className="upgrade-view"><div className="upgrade-summary"><span>PLANO SELECIONADO</span><strong>{upgrade.name}</strong><b>{upgrade.price}<small>/mês</small></b><p>{upgrade.models}</p><small>{upgrade.usage}</small></div>{error && <div className="upgrade-error" role="alert">{error}</div>}<div className="upgrade-actions"><button className="upgrade-back" onClick={() => setUpgrade(null)} disabled={busy}>Voltar</button><button className="upgrade-primary" onClick={checkout} disabled={busy}>{busy ? 'Processando…' : 'Confirmar upgrade'}</button></div></div>}
     </section>
   </div>;

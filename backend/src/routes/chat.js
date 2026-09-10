@@ -14,10 +14,12 @@ const MAX_HISTORY_MESSAGES = 24;
 const MAX_ATTACHMENTS = 20;
 const PLAN_NAMES = ['Grátis', 'Base', 'Medium', 'Pro', 'Empresarial'];
 const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 router.use(requireAuth);
 function cleanText(value, max = MAX_MESSAGE_LENGTH) { return typeof value === 'string' ? value.replace(/\u0000/g, '').trim().slice(0, max) : ''; }
 function surfaceOf(value) { const surface = cleanText(value, 20).toLowerCase(); return ALLOWED_SURFACES.has(surface) ? surface : 'home'; }
+function validUuid(value) { return UUID_RE.test(String(value || '')); }
 async function getUserPlan(userId) { const result = await pool.query('SELECT plan FROM users WHERE id=$1', [userId]); if (!result.rows.length) return null; const plan = result.rows[0].plan || 'free'; const rank = normalizePlanRank(plan); return { plan, rank, label: PLAN_NAMES[rank] || 'Grátis' }; }
 async function authorizeModel(userId, model, effort) {
   const account = await getUserPlan(userId);
@@ -31,6 +33,7 @@ async function authorizeModel(userId, model, effort) {
   return { ok: true, ...account, effort: normalizedEffort };
 }
 async function ownsSession(sessionId, userId, surface = null) {
+  if (!validUuid(sessionId)) return null;
   const result = await pool.query('SELECT id,title,surface FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]);
   if (!result.rows.length) return null;
   if (surface && result.rows[0].surface !== surface) return null;
@@ -41,7 +44,8 @@ async function loadHistory(sessionId, userId) {
   return result.rows.reverse().map((message) => `${message.role}: ${message.content}`).join('\n');
 }
 async function loadAttachmentContext(ids, userId) {
-  const safeIds = Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))].slice(0, MAX_ATTACHMENTS) : [];
+  const rawIds = Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
+  const safeIds = [...new Set(rawIds.filter(validUuid))].slice(0, MAX_ATTACHMENTS);
   if (!safeIds.length) return { ids: [], context: '', attachments: [] };
   const result = await pool.query('SELECT id,name,mime_type,size_bytes,content FROM uploads WHERE user_id=$1 AND id = ANY($2::uuid[]) ORDER BY created_at ASC', [userId, safeIds]);
   const attachments = result.rows.map((row) => ({ id: row.id, name: row.name, mime_type: row.mime_type, size_bytes: Number(row.size_bytes || 0) }));
@@ -124,6 +128,7 @@ router.post('/sessions', async (req, res, next) => {
 
 router.patch('/sessions/:id', async (req, res, next) => {
   try {
+    if (!validUuid(req.params.id)) return res.status(400).json({ error: 'Identificador de sessão inválido.', code: 'INVALID_SESSION_ID' });
     const title = cleanText(req.body?.title, 120).replace(/\s+/g, ' ');
     if (!title) return res.status(400).json({ error: 'O título não pode ficar vazio.' });
     const result = await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING id,title,surface,created_at,updated_at', [title, req.params.id, req.userId]);
@@ -142,7 +147,7 @@ router.get('/sessions/:id/messages', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.delete('/sessions/:id', async (req, res, next) => { try { const result = await pool.query('DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id', [req.params.id, req.userId]); if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' }); res.status(204).end(); } catch (error) { next(error); } });
+router.delete('/sessions/:id', async (req, res, next) => { try { if (!validUuid(req.params.id)) return res.status(400).json({ error: 'Identificador de sessão inválido.', code: 'INVALID_SESSION_ID' }); const result = await pool.query('DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id', [req.params.id, req.userId]); if (!result.rows.length) return res.status(404).json({ error: 'Sessão não encontrada.' }); res.status(204).end(); } catch (error) { next(error); } });
 
 router.post('/sessions/:id/messages', async (req, res, next) => {
   const content = cleanText(req.body?.content);
@@ -153,6 +158,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
   if (!content) return res.status(400).json({ error: 'Mensagem vazia.', code: 'EMPTY_MESSAGE' });
   if (!ALLOWED_EFFORTS.has(effort)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
   if (!ALLOWED_MODELS.has(model)) return res.status(400).json({ error: 'Modelo inválido.', code: 'INVALID_MODEL' });
+  if (!validUuid(req.params.id)) return res.status(400).json({ error: 'Identificador de sessão inválido.', code: 'INVALID_SESSION_ID' });
   let reservation = null;
   try {
     const session = await ownsSession(req.params.id, req.userId, 'home');
@@ -192,6 +198,7 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
 
 router.post('/sessions/:id/messages/:messageId/retry', async (req, res, next) => {
   try {
+    if (!validUuid(req.params.id) || !validUuid(req.params.messageId)) return res.status(400).json({ error: 'Identificador inválido.', code: 'INVALID_MESSAGE_ID' });
     const session = await ownsSession(req.params.id, req.userId);
     if (!session) return res.status(404).json({ error: 'Sessão não encontrada.', code: 'SESSION_NOT_FOUND' });
     const original = await pool.query('SELECT id,role,content,effort,model_id,metadata FROM messages WHERE id=$1 AND session_id=$2 AND user_id=$3', [req.params.messageId, session.id, req.userId]);
@@ -210,6 +217,7 @@ router.post('/sessions/:id/messages/:messageId/retry', async (req, res, next) =>
 
 router.patch('/messages/:messageId', async (req, res, next) => {
   try {
+    if (!validUuid(req.params.messageId)) return res.status(400).json({ error: 'Identificador de mensagem inválido.', code: 'INVALID_MESSAGE_ID' });
     const content = cleanText(req.body?.content);
     if (!content) return res.status(400).json({ error: 'Mensagem vazia.', code: 'EMPTY_MESSAGE' });
     const current = await pool.query('SELECT m.id,m.session_id,m.role,s.surface FROM messages m JOIN sessions s ON s.id=m.session_id AND s.user_id=m.user_id WHERE m.id=$1 AND m.user_id=$2', [req.params.messageId, req.userId]);
@@ -221,6 +229,6 @@ router.patch('/messages/:messageId', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/sessions/:id/cancel', async (req, res) => { res.json({ ok: true, requestId: cleanText(req.body?.clientRequestId, 120) || null }); });
+router.post('/sessions/:id/cancel', async (req, res) => { if (!validUuid(req.params.id)) return res.status(400).json({ error: 'Identificador de sessão inválido.', code: 'INVALID_SESSION_ID' }); res.json({ ok: true, requestId: cleanText(req.body?.clientRequestId, 120) || null }); });
 
 export default router;

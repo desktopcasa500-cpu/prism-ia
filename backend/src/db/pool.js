@@ -20,4 +20,5 @@ export const pool = connectionString
   : {
       query: async () => { throw missingDatabaseError(); },
       connect: async () => { throw missingDatabaseError(); },
+      end: async () => {},
     };

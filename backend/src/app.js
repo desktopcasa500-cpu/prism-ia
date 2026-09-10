@@ -17,7 +17,9 @@ import uploadsRoutes from './routes/uploads.js';
 import aiRoutes from './routes/ai.js';
 import mcpRoutes from './routes/mcp.js';
 import billingRoutes from './routes/billing.js';
+import trafficRoutes from './routes/traffic.js';
 import buildRoutes from './routes/builds.js';
+import { trafficGate } from './middleware/trafficGate.js';
 import { handleStripeWebhook } from './services/stripe.js';
 import { pool } from './db/pool.js';
 
@@ -60,6 +62,7 @@ const apiLimiter = rateLimit({
   handler: (_req, res) => res.status(429).json({ error: 'Muitas solicitações. Aguarde um momento e tente novamente.', code: 'IP_RATE_LIMIT' }),
 });
 app.use('/api', apiLimiter);
+app.use(trafficGate);
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -83,6 +86,7 @@ app.use('/api/uploads', uploadsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/traffic', trafficRoutes);
 app.use('/api/builds', buildRoutes);
 
 app.use(express.static(distPath, { index: false }));

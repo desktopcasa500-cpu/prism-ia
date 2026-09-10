@@ -1,17 +1,26 @@
 import { pool } from '../db/pool.js';
-import { DEFAULT_TIMEZONE, normalizeTimeZone, nextWeeklyReset, startOfLocalDay, startOfLocalWeek } from './timezone.js';
+import { DEFAULT_TIMEZONE, normalizeTimeZone, nextWeeklyReset, startOfLocalWeek } from './timezone.js';
 
 export const USAGE_DAY_MS = 24 * 60 * 60 * 1000;
-export const USAGE_WEEK_MS = 7 * USAGE_DAY_MS;
 export const USAGE_WINDOW_HOURS = 24;
+export const MIN_TOP_UP_CENTS = 500;
+const EXTRA_REQUEST_COST_CENTS = 1;
 
-export const PLAN_DAILY_CREDITS = {
-  0: Number(process.env.PRISM_FREE_DAILY_CREDITS || 100),
-  1: Number(process.env.PRISM_BASE_DAILY_CREDITS || 500),
-  2: Number(process.env.PRISM_MEDIUM_DAILY_CREDITS || 3000),
-  3: Number(process.env.PRISM_PRO_DAILY_CREDITS || 10000),
-  4: Number(process.env.PRISM_ENTERPRISE_DAILY_CREDITS || 30000),
-};
+export const PLAN_DAILY_CREDITS = Object.freeze({
+  0: 5,
+  1: 30,
+  2: 700,
+  3: 2000,
+  4: 6000,
+});
+
+export const PLAN_WEEKLY_CREDITS = Object.freeze({
+  0: 100,
+  1: 500,
+  2: 3000,
+  3: 10000,
+  4: 30000,
+});
 
 const PLAN_RANK = {
   free: 0, 'Grátis': 0,
@@ -39,11 +48,21 @@ export const PLAN_FEATURES = {
 };
 
 export function normalizePlanRank(plan) { return PLAN_RANK[plan] ?? 0; }
-export function getDailyCredits(plan) { const value = PLAN_DAILY_CREDITS[normalizePlanRank(plan)]; return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1; }
-export function getWeeklyCredits(plan) { return getDailyCredits(plan) * 7; }
+export function getDailyCredits(plan) { return PLAN_DAILY_CREDITS[normalizePlanRank(plan)]; }
+export function getWeeklyCredits(plan) { return PLAN_WEEKLY_CREDITS[normalizePlanRank(plan)]; }
+export function canUseExtraFunds(plan) { return normalizePlanRank(plan) >= 2; }
 export function percentUsed(used, limit) { if (!Number.isFinite(limit) || limit <= 0) return 100; return Math.min(100, Math.max(0, Math.round((Number(used || 0) / limit) * 10000) / 100)); }
 
-function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now = new Date()) {
+function dailyResetAt(now, oldestUsageAt) {
+  const nowDate = new Date(now);
+  if (oldestUsageAt) {
+    const candidate = new Date(oldestUsageAt).getTime() + USAGE_DAY_MS;
+    if (candidate > nowDate.getTime()) return new Date(candidate);
+  }
+  return new Date(nowDate.getTime() + USAGE_DAY_MS);
+}
+
+function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now = new Date(), oldestDailyUsage = null, walletBalanceCents = 0) {
   const zone = normalizeTimeZone(timezone || DEFAULT_TIMEZONE);
   const dailyLimit = getDailyCredits(plan);
   const weeklyLimit = getWeeklyCredits(plan);
@@ -51,7 +70,7 @@ function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now
   const activeLock = lockDate && lockDate.getTime() > now.getTime() ? lockDate.toISOString() : null;
   const dailySafe = Math.max(0, Number(dailyUsed || 0));
   const weeklySafe = Math.max(0, Number(weeklyUsed || 0));
-  const dailyReset = startOfLocalDay(new Date(now.getTime() + USAGE_DAY_MS), zone);
+  const dailyReset = dailyResetAt(now, oldestDailyUsage);
   const weeklyReset = nextWeeklyReset(now, zone);
   return {
     plan,
@@ -66,26 +85,33 @@ function snapshot(plan, timezone, dailyUsed, weeklyUsed, lockedUntil = null, now
     daily: { used: dailySafe, limit: dailyLimit, remaining: Math.max(0, dailyLimit - dailySafe), percentage: percentUsed(dailySafe, dailyLimit), resetsAt: dailyReset.toISOString() },
     weekly: { used: weeklySafe, limit: weeklyLimit, remaining: Math.max(0, weeklyLimit - weeklySafe), percentage: percentUsed(weeklySafe, weeklyLimit), resetsAt: weeklyReset.toISOString() },
     lockedUntil: activeLock,
-    canUseExtraFunds: normalizePlanRank(plan) >= 3,
+    canUseExtraFunds: canUseExtraFunds(plan),
+    extraFundsBalanceCents: Math.max(0, Number(walletBalanceCents || 0)),
+    extraFundsMinimumCents: MIN_TOP_UP_CENTS,
   };
 }
 
 export async function getUsage(userId) {
-  const userResult = await pool.query('SELECT plan, timezone, weekly_locked_until FROM users WHERE id=$1', [userId]);
+  const userResult = await pool.query('SELECT plan, timezone, weekly_locked_until, wallet_balance_cents FROM users WHERE id=$1', [userId]);
   if (!userResult.rows.length) return null;
   const row = userResult.rows[0];
   const timezone = normalizeTimeZone(row.timezone);
-  const dailyStart = startOfLocalDay(new Date(), timezone);
-  const weeklyStart = startOfLocalWeek(new Date(), timezone);
+  const now = new Date();
+  const dailyStart = new Date(now.getTime() - USAGE_DAY_MS);
+  const weeklyStart = startOfLocalWeek(now, timezone);
   const usageResult = await pool.query(
     `SELECT COALESCE(SUM(CASE WHEN created_at >= $2 THEN greatest(units, 0) ELSE 0 END), 0)::int AS daily_used,
             COALESCE(SUM(CASE WHEN created_at >= $3 THEN greatest(units, 0) ELSE 0 END), 0)::int AS weekly_used,
+            MIN(CASE WHEN created_at >= $2 AND greatest(units, 0) > 0 THEN created_at END) AS oldest_daily_usage,
             MAX(created_at) AS latest_usage_at
        FROM usage WHERE user_id=$1`,
     [userId, dailyStart, weeklyStart],
   );
   const usage = usageResult.rows[0] || {};
-  return { ...snapshot(row.plan, timezone, Number(usage.daily_used || 0), Number(usage.weekly_used || 0), row.weekly_locked_until), lastUsedAt: usage.latest_usage_at ? new Date(usage.latest_usage_at).toISOString() : null };
+  return {
+    ...snapshot(row.plan, timezone, Number(usage.daily_used || 0), Number(usage.weekly_used || 0), row.weekly_locked_until, now, usage.oldest_daily_usage, row.wallet_balance_cents),
+    lastUsedAt: usage.latest_usage_at ? new Date(usage.latest_usage_at).toISOString() : null,
+  };
 }
 
 export async function getDailyUsage(userId, days = 35) {
@@ -93,10 +119,10 @@ export async function getDailyUsage(userId, days = 35) {
   const userResult = await pool.query('SELECT timezone FROM users WHERE id=$1', [userId]);
   if (!userResult.rows.length) return { days: [], totalTokens: 0, activeDays: 0, maxDailyTokens: 0, windowDays: safeDays };
   const timezone = normalizeTimeZone(userResult.rows[0].timezone);
-  const dayStart = startOfLocalDay(new Date(), timezone);
+  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
   const result = await pool.query(
     `WITH days AS (
-       SELECT generate_series($2::timestamptz - (($3 - 1) * interval '1 day'), $2::timestamptz, interval '1 day') AS day_start
+       SELECT generate_series(date_trunc('day', now()) - (($3 - 1) * interval '1 day'), date_trunc('day', now()), interval '1 day') AS day_start
      )
      SELECT days.day_start,
             COALESCE(SUM(greatest(us.tokens, 0)), 0)::bigint AS tokens,
@@ -104,9 +130,8 @@ export async function getDailyUsage(userId, days = 35) {
        FROM days
        LEFT JOIN usage us ON us.user_id=$1 AND us.created_at >= days.day_start AND us.created_at < days.day_start + interval '1 day'
       GROUP BY days.day_start ORDER BY days.day_start ASC`,
-    [userId, dayStart, safeDays],
+    [userId, null, safeDays],
   );
-  const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
   const daysData = result.rows.map((row) => ({ day: formatter.format(new Date(row.day_start)), tokens: Math.max(0, Number(row.tokens || 0)), requests: Math.max(0, Number(row.requests || 0)), active: Number(row.tokens || 0) > 0 || Number(row.requests || 0) > 0 }));
   return { days: daysData, totalTokens: daysData.reduce((sum, day) => sum + day.tokens, 0), activeDays: daysData.reduce((sum, day) => sum + (day.active ? 1 : 0), 0), maxDailyTokens: daysData.reduce((max, day) => Math.max(max, day.tokens), 0), windowDays: safeDays, timezone };
 }
@@ -116,46 +141,64 @@ export async function reserveUsage(userId, model) {
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [String(userId)]);
-    const userResult = await client.query('SELECT plan, timezone, weekly_locked_until FROM users WHERE id=$1 FOR UPDATE', [userId]);
+    const userResult = await client.query('SELECT plan, timezone, weekly_locked_until, wallet_balance_cents FROM users WHERE id=$1 FOR UPDATE', [userId]);
     if (!userResult.rows.length) { await client.query('ROLLBACK'); return { ok: false, code: 'AUTH_REQUIRED', status: 401 }; }
     const { plan, timezone: storedTimezone, weekly_locked_until: existingLock } = userResult.rows[0];
     const timezone = normalizeTimeZone(storedTimezone);
     const rank = normalizePlanRank(plan);
     const now = new Date();
+    const walletBalance = Math.max(0, Number(userResult.rows[0].wallet_balance_cents || 0));
     const lockTime = existingLock ? new Date(existingLock) : null;
     const weeklyStart = startOfLocalWeek(now, timezone);
-    const dailyStart = startOfLocalDay(now, timezone);
-
-    if (lockTime && lockTime.getTime() > now.getTime()) {
-      const currentWeekly = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, weeklyStart]);
-      const currentDaily = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, dailyStart]);
-      await client.query('ROLLBACK');
-      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: snapshot(plan, timezone, Number(currentDaily.rows[0]?.used || 0), Number(currentWeekly.rows[0]?.used || 0), lockTime, now), canUseExtraFunds: rank >= 3 };
-    }
-    if (lockTime && lockTime.getTime() <= now.getTime()) await client.query('UPDATE users SET weekly_locked_until=NULL WHERE id=$1', [userId]);
-
+    const dailyStart = new Date(now.getTime() - USAGE_DAY_MS);
     const dailyLimit = getDailyCredits(plan);
     const weeklyLimit = getWeeklyCredits(plan);
-    const daily = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, dailyStart]);
-    const weekly = await client.query('SELECT COALESCE(SUM(greatest(units, 0)), 0)::int AS used FROM usage WHERE user_id=$1 AND created_at >= $2', [userId, weeklyStart]);
-    const dailyUsed = Number(daily.rows[0]?.used || 0);
-    const weeklyUsed = Number(weekly.rows[0]?.used || 0);
+
+    const usage = await client.query(
+      `SELECT COALESCE(SUM(CASE WHEN created_at >= $2 THEN greatest(units, 0) ELSE 0 END), 0)::int AS daily_used,
+              COALESCE(SUM(CASE WHEN created_at >= $3 THEN greatest(units, 0) ELSE 0 END), 0)::int AS weekly_used,
+              MIN(CASE WHEN created_at >= $2 AND greatest(units, 0) > 0 THEN created_at END) AS oldest_daily_usage
+         FROM usage WHERE user_id=$1`,
+      [userId, dailyStart, weeklyStart],
+    );
+    const dailyUsed = Number(usage.rows[0]?.daily_used || 0);
+    const weeklyUsed = Number(usage.rows[0]?.weekly_used || 0);
+    const oldestDailyUsage = usage.rows[0]?.oldest_daily_usage || null;
+    const baseUsage = () => snapshot(plan, timezone, dailyUsed, weeklyUsed, null, now, oldestDailyUsage, walletBalance);
+
+    const weeklyLocked = lockTime && lockTime.getTime() > now.getTime();
+    if (weeklyLocked && canUseExtraFunds(plan) && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
+      const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
+      if (charged.rows.length) {
+        const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
+        await client.query('COMMIT');
+        return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, Number(charged.rows[0].wallet_balance_cents || 0)) };
+      }
+    }
 
     if (weeklyUsed >= weeklyLimit) {
+      if (rank >= 2 && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
+        const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
+        if (charged.rows.length) {
+          const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
+          await client.query('COMMIT');
+          return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, Number(charged.rows[0].wallet_balance_cents || 0)) };
+        }
+      }
       const until = nextWeeklyReset(now, timezone);
       await client.query('UPDATE users SET weekly_locked_until=$2 WHERE id=$1', [userId, until]);
-      const usage = snapshot(plan, timezone, dailyUsed, weeklyUsed, until, now);
       await client.query('COMMIT');
-      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage, canUseExtraFunds: rank >= 3 };
+      return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: snapshot(plan, timezone, dailyUsed, weeklyUsed, until, now, oldestDailyUsage, walletBalance), canUseExtraFunds: rank >= 2 };
     }
+
     if (dailyUsed >= dailyLimit) {
       await client.query('ROLLBACK');
-      return { ok: false, code: 'DAILY_CREDITS_EXHAUSTED', status: 429, usage: snapshot(plan, timezone, dailyUsed, weeklyUsed, null, now), canUseExtraFunds: false };
+      return { ok: false, code: 'DAILY_CREDITS_EXHAUSTED', status: 429, usage: baseUsage(), canUseExtraFunds: false };
     }
 
     const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
     await client.query('COMMIT');
-    return { ok: true, reservationId: inserted.rows[0]?.id || null, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now) };
+    return { ok: true, reservationId: inserted.rows[0]?.id || null, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, walletBalance) };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     throw error;
@@ -179,18 +222,18 @@ export async function getUsagePercent(userId) { const usage = await getUsage(use
 export async function getWallet(userId) {
   const result = await pool.query('SELECT plan, wallet_balance_cents, weekly_locked_until FROM users WHERE id=$1', [userId]);
   if (!result.rows.length) return null;
-  return { plan: result.rows[0].plan, balanceCents: Math.max(0, Number(result.rows[0].wallet_balance_cents || 0)), lockedUntil: result.rows[0].weekly_locked_until ? new Date(result.rows[0].weekly_locked_until).toISOString() : null, canUseExtraFunds: normalizePlanRank(result.rows[0].plan) >= 3, minimumTopUpCents: 500 };
+  return { plan: result.rows[0].plan, balanceCents: Math.max(0, Number(result.rows[0].wallet_balance_cents || 0)), lockedUntil: result.rows[0].weekly_locked_until ? new Date(result.rows[0].weekly_locked_until).toISOString() : null, canUseExtraFunds: canUseExtraFunds(result.rows[0].plan), minimumTopUpCents: MIN_TOP_UP_CENTS, extraRequestCostCents: EXTRA_REQUEST_COST_CENTS };
 }
 
 export async function simulateTopUp(userId, amountCents) {
   const amount = Math.floor(Number(amountCents));
-  if (!Number.isFinite(amount) || amount < 500) return { ok: false, code: 'MIN_TOP_UP', status: 400, minimumTopUpCents: 500 };
+  if (!Number.isFinite(amount) || amount < MIN_TOP_UP_CENTS) return { ok: false, code: 'MIN_TOP_UP', status: 400, minimumTopUpCents: MIN_TOP_UP_CENTS };
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const user = await client.query('SELECT plan FROM users WHERE id=$1 FOR UPDATE', [userId]);
     if (!user.rows.length) { await client.query('ROLLBACK'); return { ok: false, code: 'AUTH_REQUIRED', status: 401 }; }
-    if (normalizePlanRank(user.rows[0].plan) < 3) { await client.query('ROLLBACK'); return { ok: false, code: 'TOP_UP_NOT_AVAILABLE', status: 403 }; }
+    if (!canUseExtraFunds(user.rows[0].plan)) { await client.query('ROLLBACK'); return { ok: false, code: 'TOP_UP_NOT_AVAILABLE', status: 403 }; }
     const updated = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents+$2, weekly_locked_until=NULL WHERE id=$1 RETURNING wallet_balance_cents, weekly_locked_until', [userId, amount]);
     await client.query('COMMIT');
     return { ok: true, balanceCents: Number(updated.rows[0].wallet_balance_cents || 0), lockedUntil: updated.rows[0].weekly_locked_until };

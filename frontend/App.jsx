@@ -13,6 +13,7 @@ import CodexRelease from './pages/CodexRelease.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';
+import TrafficNotice from './components/TrafficNotice.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { api } from './lib/api.js';
 import { detectUserTimeZone } from './lib/timezone.js';
@@ -35,8 +36,8 @@ export default function App() {
     <Route path="/termos/:topic" element={<TermDetail />} />
     <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-    <Route path="/chat" element={<PrivateRoute><ChatRelease /></PrivateRoute>} />
-    <Route path="/codex" element={<PrivateRoute><CodexRelease /></PrivateRoute>} />
+    <Route path="/chat" element={<PrivateRoute><><ChatRelease /><TrafficNotice /></></PrivateRoute>} />
+    <Route path="/codex" element={<PrivateRoute><><CodexRelease /><TrafficNotice /></></PrivateRoute>} />
     <Route path="/studio" element={<PrivateRoute><StudioWithProfile /></PrivateRoute>} />
     <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
     <Route path="/workspace" element={<Navigate to="/studio" replace />} />

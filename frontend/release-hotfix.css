@@ -1,0 +1,11 @@
+/* Targeted release regression fixes. Loaded after release-hardened.css. */
+@media (min-width: 701px) {
+  .prism-chat-topbar .prism-sidebar-mobile-toggle { display: none !important; }
+}
+
+@media (max-width: 700px) {
+  .prism-chat-topbar .prism-sidebar-mobile-toggle { display: inline-grid !important; place-items: center; }
+}
+
+.prism-artifact-drawer .prism-artifacts { min-height: 0; }
+.prism-artifact-drawer .prism-artifacts__list { min-height: 0; }

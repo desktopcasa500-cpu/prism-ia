@@ -1,4 +1,13 @@
 /* Targeted release regression fixes. Loaded after release-hardened.css. */
+html, body, #root { width: 100%; min-width: 0; min-height: 100%; }
+body { overflow-x: hidden; }
+.prism-release-shell,
+.prism-chat-main,
+.prism-workspace,
+.prism-workspace__body,
+.prism-workspace__conversation,
+.prism-file-panel { min-width: 0; }
+
 @media (min-width: 701px) {
   .prism-chat-topbar .prism-sidebar-mobile-toggle { display: none !important; }
 }
@@ -6,6 +15,12 @@
 @media (max-width: 700px) {
   .prism-chat-topbar .prism-sidebar-mobile-toggle { display: inline-grid !important; place-items: center; }
 }
+
+.prism-chat-scroll,
+.prism-workspace__conversation .prism-chat-scroll,
+.prism-file-panel,
+.prism-editor,
+.prism-preview { min-height: 0; }
 
 .prism-artifact-drawer .prism-artifacts { min-height: 0; }
 .prism-artifact-drawer .prism-artifacts__list { min-height: 0; }

@@ -20,20 +20,33 @@ function readBase64(file) {
   });
 }
 
-function clipboardImage(data) {
-  return [...(data?.items || [])]
-    .find((item) => item.kind === 'file' && String(item.type || '').startsWith('image/'))
-    ?.getAsFile?.() || null;
+function clipboardFiles(data) {
+  const files = [...(data?.files || [])].filter(Boolean);
+  const itemFiles = [...(data?.items || [])]
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile?.())
+    .filter(Boolean);
+
+  const unique = new Map();
+  for (const file of [...files, ...itemFiles]) {
+    const key = `${file.name || ''}|${file.size || 0}|${file.type || ''}|${file.lastModified || 0}`;
+    if (!unique.has(key)) unique.set(key, file);
+  }
+  return [...unique.values()];
 }
 
 function isImage(file) {
   return String(file?.mime_type || file?.type || '').startsWith('image/');
 }
 
-export default function FileAttachments({ value = [], onChange, projectId = null, disabled = false, label = 'Adicionar arquivo' }) {
+export default function FileAttachments({ value = [], onChange, projectId = null, disabled = false, label = 'Adicionar arquivo', onUploadingChange }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    onUploadingChange?.(uploading);
+  }, [onUploadingChange, uploading]);
 
   async function addFiles(fileList) {
     const files = [...(fileList || [])].filter(Boolean);
@@ -62,12 +75,10 @@ export default function FileAttachments({ value = [], onChange, projectId = null
   useEffect(() => {
     const onPaste = (event) => {
       if (disabled || uploading) return;
-      const image = clipboardImage(event.clipboardData);
-      if (!image) return;
+      const files = clipboardFiles(event.clipboardData);
+      if (!files.length) return;
       event.preventDefault();
-      const type = image.type || 'image/png';
-      const extension = (type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png';
-      addFiles([new File([image], `imagem-colada-${Date.now()}.${extension}`, { type, lastModified: Date.now() })]);
+      addFiles(files);
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
@@ -84,6 +95,7 @@ export default function FileAttachments({ value = [], onChange, projectId = null
         <button type="button" className="attach-trigger" onClick={() => inputRef.current?.click()} disabled={disabled || uploading} aria-label={uploading ? 'Enviando arquivo' : label} title={label}>
           <span aria-hidden="true">+</span>
         </button>
+        {uploading && <span className="attachment-uploading">Enviando…</span>}
         {value.map((file) => (
           isImage(file) ? (
             <div className="attachment-image-card" key={file.id}>

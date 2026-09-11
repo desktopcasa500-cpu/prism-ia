@@ -1,0 +1,14 @@
+/* Prism TAFF 2.0 — página de apresentação (rota /prism-taff) */
+.taff-page .taff-seal{display:inline-flex;align-items:center;gap:8px;color:var(--hot);margin-bottom:6px}
+.taff-page .taff-intro h1{max-width:820px}
+.taff-page .taff-cta-row{display:flex;align-items:center;gap:16px;margin-top:38px;flex-wrap:wrap}
+.taff-page .taff-cta-primary{background:var(--ink);color:#fff;font:800 12px/1 Arial,Helvetica,sans-serif;padding:16px 26px;letter-spacing:-.01em}
+.taff-page .taff-cta-primary:hover{background:var(--hot)}
+.taff-page .taff-cta-secondary{background:transparent;border:1px solid var(--line);color:var(--ink);font:800 12px/1 Arial,Helvetica,sans-serif;padding:16px 26px;cursor:pointer}
+.taff-page .taff-cta-secondary:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+.taff-page .taff-about p{white-space:pre-line}
+.taff-page .taff-final-cta a{text-decoration:underline;font-size:13px;font-weight:800;color:var(--hot)}
+@media(max-width:560px){
+  .taff-page .taff-cta-row{flex-direction:column;align-items:stretch}
+  .taff-page .taff-cta-primary,.taff-page .taff-cta-secondary{text-align:center}
+}

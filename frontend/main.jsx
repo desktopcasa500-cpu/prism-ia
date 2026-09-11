@@ -38,7 +38,6 @@ import './home-artifacts-stable.css';
 import './home-artifacts-v2.css';
 import './release-hardened.css';
 import './release-hotfix.css';
-import './model-picker-enhancement.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

@@ -140,9 +140,7 @@ body:has(.prism-release-shell) { overflow: hidden; }
 .prism-editor pre { color:#2e2e2a; background:#fbfbfa; }
 .prism-preview { background:#fff; }
 
-@media (max-width:1080px) {
-  .prism-workspace__body { grid-template-columns:minmax(0,1fr) 360px; }
-}
+@media (max-width:1080px) { .prism-workspace__body { grid-template-columns:minmax(0,1fr) 360px; } }
 @media (max-width:860px) {
   .prism-release-shell,.prism-release-shell.sidebar-collapsed { grid-template-columns:72px minmax(0,1fr); }
   .prism-brand-text,.prism-sidebar-mode,.prism-sidebar-new,.prism-sidebar-history,.prism-sidebar-nav span,.prism-profile-mini__meta,.prism-usage-mini { display:none; }
@@ -167,3 +165,13 @@ body:has(.prism-release-shell) { overflow: hidden; }
   .prism-artifact-drawer { inset:0; width:100%; }
   .prism-workspace__body { grid-template-rows:minmax(0,1fr) 44vh; }
 }
+
+.prism-thinking-wrap > summary { list-style:none; cursor:pointer; user-select:none; }
+.prism-thinking-wrap > summary::-webkit-details-marker { display:none; }
+.prism-thinking-menu { position:absolute; display:block; padding:6px; }
+.prism-thinking-menu__head { display:grid; gap:3px; padding:9px; border-bottom:1px solid #ecebe7; }
+.prism-thinking-menu__head span { font-size:10px; }
+.prism-thinking-option { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; border:0; border-radius:8px; background:transparent; padding:8px 9px; cursor:pointer; text-align:left; }
+.prism-thinking-option__copy { display:grid; gap:2px; }
+.prism-thinking-option__copy strong { font-size:11px; font-weight:600; }
+.prism-thinking-option__copy small { font-size:10px; }

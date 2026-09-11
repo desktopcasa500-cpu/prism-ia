@@ -11,23 +11,26 @@ export default function ThinkingSelector({ value = 'medium', onChange, rank = 0,
   return (
     <details className="prism-thinking-wrap">
       <summary className="prism-thinking-trigger" aria-label="Selecionar nível de pensamento">
-        <span aria-hidden="true">◐</span>
+        <span className="prism-thinking-icon" aria-hidden="true">◐</span>
         <span>{selected.label}</span>
       </summary>
       <div className="prism-thinking-menu" role="menu">
-        <div className="prism-thinking-menu__title">Pensamento</div>
+        <div className="prism-thinking-menu__head">
+          <strong>Pensamento</strong>
+          <span>Escolha o esforço usado pela resposta</span>
+        </div>
         {OPTIONS.map((item) => {
           const locked = item.id === 'ultracode' && rank < 4;
           return (
             <button
               key={item.id}
               type="button"
-              className={item.id === value ? 'active' : ''}
+              className={`prism-thinking-option ${item.id === value ? 'active' : ''}`}
               disabled={disabled || locked}
-              onClick={() => onChange?.(item.id)}
+              onClick={(event) => { event.preventDefault(); onChange?.(item.id); event.currentTarget.closest('details')?.removeAttribute('open'); }}
             >
-              <span><strong>{item.label}</strong><small>{item.description}</small></span>
-              {locked ? <b>Upgrade</b> : item.id === value ? <b>Atual</b> : null}
+              <span className="prism-thinking-option__copy"><strong>{item.label}</strong><small>{item.description}</small></span>
+              {(locked || item.id === value) ? <span className="prism-thinking-option__state">{locked ? 'Upgrade' : 'Atual'}</span> : null}
             </button>
           );
         })}

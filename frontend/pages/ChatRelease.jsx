@@ -4,6 +4,8 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import MarkdownMessage from '../components/MarkdownMessage.jsx';
 import PrismReleaseSidebar from '../components/PrismReleaseSidebar.jsx';
+import FileAttachments from '../components/FileAttachments.jsx';
+import ThinkingSelector from '../components/ThinkingSelector.jsx';
 import PlanPanel from '../components/PlanPanel.jsx';
 import { extractCodeBlocks } from '../lib/codeBlocks.js';
 import '../release-hardened.css';
@@ -21,54 +23,155 @@ const PLAN_RANK = { 'Grátis': 0, free: 0, Base: 1, base: 1, Medium: 2, medium: 
 function rankOf(plan) { return PLAN_RANK[plan] ?? 0; }
 function requestId() { try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; } }
 function metaOf(message) { let meta = message?.metadata; if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch { meta = {}; } } return meta || {}; }
+function attachmentList(message) { const attachments = metaOf(message).attachments; return Array.isArray(attachments) ? attachments : []; }
+
 function Artifacts({ items, selectedId, onSelect }) {
   if (!items.length) return <div className="prism-status">Nenhum artefato gerado nesta conversa.</div>;
   return <div className="prism-artifacts"><div className="prism-artifacts__head"><strong>Artefatos</strong><span>{items.length}</span></div><div className="prism-artifacts__list">{items.map((item) => <div className={`prism-artifact-row ${item.id === selectedId ? 'active' : ''}`} key={item.id}><button className="prism-artifact-select" onClick={() => onSelect(item.id)}><span className="prism-artifact-row__name">{item.filename}</span><span className="prism-artifact-row__meta">{item.language || 'arquivo'} · {item.code.split('\n').length} linhas</span></button><button onClick={() => { const blob = new Blob([item.code], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = item.filename.split('/').pop() || 'artifact.txt'; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }}>Baixar</button></div>)}</div></div>;
 }
+
+function MessageAttachments({ message }) {
+  const files = attachmentList(message);
+  if (!files.length) return null;
+  return <div className="prism-message__attachments" aria-label="Arquivos anexados">{files.map((file) => <div className="prism-message__attachment" key={file.id || file.name}><span className="prism-message__attachment-icon" aria-hidden="true">{String(file.mime_type || '').startsWith('image/') ? '▧' : '□'}</span><span title={file.name}>{file.name}</span><small>{Number(file.size_bytes || 0) ? `${Math.max(1, Math.round(Number(file.size_bytes) / 1024))} KB` : 'arquivo'}</small></div>)}</div>;
+}
+
 export default function ChatRelease() {
-  const { user, logout } = useAuth(); const navigate = useNavigate();
-  const [sessions, setSessions] = useState([]); const [activeSession, setActiveSession] = useState(null); const [messages, setMessages] = useState([]); const [usage, setUsage] = useState(null); const [input, setInput] = useState(''); const [model, setModel] = useState('prism-mini-1.0'); const [effort, setEffort] = useState('medium'); const [openModel, setOpenModel] = useState(false); const [sending, setSending] = useState(false); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [plansOpen, setPlansOpen] = useState(false); const [requestedModel, setRequestedModel] = useState(''); const [quotaBlocked, setQuotaBlocked] = useState(false); const [artifacts, setArtifacts] = useState([]); const [artifactOpen, setArtifactOpen] = useState(false); const [activeArtifact, setActiveArtifact] = useState(null); const [mobileOpen, setMobileOpen] = useState(false); const [collapsed, setCollapsed] = useState(false); const [controller, setController] = useState(null); const lockRef = useRef(false); const endRef = useRef(null); const textareaRef = useRef(null); const rank = rankOf(user?.plan);
-  const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]); const canSend = Boolean(input.trim()) && !sending;
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [sessions, setSessions] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [usage, setUsage] = useState(null);
+  const [input, setInput] = useState('');
+  const [model, setModel] = useState('prism-mini-1.0');
+  const [effort, setEffort] = useState('medium');
+  const [openModel, setOpenModel] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentsUploading, setAttachmentsUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [plansOpen, setPlansOpen] = useState(false);
+  const [requestedModel, setRequestedModel] = useState('');
+  const [quotaBlocked, setQuotaBlocked] = useState(false);
+  const [artifacts, setArtifacts] = useState([]);
+  const [artifactOpen, setArtifactOpen] = useState(false);
+  const [activeArtifact, setActiveArtifact] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [controller, setController] = useState(null);
+  const lockRef = useRef(false);
+  const endRef = useRef(null);
+  const textareaRef = useRef(null);
+  const rank = rankOf(user?.plan);
+  const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]);
   const activeArtifactData = useMemo(() => artifacts.find((item) => item.id === activeArtifact) || artifacts[0] || null, [artifacts, activeArtifact]);
-  const authFail = useCallback((e) => { if (e?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
-  const refreshUsage = useCallback(async () => { try { setUsage(await api.get('/chat/usage')); } catch (e) { if (!authFail(e)) console.warn(e); } }, [authFail]);
-  const loadSession = useCallback(async (id) => { if (!id) return; setActiveSession(id); setError(''); setLoading(true); try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); } catch (e) { if (!authFail(e)) setError(e.message || 'Não foi possível carregar a conversa.'); } finally { setLoading(false); } }, [authFail]);
-  useEffect(() => { (async () => { setLoading(true); try { const result = await api.get('/chat/sessions?surface=home'); setSessions(result.sessions || []); if (result.sessions?.[0]) await loadSession(result.sessions[0].id); } catch (e) { if (!authFail(e)) setError(e.message || 'Não foi possível carregar o chat.'); } finally { setLoading(false); } })(); refreshUsage(); }, [authFail, loadSession, refreshUsage]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, sending]);
-  useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = `${Math.min(200, textareaRef.current.scrollHeight)}px`; } }, [input]);
+  const canSend = Boolean(input.trim()) && !sending && !attachmentsUploading;
+  const activeTitle = sessions.find((item) => item.id === activeSession)?.title || 'Nova conversa';
+
+  const authFail = useCallback((error) => { if (error?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
+  const refreshUsage = useCallback(async () => { try { setUsage(await api.get('/chat/usage')); } catch (error) { if (!authFail(error)) console.warn(error); } }, [authFail]);
+  const loadSession = useCallback(async (id) => { if (!id) return; setActiveSession(id); setError(''); setLoading(true); setAttachments([]); setAttachmentsUploading(false); try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); } catch (error) { if (!authFail(error)) setError(error.message || 'Não foi possível carregar a conversa.'); } finally { setLoading(false); } }, [authFail]);
+
+  useEffect(() => { (async () => { setLoading(true); try { const result = await api.get('/chat/sessions?surface=home'); setSessions(result.sessions || []); if (result.sessions?.[0]) await loadSession(result.sessions[0].id); } catch (error) { if (!authFail(error)) setError(error.message || 'Não foi possível carregar o chat.'); } finally { setLoading(false); } })(); refreshUsage(); }, [authFail, loadSession, refreshUsage]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, sending]);
+  useEffect(() => { if (!textareaRef.current) return; textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = `${Math.min(210, textareaRef.current.scrollHeight)}px`; }, [input]);
   useEffect(() => { const found = []; for (const message of messages) if (message.role === 'assistant') found.push(...extractCodeBlocks(message.content, String(message.id))); setArtifacts((current) => { const map = new Map(); for (const item of found) map.set(item.id, item); for (const item of current) if (!map.has(item.id)) map.set(item.id, item); return [...map.values()]; }); }, [messages]);
   useEffect(() => { if (artifactOpen && !activeArtifact && artifacts[0]) setActiveArtifact(artifacts[0].id); }, [artifactOpen, activeArtifact, artifacts]);
-  async function newSession() { if (sending) return; try { const result = await api.post('/chat/sessions', { surface: 'home' }); setSessions((list) => [result.session, ...list]); setActiveSession(result.session.id); setMessages([]); setInput(''); setArtifacts([]); setActiveArtifact(null); setArtifactOpen(false); } catch (e) { if (!authFail(e)) setError(e.message || 'Não foi possível criar uma conversa.'); } }
-  async function send() {
-    const content = input.trim(); if (!content || sending || lockRef.current) return; lockRef.current = true; setSending(true); setError(''); const abort = new AbortController(); setController(abort); let sessionId = activeSession; const rid = requestId(); const localId = `local-${rid}`;
+
+  async function newSession() {
+    if (sending) return;
     try {
-      if (!sessionId) { const created = await api.post('/chat/sessions', { surface: 'home', title: content.slice(0, 64) }); sessionId = created.session.id; setActiveSession(sessionId); setSessions((list) => [created.session, ...list]); }
-      const optimistic = { id: localId, role: 'user', content, model_id: model, effort, metadata: { local: true }, created_at: new Date().toISOString() }; setMessages((list) => [...list, optimistic]); setInput('');
-      const response = await api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { content, model, effort, clientRequestId: rid, attachmentIds: [] }, { timeout: 180000, signal: abort.signal });
-      if (response.duplicate) { const history = await api.get(`/chat/sessions/${encodeURIComponent(sessionId)}/messages?surface=home`); setMessages(history.messages || []); }
-      else if (response.message) { setMessages((list) => [...list.filter((item) => item.id !== localId), response.userMessage || optimistic, response.message]); }
+      const result = await api.post('/chat/sessions', { surface: 'home' });
+      setSessions((list) => [result.session, ...list]);
+      setActiveSession(result.session.id);
+      setMessages([]);
+      setInput('');
+      setAttachments([]);
+      setAttachmentsUploading(false);
+      setArtifacts([]);
+      setActiveArtifact(null);
+      setArtifactOpen(false);
+    } catch (error) { if (!authFail(error)) setError(error.message || 'Não foi possível criar uma conversa.'); }
+  }
+
+  async function send() {
+    const content = input.trim();
+    if (!content || sending || attachmentsUploading || lockRef.current) return;
+    lockRef.current = true;
+    setSending(true);
+    setError('');
+    const abort = new AbortController();
+    setController(abort);
+    let sessionId = activeSession;
+    const rid = requestId();
+    const localId = `local-${rid}`;
+    const selectedAttachments = [...attachments];
+    const attachmentIds = selectedAttachments.map((item) => item.id).filter(Boolean);
+    try {
+      if (!sessionId) {
+        const created = await api.post('/chat/sessions', { surface: 'home', title: content.slice(0, 64) });
+        sessionId = created.session.id;
+        setActiveSession(sessionId);
+        setSessions((list) => [created.session, ...list]);
+      }
+      const optimistic = { id: localId, role: 'user', content, model_id: model, effort, metadata: { local: true, attachments: selectedAttachments }, created_at: new Date().toISOString() };
+      setMessages((list) => [...list, optimistic]);
+      setInput('');
+      const response = await api.post(`/chat/sessions/${encodeURIComponent(sessionId)}/messages`, { content, model, effort, clientRequestId: rid, attachmentIds }, { timeout: 180000, signal: abort.signal });
+      if (response.duplicate) {
+        const history = await api.get(`/chat/sessions/${encodeURIComponent(sessionId)}/messages?surface=home`);
+        setMessages(history.messages || []);
+      } else if (response.message) {
+        setMessages((list) => [...list.filter((item) => item.id !== localId), response.userMessage || optimistic, response.message]);
+      }
+      setAttachments([]);
       if (response.usage) setUsage(response.usage);
-    } catch (e) {
-      if (e?.name !== 'AbortError') {
-        if (e?.payload?.code === 'MODEL_QUOTA_REQUIRED') { setError('Adicione créditos para usar este modelo'); setRequestedModel(selected.label); setQuotaBlocked(true); setPlansOpen(true); }
-        else if (e?.status === 403 || e?.status === 429) { setRequestedModel(e.payload?.requiredPlan ? `Plano ${e.payload.requiredPlan}` : selected.label); setQuotaBlocked(false); setPlansOpen(true); }
-        else if (!authFail(e)) setError(e.message || 'Não foi possível concluir a resposta.');
+    } catch (error) {
+      if (error?.name !== 'AbortError') {
+        if (error?.payload?.code === 'MODEL_QUOTA_REQUIRED') { setError('Adicione créditos para usar este modelo.'); setRequestedModel(selected.label); setQuotaBlocked(true); setPlansOpen(true); }
+        else if (error?.status === 403 || error?.status === 429) { setRequestedModel(error.payload?.requiredPlan ? `Plano ${error.payload.requiredPlan}` : selected.label); setQuotaBlocked(false); setPlansOpen(true); }
+        else if (!authFail(error)) setError(error.message || 'Não foi possível concluir a resposta.');
       }
       setMessages((list) => list.filter((item) => item.id !== localId));
-    } finally { setSending(false); setController(null); lockRef.current = false; refreshUsage(); requestAnimationFrame(() => textareaRef.current?.focus()); }
+    } finally {
+      setSending(false);
+      setController(null);
+      lockRef.current = false;
+      setAttachmentsUploading(false);
+      refreshUsage();
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
   }
-  function chooseModel(id) { const item = MODELS.find((entry) => entry.id === id); if (!item || item.disabled) return; if (rank < item.rank) { setRequestedModel(item.label); setQuotaBlocked(false); setPlansOpen(true); setOpenModel(false); return; } setModel(id); setOpenModel(false); }
+
+  function chooseModel(id) {
+    const item = MODELS.find((entry) => entry.id === id);
+    if (!item || item.disabled) return;
+    if (rank < item.rank) { setRequestedModel(item.label); setQuotaBlocked(false); setPlansOpen(true); setOpenModel(false); return; }
+    setModel(id);
+    setOpenModel(false);
+  }
+
+  function chooseEffort(value) {
+    if (value === 'ultracode' && rank < 4) { setRequestedModel('Ultracode'); setQuotaBlocked(false); setPlansOpen(true); return; }
+    setEffort(value);
+  }
+
   return <div className={`prism-release-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
     <PrismReleaseSidebar mode="home" sessions={sessions} activeId={activeSession} onNew={newSession} onOpen={loadSession} onMode={(next) => next === 'codex' ? navigate('/codex') : navigate('/chat')} onHome={() => navigate('/chat')} onCodex={() => navigate('/codex')} onProjects={() => navigate('/studio')} onArtifacts={() => { setArtifactOpen(true); if (!activeArtifact && artifacts[0]) setActiveArtifact(artifacts[0].id); }} onSettings={() => navigate('/configuracoes')} onProfile={() => navigate('/configuracoes')} usage={usage} user={user} collapsed={collapsed} onCollapse={setCollapsed} mobileOpen={mobileOpen} onMobileOpen={setMobileOpen} />
     <main className="prism-chat-main">
-      <header className="prism-chat-topbar"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><button className="prism-sidebar-mobile-toggle" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">Menu</button><h1>{sessions.find((item) => item.id === activeSession)?.title || 'Nova conversa'}</h1></div><div className="prism-model-menu-wrap"><button className="prism-model-trigger" onClick={() => setOpenModel((value) => !value)}>{selected.label} · {selected.maturity}</button>{openModel && <div className="prism-model-menu" role="menu"><strong style={{ display: 'block', padding: 9, color: '#867d74', fontSize: 11 }}>MODELOS</strong>{MODELS.map((item) => <button key={item.id} className={item.id === model ? 'active' : ''} onClick={() => chooseModel(item.id)} disabled={item.disabled}><span><strong>Prism {item.label}</strong><small>{item.maturity}{item.disabled ? ' · não disponível' : ''}</small></span><b>{item.disabled ? 'Em breve' : rank < item.rank ? 'Upgrade' : item.id === model ? 'Atual' : ''}</b></button>)}</div>}</div></header>
+      <header className="prism-chat-topbar"><div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}><button className="prism-sidebar-mobile-toggle" type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir menu">☰</button><h1>{activeTitle}</h1></div><div className="prism-model-menu-wrap"><button className="prism-model-trigger" type="button" onClick={() => setOpenModel((value) => !value)}>{selected.label} · {selected.maturity}</button>{openModel && <div className="prism-model-menu" role="menu"><strong>MODELOS</strong>{MODELS.map((item) => <button key={item.id} type="button" className={item.id === model ? 'active' : ''} onClick={() => chooseModel(item.id)} disabled={item.disabled}><span><strong>Prism {item.label}</strong><small>{item.maturity}{item.disabled ? ' · não disponível' : ''}</small></span><b>{item.disabled ? 'Em breve' : rank < item.rank ? 'Upgrade' : item.id === model ? 'Atual' : ''}</b></button>)}</div>}</div></header>
       <section className="prism-chat-scroll">
-        {loading && <div className="prism-status">Carregando conversa…</div>}{error && <div className="prism-status error" role="alert">{error}</div>}{!loading && !messages.length && <div className="prism-message"><div className="prism-message__author"><strong>Prism IA</strong></div><div className="prism-message__body"><h2>Olá, {String(user?.name || 'você').split(/\s+/)[0]}.</h2><p>O que vamos fazer hoje?</p></div></div>}
-        {messages.map((message) => <article className={`prism-message ${message.role}`} key={message.id}><div className="prism-message__author"><strong>{message.role === 'user' ? user?.name || 'Você' : 'Prism IA'}</strong>{message.role === 'assistant' && message.model_id ? <span>{MODELS.find((item) => item.id === message.model_id)?.label || message.model_id}</span> : null}</div><div className="prism-message__body">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} onOpenCode={(id) => { setActiveArtifact(id); setArtifactOpen(true); }} /> : <p>{message.content}</p>}</div>{message.role === 'assistant' && metaOf(message).usage_after_percent !== undefined ? <div className="prism-message__actions"><span>Uso após resposta: {metaOf(message).usage_after_percent}%</span></div> : null}</article>)}
-        {sending && <><div className="prism-progress"><div className="prism-progress__track"><div className="prism-progress__fill" style={{ width: '78%' }} /></div><div className="prism-progress__label">Prism IA está preparando a resposta…</div></div><div className="prism-message assistant"><div className="prism-message__author"><strong>Prism IA</strong></div><div className="prism-message__body"><p>Processando…</p></div></div></>}<div ref={endRef} />
+        {loading && <div className="prism-status">Carregando conversa…</div>}
+        {error && <div className="prism-status error" role="alert">{error}</div>}
+        {!loading && !messages.length && <div className="prism-message prism-message--welcome"><div className="prism-message__author"><strong>Prism IA</strong></div><div className="prism-message__body"><h2>Olá, {String(user?.name || 'você').split(/\s+/)[0]}.</h2><p>Como posso ajudar?</p></div></div>}
+        {messages.map((message) => <article className={`prism-message ${message.role}`} key={message.id}><div className="prism-message__author"><strong>{message.role === 'user' ? user?.name || 'Você' : 'Prism IA'}</strong>{message.role === 'assistant' && message.model_id ? <span>{MODELS.find((item) => item.id === message.model_id)?.label || message.model_id}</span> : null}</div><div className="prism-message__body">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} onOpenCode={(id) => { setActiveArtifact(id); setArtifactOpen(true); }} /> : <><MessageAttachments message={message} /><p>{message.content}</p></>}</div>{message.role === 'assistant' && metaOf(message).usage_after_percent !== undefined ? <div className="prism-message__actions">Uso após resposta: {metaOf(message).usage_after_percent}%</div> : null}</article>)}
+        {sending && <div className="prism-progress"><div className="prism-progress__track"><div className="prism-progress__fill" style={{ width:'78%' }} /></div><div className="prism-progress__label">Prism IA está preparando a resposta…</div></div>}
+        <div ref={endRef} />
       </section>
-      {artifactOpen && <aside className="prism-artifact-drawer"><div className="prism-artifact-drawer__head"><div><strong>Artefatos</strong><span>{artifacts.length}</span></div><button onClick={() => setArtifactOpen(false)}>Fechar</button></div><Artifacts items={artifacts} selectedId={activeArtifactData?.id} onSelect={setActiveArtifact} />{activeArtifactData && <div className="prism-artifact-drawer__editor"><div className="prism-artifact-drawer__file"><strong>{activeArtifactData.filename}</strong><span>{activeArtifactData.language || 'arquivo'}</span></div><pre>{activeArtifactData.code}</pre></div>}</aside>}
-      <footer className="prism-composer-wrap"><div className="prism-composer"><textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Escreva uma mensagem" /><div className="prism-composer__row"><span className="prism-composer__hint">Enter envia · Shift+Enter quebra linha</span>{sending ? <button className="prism-cancel" onClick={() => controller?.abort()}>Cancelar</button> : <button className="prism-send" onClick={send} disabled={!canSend}>Enviar</button>}</div></div></footer>
+      {artifactOpen && <aside className="prism-artifact-drawer"><div className="prism-artifact-drawer__head"><div><strong>Artefatos</strong><span>{artifacts.length}</span></div><button type="button" onClick={() => setArtifactOpen(false)}>Fechar</button></div><Artifacts items={artifacts} selectedId={activeArtifactData?.id} onSelect={setActiveArtifact} />{activeArtifactData && <div className="prism-artifact-drawer__editor"><div className="prism-artifact-drawer__file"><strong>{activeArtifactData.filename}</strong><span>{activeArtifactData.language || 'arquivo'}</span></div><pre>{activeArtifactData.code}</pre></div>}</aside>}
+      <footer className="prism-composer-wrap"><div className="prism-composer"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} onUploadingChange={setAttachmentsUploading} label="Adicionar arquivos" /><textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Escreva uma mensagem" /><div className="prism-composer__row"><div className="prism-composer__tools"><FileAttachments value={[]} onChange={() => {}} disabled label="" /></div><ThinkingSelector value={effort} onChange={chooseEffort} rank={rank} disabled={sending} /><span className="prism-composer__hint">Enter envia · Shift+Enter quebra linha</span>{sending ? <button className="prism-cancel" type="button" onClick={() => controller?.abort()}>Cancelar</button> : <button className="prism-send" type="button" onClick={send} disabled={!canSend}>Enviar</button>}</div></div></footer>
     </main>
     <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); setQuotaBlocked(false); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} quotaBlocked={quotaBlocked} />
   </div>;

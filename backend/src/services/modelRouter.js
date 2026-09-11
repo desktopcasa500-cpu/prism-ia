@@ -1,0 +1,44 @@
+const ALL_EFFORTS = ['low', 'medium', 'high', 'max', 'ultracode'];
+const EXECUTION_EFFORTS = ['low', 'medium', 'high'];
+
+export const MODEL_PROFILES = {
+  'prism-nano-1.0': { effort: ALL_EFFORTS, tier: 'fast', description: 'Rápido e econômico', gemini: 'gemini-3.5-flash-lite' },
+  'prism-mini-1.0': { effort: ALL_EFFORTS, tier: 'general', description: 'Uso geral, conversa e programação', gemini: 'gemini-3.6-flash' },
+  'prism-edge-1.0': { effort: ALL_EFFORTS, tier: 'reasoning', description: 'Análise profunda e decisões com mais contexto', gemini: 'gemini-3.6-flash' },
+  'prism-tex-1.5': { effort: ALL_EFFORTS, tier: 'code', description: 'Código, documentação e arquitetura', gemini: 'gemini-3.6-flash' },
+  'prism-taff-1.0': { effort: ALL_EFFORTS, tier: 'advanced', description: 'Projetos complexos e debugging', gemini: 'gemini-3.6-flash' },
+  'prism-taff-2.0': { effort: ALL_EFFORTS, tier: 'ultra', description: 'Orquestração máxima', gemini: 'gemini-3.5-flash' },
+};
+
+export function getModelProfile(model = 'prism-mini-1.0') {
+  return MODEL_PROFILES[model] || MODEL_PROFILES['prism-mini-1.0'];
+}
+
+export function validateThinking(model, effort) {
+  return Boolean(MODEL_PROFILES[model]) && ALL_EFFORTS.includes(effort) && MODEL_PROFILES[model].effort.includes(effort);
+}
+
+export function normalizeEffort(effort = 'medium') {
+  if (!ALL_EFFORTS.includes(effort)) return 'medium';
+  if (effort === 'max' || effort === 'ultracode') return 'high';
+  return effort;
+}
+
+export function resolveExecutionEffort(requestedEffort = 'medium', supportedEfforts = EXECUTION_EFFORTS) {
+  const requested = normalizeEffort(requestedEffort);
+  const supported = EXECUTION_EFFORTS.filter((level) => supportedEfforts.includes(level));
+  if (!supported.length) return 'medium';
+  if (supported.includes(requested)) return requested;
+  const target = EXECUTION_EFFORTS.indexOf(requested);
+  return [...supported].sort((a, b) => Math.abs(EXECUTION_EFFORTS.indexOf(a) - target) - Math.abs(EXECUTION_EFFORTS.indexOf(b) - target))[0];
+}
+
+export function getProviderEffort(provider, requestedEffort) {
+  const capabilities = {
+    gemini: ['low', 'medium', 'high'],
+    groq: ['low', 'medium', 'high'],
+    openrouter: ['low', 'medium', 'high'],
+    'nvidia-nim': ['low', 'medium', 'high'],
+  };
+  return resolveExecutionEffort(requestedEffort, capabilities[provider] || EXECUTION_EFFORTS);
+}

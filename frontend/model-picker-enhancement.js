@@ -141,6 +141,13 @@ function start() {
   });
   state.observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
   document.addEventListener('click', (event) => {
+    const taffButton = event.target.closest?.('.prism-model-menu button');
+    if (taffButton && normalize(taffButton.textContent).includes('taff 2.0')) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.location.assign('/prism-taff');
+      return;
+    }
     if (event.target.closest('.topbar-model')) window.setTimeout(sync, 10);
     if (!event.target.closest('.prism-model-picker-custom') && !event.target.closest('.topbar-model')) {
       state.custom?.remove();

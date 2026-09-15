@@ -26,7 +26,6 @@ import './prism-logo-overrides.css';
 import './taff-presentation-v2.css';
 import './reference-experience.css';
 import './reference-experience-v4.css';
-import './reference-experience-v5.css';
 import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
@@ -38,6 +37,7 @@ import './home-artifacts-stable.css';
 import './home-artifacts-v2.css';
 import './release-hardened.css';
 import './release-hotfix.css';
+import './reference-experience-v5.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

@@ -293,7 +293,6 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
     }
 
     await recordTokens(reservation.reservationId, result?.providers?.[0] || null, Number(result?.tokens || 0));
-    reservation = null;
 
     const saved = await saveTurn({
       session,
@@ -305,6 +304,8 @@ router.post('/sessions/:id/messages', async (req, res, next) => {
       files,
       requestId: clientRequestId,
     });
+    reservation = null;
+
     const usage = saved.usage || await getUsage(req.userId);
     return res.status(201).json({
       ...saved,

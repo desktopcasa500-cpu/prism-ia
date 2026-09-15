@@ -3,143 +3,140 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import MarkdownMessage from '../components/MarkdownMessage.jsx';
-import PrismReleaseSidebar from '../components/PrismReleaseSidebar.jsx';
 import FileAttachments from '../components/FileAttachments.jsx';
 import ThinkingSelector from '../components/ThinkingSelector.jsx';
 import PlanPanel from '../components/PlanPanel.jsx';
-import '../release-hardened.css';
 
 const MODELS = [
-  { id: 'prism-nano-1.0', label: 'Prism Nano 1.0A', short: 'Prism Nano 1.0A', rank: 0 },
-  { id: 'prism-mini-1.0', label: 'Prism Mini 1.0A', short: 'Prism Mini 1.0A', rank: 0 },
-  { id: 'prism-edge-1.0', label: 'Prism Edge 1.0A', short: 'Prism Edge 1.0A', rank: 2 },
-  { id: 'prism-tex-1.5', label: 'Prism Tex 1.5A', short: 'Prism Tex 1.5A', rank: 2 },
-  { id: 'prism-taff-1.0', label: 'Prism Taff 1.0A', short: 'Prism Taff 1.0A', rank: 3 },
-  { id: 'prism-taff-2.0', label: 'Prism Taff 2.0', short: 'Prism Taff 2.0', rank: 3 },
+  { id: 'prism-nano-1.0', label: 'Prism Nano 1.0A', rank: 0 },
+  { id: 'prism-mini-1.0', label: 'Prism Mini 1.0A', rank: 0 },
+  { id: 'prism-edge-1.0', label: 'Prism Edge 1.0A', rank: 2 },
+  { id: 'prism-tex-1.5', label: 'Prism Tex 1.5A', rank: 2 },
+  { id: 'prism-taff-1.0', label: 'Prism Taff 1.0A', rank: 3 },
+  { id: 'prism-taff-2.0', label: 'Prism Taff 2.0', rank: 3 },
 ];
 const PLAN_RANK = { 'Grátis': 0, free: 0, Base: 1, base: 1, Medium: 2, medium: 2, Pro: 3, pro: 3, Empresarial: 4, enterprise: 4 };
 const MODEL_STORAGE = 'prism.home.model';
 
-const REFERENCE_CHAT_CSS = `
-.prism-chat-reference,
-.prism-chat-reference * { box-sizing:border-box; }
-.prism-chat-reference { position:fixed; inset:0; width:100%; height:100dvh; overflow:hidden; background:#fff; color:#171717; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-.prism-chat-reference .prism-release-shell { position:fixed; inset:0; display:grid; grid-template-columns:248px minmax(0,1fr); min-width:0; min-height:0; background:#fff; color:#171717; }
-.prism-chat-reference .prism-release-shell.sidebar-collapsed { grid-template-columns:72px minmax(0,1fr); }
-.prism-chat-reference .prism-release-sidebar { width:auto; height:100dvh; min-height:0; overflow:hidden; background:#fff; border-right:1px solid #ececec; color:#202020; }
-.prism-chat-reference .prism-release-sidebar__top { height:58px; padding:0 10px; display:flex; align-items:center; gap:7px; }
-.prism-chat-reference .prism-release-brand { color:#171717; background:transparent; border:0; display:flex; align-items:center; gap:9px; font-size:13px; font-weight:650; }
-.prism-chat-reference .prism-logo { width:27px; height:27px; }
-.prism-chat-reference .prism-sidebar-toggle { width:28px; height:28px; border:1px solid #e5e5e5; border-radius:7px; background:#fff; color:#777; }
-.prism-chat-reference .prism-sidebar-mode { display:grid; grid-template-columns:1fr 1fr; gap:3px; padding:0 8px 9px; }
-.prism-chat-reference .prism-sidebar-mode button { min-height:31px; border:0; border-radius:7px; background:#fff; color:#777; font-size:11px; }
-.prism-chat-reference .prism-sidebar-mode button.active { background:#f1f1f1; color:#222; font-weight:600; }
-.prism-chat-reference .prism-sidebar-new { width:calc(100% - 16px); min-height:35px; margin:0 8px 10px; display:flex; align-items:center; gap:8px; border:1px solid #e2e2e2; border-radius:8px; background:#fff; color:#222; font-size:11px; font-weight:500; }
-.prism-chat-reference .prism-sidebar-new:hover { background:#fafafa; }
-.prism-chat-reference .prism-sidebar-new__plus { color:#222; font-size:17px; line-height:1; }
-.prism-chat-reference .prism-sidebar-nav { display:grid; gap:1px; padding:0 7px 10px; }
-.prism-chat-reference .prism-sidebar-nav button { min-height:32px; border:0; border-radius:7px; background:#fff; color:#666; padding:0 10px; font-size:11px; }
-.prism-chat-reference .prism-sidebar-nav button:hover { background:#f5f5f5; color:#222; }
-.prism-chat-reference .prism-sidebar-history { padding:2px 7px 10px; overflow:auto; scrollbar-width:thin; scrollbar-color:#d9d9d9 transparent; }
-.prism-chat-reference .prism-sidebar-history section + section { margin-top:11px; }
-.prism-chat-reference .prism-sidebar-history h4 { margin:0 9px 5px; color:#a0a0a0; font-size:9px; font-weight:600; text-transform:none; letter-spacing:0; }
-.prism-chat-reference .prism-sidebar-history__items { display:grid; gap:1px; }
-.prism-chat-reference .prism-sidebar-history button { width:100%; min-height:28px; border:0; border-radius:7px; padding:0 9px; background:#fff; color:#666; font-size:11px; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.prism-chat-reference .prism-sidebar-history button:hover { background:#f7f7f7; color:#222; }
-.prism-chat-reference .prism-sidebar-history button.active { background:#ededed; color:#222; font-weight:600; }
-.prism-chat-reference .prism-sidebar-bottom { padding:9px 8px 10px; border-top:1px solid #eeeeee; }
-.prism-chat-reference .prism-usage-mini { color:#8b8b8b; font-size:9px; }
-.prism-chat-reference .prism-usage-mini__bar { height:3px; background:#eeeeee; }
-.prism-chat-reference .prism-usage-mini__bar b { background:#222; }
-.prism-chat-reference .prism-profile-mini { width:100%; border:0; background:#fff; color:#222; border-radius:7px; padding:6px 2px; }
-.prism-chat-reference .prism-profile-mini:hover { background:#f6f6f6; }
-.prism-chat-reference .prism-profile-avatar { width:27px; height:27px; background:#222; color:#fff; font-size:10px; }
-.prism-chat-reference .prism-profile-mini__meta strong { font-size:10px; font-weight:600; }
-.prism-chat-reference .prism-profile-mini__meta span { font-size:9px; color:#929292; }
-.prism-chat-reference .prism-chat-reference__main { min-width:0; min-height:0; height:100dvh; display:grid; grid-template-rows:auto minmax(0,1fr) auto; background:#fff; }
-.prism-chat-reference .prism-chat-reference__header { height:50px; display:flex; align-items:center; gap:9px; padding:0 24px; border-bottom:1px solid #f0f0f0; background:#fff; color:#555; font-size:11px; }
-.prism-chat-reference .prism-chat-reference__mobile { display:none; border:0; background:#fff; color:#555; }
-.prism-chat-reference .prism-chat-reference__conversation { min-height:0; overflow:auto; background:#fff; scrollbar-width:thin; scrollbar-color:#dcdcdc transparent; }
-.prism-chat-reference .prism-chat-reference__conversation.is-empty { display:flex; align-items:flex-start; justify-content:center; }
-.prism-chat-reference .prism-chat-reference__welcome { width:min(690px,calc(100% - 48px)); padding-top:14.5vh; text-align:left; }
-.prism-chat-reference .prism-chat-reference__welcome h1 { margin:0; color:#111; font-size:38px; line-height:1.08; letter-spacing:-.045em; font-weight:650; }
-.prism-chat-reference .prism-chat-reference__messages { width:min(760px,calc(100% - 48px)); margin:0 auto; padding:46px 0 28px; }
-.prism-chat-reference .prism-chat-reference__message { margin:0 0 30px; color:#202020; font-size:14px; line-height:1.7; }
-.prism-chat-reference .prism-chat-reference__author { margin-bottom:7px; color:#151515; font-size:11px; font-weight:600; }
-.prism-chat-reference .prism-chat-reference__message.user { text-align:right; }
-.prism-chat-reference .prism-chat-reference__message.user p { display:inline-block; max-width:78%; margin:0; padding:9px 12px; border:1px solid #ededed; border-radius:14px 14px 4px 14px; background:#f7f7f7; color:#171717; text-align:left; }
-.prism-chat-reference .prism-chat-reference__message.assistant { max-width:100%; }
-.prism-chat-reference .prism-chat-reference__message p { margin:0; }
-.prism-chat-reference .prism-chat-reference__attachments { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; margin-bottom:7px; }
-.prism-chat-reference .prism-chat-reference__attachments span { padding:5px 8px; border:1px solid #e5e5e5; border-radius:7px; background:#fff; color:#666; font-size:10px; }
-.prism-chat-reference .prism-chat-reference__working { color:#8a8a8a; font-size:11px; padding:5px 0; }
-.prism-chat-reference .prism-chat-reference__status { width:min(760px,calc(100% - 48px)); margin:34px auto; padding:9px 11px; border:1px solid #e6e6e6; border-radius:9px; background:#fff; color:#777; font-size:11px; }
-.prism-chat-reference .prism-chat-reference__status.is-error { color:#9a3b31; border-color:#ead4d0; background:#fffafa; }
-.prism-chat-reference .prism-chat-reference__composer-area { width:100%; padding:0 20px 20px; background:#fff; }
-.prism-chat-reference .prism-chat-reference__composer { position:relative; width:min(690px,100%); margin:0 auto; padding:8px 9px 8px; border:1px solid #d8d8d8; border-radius:14px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.03); }
-.prism-chat-reference .prism-chat-reference__composer:focus-within { border-color:#c8c8c8; box-shadow:0 2px 8px rgba(0,0,0,.045); }
-.prism-chat-reference .prism-chat-reference__composer textarea { display:block; width:100%; min-height:52px; max-height:190px; margin:0; padding:3px 4px 7px; border:0; outline:0; resize:none; background:#fff; color:#181818; font:400 13px/1.5 Inter,ui-sans-serif,system-ui,sans-serif; }
-.prism-chat-reference .prism-chat-reference__composer textarea::placeholder { color:#777; opacity:1; }
-.prism-chat-reference .prism-chat-reference__composer-row { min-height:31px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.prism-chat-reference .prism-chat-reference__left-controls { display:flex; align-items:center; gap:6px; min-width:0; }
-.prism-chat-reference .prism-chat-reference__right-controls { display:flex; align-items:center; gap:9px; }
-.prism-chat-reference .prism-chat-reference__project { color:#606060; font-size:10px; white-space:nowrap; }
-.prism-chat-reference .file-attachments { display:flex !important; align-items:center; min-width:30px; }
-.prism-chat-reference .attach-trigger { width:30px; height:30px; border:0; border-radius:7px; background:#fff; color:#555; font-size:20px; line-height:1; padding:0; }
-.prism-chat-reference .attach-trigger:hover { background:#f5f5f5; }
-.prism-chat-reference .attachment-chip,.prism-chat-reference .attachment-image-card { border-color:#e6e6e6; background:#fff; }
-.prism-chat-reference .prism-chat-reference__model-wrap { position:relative; }
-.prism-chat-reference .prism-chat-reference__model { height:30px; display:inline-flex; align-items:center; gap:6px; border:0; border-radius:7px; padding:0 7px; background:#fff; color:#414141; font-size:10px; cursor:pointer; }
-.prism-chat-reference .prism-chat-reference__model:hover { background:#f5f5f5; }
-.prism-chat-reference .prism-chat-reference__model-dot { width:16px; height:16px; display:block; border:1.5px solid #7b7b7b; border-radius:4px; box-shadow:inset 0 0 0 3px #fff; background:#d9d9d9; }
-.prism-chat-reference .prism-chat-reference__chevron { color:#777; font-size:11px; margin-top:-2px; }
-.prism-chat-reference .prism-chat-reference__model-menu { position:absolute; left:0; bottom:38px; z-index:100; width:210px; padding:5px; border:1px solid #dfdfdf; border-radius:10px; background:#fff; box-shadow:0 12px 30px rgba(0,0,0,.1); }
-.prism-chat-reference .prism-chat-reference__model-menu button { width:100%; min-height:38px; display:flex; align-items:center; justify-content:space-between; border:0; border-radius:7px; padding:0 9px; background:#fff; color:#222; font-size:11px; text-align:left; cursor:pointer; }
-.prism-chat-reference .prism-chat-reference__model-menu button:hover,.prism-chat-reference .prism-chat-reference__model-menu button.active { background:#f3f3f3; }
-.prism-chat-reference .prism-chat-reference__model-menu button > span:last-child { color:#777; font-size:10px; }
-.prism-chat-reference .prism-chat-reference__effort { display:block; }
-.prism-chat-reference .prism-chat-reference__effort .prism-thinking-trigger { height:30px; border:0; background:#fff; padding:0 6px; color:#5a5a5a; font-size:10px; }
-.prism-chat-reference .prism-chat-reference__effort .prism-thinking-trigger:hover { background:#f5f5f5; }
-.prism-chat-reference .prism-chat-reference__effort .prism-thinking-menu { bottom:38px; }
-.prism-chat-reference .prism-chat-reference__send { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:7px; background:#202020; color:#fff; font-size:16px; line-height:1; cursor:pointer; }
-.prism-chat-reference .prism-chat-reference__send:hover:not(:disabled) { background:#000; }
-.prism-chat-reference .prism-chat-reference__send:disabled { background:#eee; color:#aaa; cursor:not-allowed; }
-.prism-chat-reference .prism-chat-reference__send.stop { font-size:10px; }
-.prism-chat-reference .prism-sidebar-mobile-toggle { display:none; }
-.prism-chat-reference .prism-collapsed-only { display:none; }
-.prism-chat-reference .sidebar-collapsed .prism-brand-text,.prism-chat-reference .sidebar-collapsed .prism-sidebar-mode,.prism-chat-reference .sidebar-collapsed .prism-sidebar-new,.prism-chat-reference .sidebar-collapsed .prism-sidebar-nav span,.prism-chat-reference .sidebar-collapsed .prism-sidebar-history,.prism-chat-reference .sidebar-collapsed .prism-profile-mini__meta,.prism-chat-reference .sidebar-collapsed .prism-usage-mini { display:none; }
-.prism-chat-reference .sidebar-collapsed .prism-collapsed-only { display:inline; }
-.prism-chat-reference .prism-chat-reference__message .markdown-body,.prism-chat-reference .prism-chat-reference__message code { color:#202020; }
-.prism-chat-reference .prism-chat-reference__message pre { margin:12px 0; padding:12px; border:1px solid #e4e4e4; border-radius:9px; background:#fafafa; overflow:auto; }
-@media (max-width:900px) {
-  .prism-chat-reference .prism-release-shell { grid-template-columns:72px minmax(0,1fr); }
-  .prism-chat-reference .prism-release-sidebar { position:absolute; left:0; top:0; bottom:0; z-index:120; width:248px; transform:translateX(-100%); transition:transform .18s ease; box-shadow:10px 0 30px rgba(0,0,0,.08); }
-  .prism-chat-reference .prism-release-sidebar.mobile-open { transform:translateX(0); }
-  .prism-chat-reference .prism-sidebar-mobile-toggle { display:inline-flex; }
-  .prism-chat-reference .prism-chat-reference__mobile { display:inline-flex; }
-  .prism-chat-reference .prism-chat-reference__welcome { width:min(690px,calc(100% - 32px)); padding-top:10vh; }
-  .prism-chat-reference .prism-chat-reference__welcome h1 { font-size:32px; }
-  .prism-chat-reference .prism-chat-reference__messages { width:calc(100% - 32px); }
+const CHAT_CSS = `
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 0; min-height: 100%; }
+body:has(.prism-reference-chat) { margin: 0; background: #fff; overflow: hidden; color: #161616; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+button, input, textarea, select { font: inherit; }
+
+.prism-reference-chat { position: fixed; inset: 0; width: 100%; height: 100dvh; display: grid; grid-template-columns: 248px minmax(0,1fr); background: #fff; color: #161616; overflow: hidden; }
+.prism-reference-sidebar { min-width: 0; height: 100dvh; border-right: 1px solid #ededed; background: #fff; display: flex; flex-direction: column; }
+.prism-reference-sidebar__top { height: 52px; padding: 0 8px; display: flex; align-items: center; gap: 6px; }
+.prism-reference-sidebar__account { min-width: 0; flex: 1; border: 0; background: #fff; display: flex; align-items: center; gap: 8px; padding: 6px; color: #161616; cursor: pointer; border-radius: 7px; }
+.prism-reference-sidebar__account:hover { background: #f7f7f7; }
+.prism-reference-sidebar__account .avatar { width: 26px; height: 26px; border-radius: 50%; background: #7bbf69; display: grid; place-items: center; color: #143214; font-size: 10px; font-weight: 700; overflow: hidden; }
+.prism-reference-sidebar__account .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #222; font-size: 11px; }
+.prism-reference-sidebar__account .chevron { color: #777; font-size: 11px; }
+.prism-reference-sidebar__toggle { width: 27px; height: 27px; border: 1px solid #e4e4e4; border-radius: 7px; background: #fff; color: #666; cursor: pointer; }
+.prism-reference-sidebar__toggle:hover { background: #f6f6f6; }
+.prism-reference-new { margin: 0 8px 10px; height: 34px; width: calc(100% - 16px); border: 1px solid #dfdfdf; border-radius: 7px; background: #fff; color: #222; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; cursor: pointer; font-size: 11px; }
+.prism-reference-new:hover { background: #f6f6f6; }
+.prism-reference-new .arrow { color: #777; font-size: 11px; }
+.prism-reference-search { margin: 0 8px 7px; height: 30px; display: flex; align-items: center; gap: 7px; color: #888; padding: 0 9px; font-size: 10px; }
+.prism-reference-search .icon { font-size: 15px; line-height: 1; color: #777; }
+.prism-reference-nav { padding: 0 8px 8px; display: grid; gap: 1px; }
+.prism-reference-nav button { min-height: 31px; border: 0; border-radius: 6px; background: #fff; color: #5f5f5f; text-align: left; padding: 0 9px; cursor: pointer; font-size: 11px; }
+.prism-reference-nav button:hover { background: #f6f6f6; color: #222; }
+.prism-reference-nav button.active { background: #ededed; color: #222; font-weight: 600; }
+.prism-reference-section { padding: 0 8px 8px; }
+.prism-reference-section__label { padding: 7px 9px 5px; color: #989898; font-size: 9px; font-weight: 600; }
+.prism-reference-drafts { border: 1px dashed #e8e8e8; border-radius: 8px; min-height: 42px; display: grid; place-items: center; color: #9a9a9a; font-size: 9px; }
+.prism-reference-projects { display: grid; gap: 1px; }
+.prism-reference-project { min-height: 28px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border-radius: 6px; color: #555; font-size: 10px; }
+.prism-reference-project:hover { background: #f6f6f6; }
+.prism-reference-project .dot { width: 13px; height: 13px; border-radius: 4px; border: 1px solid #ddd; display: grid; place-items: center; font-size: 8px; color: #777; }
+.prism-reference-history { min-height: 0; flex: 1; overflow: auto; padding: 2px 8px 10px; }
+.prism-reference-history__title { padding: 8px 9px 5px; color: #999; font-size: 9px; font-weight: 600; }
+.prism-reference-history__item { width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: #fff; color: #606060; text-align: left; padding: 0 9px; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.prism-reference-history__item:hover { background: #f6f6f6; color: #222; }
+.prism-reference-history__item.active { background: #ededed; color: #222; font-weight: 600; }
+.prism-reference-sidebar__bottom { border-top: 1px solid #ededed; padding: 9px 8px 10px; }
+.prism-reference-team { border: 1px solid #e9e9e9; border-radius: 9px; padding: 9px; margin-bottom: 7px; background: #fff; }
+.prism-reference-team__icons { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.prism-reference-team__icon { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; border: 1px solid #e1e1e1; background: #f7f7f7; font-size: 9px; color: #555; }
+.prism-reference-team__line { width: 30px; height: 1px; background: #d8d8d8; }
+.prism-reference-team strong { display: block; color: #222; font-size: 9px; margin-bottom: 7px; }
+.prism-reference-team button { width: 100%; height: 26px; border: 1px solid #e3e3e3; border-radius: 6px; background: #fff; color: #333; font-size: 9px; cursor: pointer; }
+.prism-reference-sidebar__profile { width: 100%; border: 0; background: #fff; display: flex; align-items: center; gap: 8px; text-align: left; padding: 5px 2px; border-radius: 7px; cursor: pointer; }
+.prism-reference-sidebar__profile:hover { background: #f6f6f6; }
+.prism-reference-sidebar__profile .avatar { width: 27px; height: 27px; border-radius: 50%; background: #232323; color: #fff; display: grid; place-items: center; font-size: 9px; font-weight: 700; }
+.prism-reference-sidebar__profile strong { display: block; font-size: 10px; color: #222; }
+.prism-reference-sidebar__profile span { display: block; font-size: 9px; color: #8a8a8a; margin-top: 1px; }
+
+.prism-reference-main { min-width: 0; min-height: 0; height: 100dvh; display: grid; grid-template-rows: minmax(0,1fr) auto; background: #fff; overflow: hidden; }
+.prism-reference-conversation { min-height: 0; overflow: auto; background: #fff; }
+.prism-reference-empty { min-height: 100%; display: flex; align-items: flex-start; justify-content: center; }
+.prism-reference-empty__inner { width: min(690px, calc(100% - 40px)); padding-top: 28vh; }
+.prism-reference-empty h1 { margin: 0 0 36px; text-align: center; color: #111; font-size: 34px; line-height: 1.08; letter-spacing: -.045em; font-weight: 650; }
+.prism-reference-messages { width: min(760px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 30px; }
+.prism-reference-message { margin: 0 0 30px; color: #202020; font-size: 14px; line-height: 1.68; }
+.prism-reference-message__author { margin-bottom: 7px; font-size: 11px; font-weight: 600; color: #171717; }
+.prism-reference-message.user { text-align: right; }
+.prism-reference-message.user .message-copy { display: inline-block; max-width: 78%; padding: 9px 12px; border: 1px solid #ededed; border-radius: 14px 14px 4px 14px; background: #f7f7f7; color: #171717; text-align: left; }
+.prism-reference-message.assistant .message-copy { color: #202020; }
+.prism-reference-message p { margin: 0; }
+.prism-reference-working { color: #8a8a8a; font-size: 11px; padding: 4px 0; }
+.prism-reference-status { width: min(760px, calc(100% - 40px)); margin: 35px auto; padding: 9px 11px; border: 1px solid #e4e4e4; border-radius: 8px; background: #fff; color: #777; font-size: 10px; }
+.prism-reference-status.error { color: #9a3b31; border-color: #ead5d1; background: #fffafa; }
+
+.prism-reference-composer-wrap { background: #fff; padding: 0 20px 19px; }
+.prism-reference-composer { width: min(690px,100%); margin: 0 auto; position: relative; border: 1px solid #d8d8d8; border-radius: 14px; background: #fff; padding: 8px 9px 8px; box-shadow: 0 1px 3px rgba(0,0,0,.03); }
+.prism-reference-composer:focus-within { border-color: #c7c7c7; box-shadow: 0 2px 8px rgba(0,0,0,.045); }
+.prism-reference-composer textarea { width: 100%; min-height: 49px; max-height: 190px; display: block; border: 0; outline: 0; resize: none; background: transparent; color: #181818; padding: 2px 3px 7px; font-size: 13px; line-height: 1.5; }
+.prism-reference-composer textarea::placeholder { color: #777; opacity: 1; }
+.prism-reference-composer__attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px 5px; }
+.prism-reference-composer__attachment { max-width: 240px; min-height: 25px; display: flex; align-items: center; padding: 0 8px; border: 1px solid #e4e4e4; border-radius: 6px; background: #fff; color: #666; font-size: 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.prism-reference-composer__row { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prism-reference-composer__left { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.prism-reference-composer__right { display: flex; align-items: center; gap: 8px; }
+.prism-reference-project-select { height: 30px; border: 0; border-radius: 7px; background: #fff; color: #555; padding: 0 6px; font-size: 10px; }
+.prism-reference-project-select:hover { background: #f5f5f5; }
+.prism-reference-model { position: relative; }
+.prism-reference-model > button { height: 30px; border: 0; border-radius: 7px; background: #fff; color: #404040; padding: 0 7px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 10px; }
+.prism-reference-model > button:hover { background: #f5f5f5; }
+.prism-reference-model .model-dot { width: 15px; height: 15px; border: 1.5px solid #7c7c7c; border-radius: 4px; background: #ddd; box-shadow: inset 0 0 0 3px #fff; }
+.prism-reference-model .chevron { color: #777; font-size: 10px; }
+.prism-reference-model__menu { position: absolute; left: 0; bottom: 36px; z-index: 50; width: 225px; padding: 5px; border: 1px solid #dfdfdf; border-radius: 9px; background: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.1); }
+.prism-reference-model__menu button { width: 100%; min-height: 37px; border: 0; border-radius: 7px; background: #fff; color: #222; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 9px; text-align: left; cursor: pointer; font-size: 10px; }
+.prism-reference-model__menu button:hover, .prism-reference-model__menu button.active { background: #f3f3f3; }
+.prism-reference-model__menu small { color: #8a8a8a; font-size: 9px; }
+.prism-reference-composer .file-attachments { min-width: 30px; display: flex !important; align-items: center; }
+.prism-reference-composer .attach-trigger { width: 30px; height: 30px; border: 0; border-radius: 7px; background: #fff; color: #555; font-size: 20px; line-height: 1; padding: 0; }
+.prism-reference-composer .attach-trigger:hover { background: #f5f5f5; }
+.prism-reference-thinking .prism-thinking-trigger { height: 30px; border: 0; border-radius: 7px; background: #fff; color: #666; padding: 0 5px; font-size: 10px; }
+.prism-reference-thinking .prism-thinking-trigger:hover { background: #f5f5f5; }
+.prism-reference-thinking .prism-thinking-menu { bottom: 36px; }
+.prism-reference-send { width: 31px; height: 31px; border: 0; border-radius: 7px; background: #202020; color: #fff; display: grid; place-items: center; cursor: pointer; font-size: 16px; line-height: 1; }
+.prism-reference-send:disabled { background: #ededed; color: #aaa; cursor: not-allowed; }
+.prism-reference-send:hover:not(:disabled) { background: #000; }
+.prism-reference-send.stop { font-size: 10px; }
+
+@media (max-width: 820px) {
+  .prism-reference-chat { grid-template-columns: 1fr; }
+  .prism-reference-sidebar { position: fixed; z-index: 100; left: 0; top: 0; bottom: 0; width: 248px; transform: translateX(-102%); transition: transform .18s ease; box-shadow: 12px 0 30px rgba(0,0,0,.08); }
+  .prism-reference-sidebar.mobile-open { transform: translateX(0); }
+  .prism-reference-empty__inner { padding-top: 21vh; }
+  .prism-reference-empty h1 { font-size: 30px; }
+  .prism-reference-composer-wrap { padding: 0 10px 10px; }
+  .prism-reference-message.user .message-copy { max-width: 88%; }
 }
-@media (max-width:620px) {
-  .prism-chat-reference .prism-release-shell { grid-template-columns:1fr; }
-  .prism-chat-reference .prism-chat-reference__main { width:100%; }
-  .prism-chat-reference .prism-chat-reference__welcome { padding-top:9vh; }
-  .prism-chat-reference .prism-chat-reference__welcome h1 { font-size:29px; }
-  .prism-chat-reference .prism-chat-reference__composer-area { padding:0 10px 10px; }
-  .prism-chat-reference .prism-chat-reference__project,.prism-chat-reference .prism-chat-reference__effort { display:none; }
+@media (max-width: 520px) {
+  .prism-reference-empty__inner { width: calc(100% - 24px); padding-top: 19vh; }
+  .prism-reference-empty h1 { font-size: 28px; margin-bottom: 26px; }
+  .prism-reference-model__menu { width: min(225px, calc(100vw - 34px)); }
+  .prism-reference-composer textarea { min-height: 46px; }
+  .prism-reference-project-select { display: none; }
 }
 `;
 
 function rankOf(plan) { return PLAN_RANK[plan] ?? 0; }
-function metadataOf(message) {
-  if (!message?.metadata) return {};
-  if (typeof message.metadata === 'object') return message.metadata;
-  try { return JSON.parse(message.metadata); } catch { return {}; }
-}
-function requestId() {
-  try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; }
-}
+function metadataOf(message) { if (!message?.metadata) return {}; if (typeof message.metadata === 'object') return message.metadata; try { return JSON.parse(message.metadata); } catch { return {}; } }
+function requestId() { try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; } }
 
 export default function ChatRelease() {
   const { user, logout } = useAuth();
@@ -161,7 +158,6 @@ export default function ChatRelease() {
   const [requestedModel, setRequestedModel] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const controllerRef = useRef(null);
   const endRef = useRef(null);
   const textareaRef = useRef(null);
@@ -171,15 +167,13 @@ export default function ChatRelease() {
 
   useEffect(() => { localStorage.setItem(MODEL_STORAGE, model); }, [model]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, sending]);
-  useEffect(() => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = 'auto';
-    textareaRef.current.style.height = `${Math.min(220, textareaRef.current.scrollHeight)}px`;
-  }, [input]);
+  useEffect(() => { if (!textareaRef.current) return; textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = `${Math.min(190, textareaRef.current.scrollHeight)}px`; }, [input]);
 
   const authFail = useCallback((cause) => {
     if (cause?.status !== 401) return false;
-    logout(); navigate('/login', { replace: true }); return true;
+    logout();
+    navigate('/login', { replace: true });
+    return true;
   }, [logout, navigate]);
 
   const refreshUsage = useCallback(async () => {
@@ -188,7 +182,7 @@ export default function ChatRelease() {
 
   const loadSession = useCallback(async (id) => {
     if (!id) return;
-    setSessionId(id); setLoading(true); setError(''); setAttachments([]);
+    setSessionId(id); setLoading(true); setError(''); setAttachments([]); setMobileOpen(false);
     try {
       const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`);
       setMessages(result.messages || []);
@@ -214,7 +208,8 @@ export default function ChatRelease() {
     if (sending) return;
     try {
       const result = await api.post('/chat/sessions', { surface: 'home' });
-      setSessions((list) => [result.session, ...list]); setSessionId(result.session.id); setMessages([]); setInput(''); setAttachments([]); setError('');
+      setSessions((list) => [result.session, ...list]); setSessionId(result.session.id);
+      setMessages([]); setInput(''); setAttachments([]); setError(''); setMobileOpen(false);
     } catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.'); }
   }
 
@@ -231,7 +226,8 @@ export default function ChatRelease() {
     setSending(true); setError('');
     const controller = new AbortController(); controllerRef.current = controller;
     const rid = requestId(); const selectedAttachments = [...attachments];
-    let currentSession = sessionId; const localId = `local-${rid}`;
+    let currentSession = sessionId;
+    const localId = `local-${rid}`;
     try {
       if (!currentSession) {
         const created = await api.post('/chat/sessions', { surface: 'home', title: content.slice(0, 64) || 'Arquivos anexados' });
@@ -239,9 +235,12 @@ export default function ChatRelease() {
       }
       const optimistic = { id: localId, role: 'user', content, model_id: model, effort, metadata: { attachments: selectedAttachments } };
       setMessages((list) => [...list, optimistic]); setInput(''); setAttachments([]);
-      const result = await api.post(`/chat/sessions/${encodeURIComponent(currentSession)}/messages`, { content, model, effort, clientRequestId: rid, attachmentIds: selectedAttachments.map((item) => item.id).filter(Boolean) }, { timeout: 180000, signal: controller.signal });
+      const result = await api.post(`/chat/sessions/${encodeURIComponent(currentSession)}/messages`, {
+        content, model, effort, clientRequestId: rid, attachmentIds: selectedAttachments.map((item) => item.id).filter(Boolean),
+      }, { timeout: 180000, signal: controller.signal });
       if (result.duplicate) {
-        const history = await api.get(`/chat/sessions/${encodeURIComponent(currentSession)}/messages?surface=home`); setMessages(history.messages || []);
+        const history = await api.get(`/chat/sessions/${encodeURIComponent(currentSession)}/messages?surface=home`);
+        setMessages(history.messages || []);
       } else if (result.message) {
         setMessages((list) => [...list.filter((item) => item.id !== localId), result.userMessage || optimistic, result.message]);
       }
@@ -257,56 +256,87 @@ export default function ChatRelease() {
     }
   }
 
+  const initial = String(user?.name || 'P').slice(0,1).toUpperCase();
+  const recentProjects = sessions.slice(0, 1);
+
   return (
-    <div className="prism-chat-reference">
-      <style>{REFERENCE_CHAT_CSS}</style>
-      <div className={`prism-release-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
-        <PrismReleaseSidebar
-          mode="home" sessions={sessions} activeId={sessionId} onNew={newSession} onOpen={loadSession}
-          onMode={(next) => navigate(next === 'codex' ? '/codex' : '/chat')} onHome={() => navigate('/chat')}
-          onCodex={() => navigate('/codex')} onProjects={() => navigate('/studio')} onArtifacts={() => {}}
-          onSettings={() => navigate('/configuracoes')} onProfile={() => navigate('/configuracoes')}
-          usage={usage} user={user} collapsed={collapsed} onCollapse={setCollapsed}
-          mobileOpen={mobileOpen} onMobileOpen={setMobileOpen}
-        />
-        <main className="prism-chat-reference__main">
-          {hasMessages && <header className="prism-chat-reference__header"><button type="button" className="prism-chat-reference__mobile" onClick={() => setMobileOpen(true)}>☰</button><span>{sessions.find((item) => item.id === sessionId)?.title || 'Conversa'}</span></header>}
-          <section className={`prism-chat-reference__conversation ${hasMessages ? 'is-active' : 'is-empty'}`}>
-            {!hasMessages && !loading && !error && <div className="prism-chat-reference__welcome"><h1>O que você quer criar?</h1></div>}
-            {loading && <div className="prism-chat-reference__status">Carregando conversa...</div>}
-            {error && <div className="prism-chat-reference__status is-error" role="alert">{error}</div>}
-            {hasMessages && <div className="prism-chat-reference__messages">
-              {messages.map((message) => {
-                const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : [];
-                return <article className={`prism-chat-reference__message ${message.role}`} key={message.id}>
-                  <div className="prism-chat-reference__author">{message.role === 'user' ? user?.name || 'Você' : 'Prism IA'}</div>
-                  {files.length > 0 && <div className="prism-chat-reference__attachments">{files.map((file) => <span key={file.id || file.name}>{file.name}</span>)}</div>}
-                  {message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}
-                </article>;
-              })}
-              {sending && <div className="prism-chat-reference__working">Prism IA está trabalhando...</div>}
-              <div ref={endRef} />
-            </div>}
-          </section>
-          <footer className="prism-chat-reference__composer-area">
-            <div className="prism-chat-reference__composer">
-              <textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça ao Prism para construir..." />
-              {attachments.length > 0 && <div className="prism-chat-reference__attachment-row">{attachments.map((file) => <span key={file.id || file.name}>{file.name}</span>)}</div>}
-              <div className="prism-chat-reference__composer-row">
-                <div className="prism-chat-reference__left-controls">
-                  <FileAttachments value={attachments} onChange={setAttachments} disabled={sending} onUploadingChange={setUploading} label="Adicionar arquivo" />
-                  <div className="prism-chat-reference__model-wrap">
-                    <button type="button" className="prism-chat-reference__model" onClick={() => setModelOpen((value) => !value)} aria-expanded={modelOpen}><span className="prism-chat-reference__model-dot" /><span>{selected.short}</span><span className="prism-chat-reference__chevron">⌄</span></button>
-                    {modelOpen && <div className="prism-chat-reference__model-menu">{MODELS.map((item) => <button type="button" key={item.id} className={item.id === model ? 'active' : ''} onClick={() => chooseModel(item.id)}><span>{item.label}</span><span>{rank < item.rank ? 'Upgrade' : item.id === model ? '✓' : ''}</span></button>)}</div>}
-                  </div>
-                  <div className="prism-chat-reference__effort"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending} /></div>
+    <div className={`prism-reference-chat ${mobileOpen ? 'menu-open' : ''}`}>
+      <style>{CHAT_CSS}</style>
+      <aside className={`prism-reference-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+        <div className="prism-reference-sidebar__top">
+          <button className="prism-reference-sidebar__account" type="button" onClick={() => navigate('/configuracoes')}>
+            <span className="avatar">{initial}</span><span className="name">{user?.name || 'Prism'}</span><span className="chevron">⌄</span>
+          </button>
+          <button className="prism-reference-sidebar__toggle" type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)}>◧</button>
+        </div>
+        <button className="prism-reference-new" type="button" onClick={newSession}><span>Nova Conversa</span><span className="arrow">⌄</span></button>
+        <div className="prism-reference-search"><span className="icon">⌕</span><span>Buscar</span></div>
+        <nav className="prism-reference-nav">
+          <button className="active" type="button" onClick={() => navigate('/chat')}>Início</button>
+          <button type="button" onClick={() => navigate('/studio')}>Projetos</button>
+          <button type="button" onClick={() => {}}>Conversas</button>
+          <button type="button" onClick={() => navigate('/studio')}>Design Systems</button>
+          <button type="button" onClick={() => navigate('/modelos')}>Modelos</button>
+        </nav>
+        <section className="prism-reference-section">
+          <div className="prism-reference-section__label">Drafts</div>
+          <div className="prism-reference-drafts">No drafts yet</div>
+        </section>
+        <section className="prism-reference-section">
+          <div className="prism-reference-section__label">Projects</div>
+          <div className="prism-reference-projects">{recentProjects.length ? recentProjects.map((item) => <button className="prism-reference-project" key={item.id} type="button" onClick={() => loadSession(item.id)}><span className="dot">⌁</span><span>{item.title || 'Novo projeto'}</span></button>) : <div className="prism-reference-project"><span className="dot">⌁</span><span>Sem projetos</span></div>}</div>
+        </section>
+        <div className="prism-reference-history">
+          {sessions.length > 0 && <div className="prism-reference-history__title">Conversas recentes</div>}
+          {sessions.map((item) => <button key={item.id} type="button" className={`prism-reference-history__item ${item.id === sessionId ? 'active' : ''}`} onClick={() => loadSession(item.id)}>{item.title || 'Nova conversa'}</button>)}
+        </div>
+        <div className="prism-reference-sidebar__bottom">
+          <div className="prism-reference-team"><div className="prism-reference-team__icons"><span className="prism-reference-team__icon">✦</span><span className="prism-reference-team__line"/><span className="prism-reference-team__icon">P</span></div><strong>Your new team is ready</strong><button type="button" onClick={() => navigate('/configuracoes')}>View details</button></div>
+          <button type="button" className="prism-reference-sidebar__profile" onClick={() => navigate('/configuracoes')}><span className="avatar">{initial}</span><span><strong>{user?.name || 'Você'}</strong><span>{user?.plan || 'Grátis'}</span></span></button>
+        </div>
+      </aside>
+
+      <main className="prism-reference-main">
+        <section className="prism-reference-conversation">
+          {loading && <div className="prism-reference-status">Carregando conversa...</div>}
+          {error && <div className="prism-reference-status error" role="alert">{error}</div>}
+          {!hasMessages && !loading && !error && <div className="prism-reference-empty"><div className="prism-reference-empty__inner"><h1>O que você quer criar?</h1></div></div>}
+          {hasMessages && <div className="prism-reference-messages">
+            {messages.map((message) => {
+              const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : [];
+              return <article className={`prism-reference-message ${message.role}`} key={message.id}>
+                <div className="prism-reference-message__author">{message.role === 'user' ? user?.name || 'Você' : 'Prism IA'}</div>
+                {files.length > 0 && <div className="prism-reference-composer__attachments">{files.map((file) => <span className="prism-reference-composer__attachment" key={file.id || file.name}>{file.name}</span>)}</div>}
+                <div className="message-copy">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div>
+              </article>;
+            })}
+            {sending && <div className="prism-reference-working">Prism está trabalhando...</div>}
+            <div ref={endRef} />
+          </div>}
+        </section>
+
+        <footer className="prism-reference-composer-wrap">
+          <div className="prism-reference-composer">
+            <textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça ao Prism para construir..." aria-label="Mensagem" />
+            {attachments.length > 0 && <div className="prism-reference-composer__attachments">{attachments.map((file) => <span className="prism-reference-composer__attachment" key={file.id || file.name}>{file.name}</span>)}</div>}
+            <div className="prism-reference-composer__row">
+              <div className="prism-reference-composer__left">
+                <FileAttachments value={attachments} onChange={setAttachments} disabled={sending} onUploadingChange={setUploading} label="Adicionar arquivo" />
+                <div className="prism-reference-model">
+                  <button type="button" onClick={() => setModelOpen((value) => !value)} aria-expanded={modelOpen}><span className="model-dot"/><span>{selected.label}</span><span className="chevron">⌄</span></button>
+                  {modelOpen && <div className="prism-reference-model__menu" role="menu">{MODELS.map((item) => <button key={item.id} type="button" className={item.id === selected.id ? 'active' : ''} onClick={() => chooseModel(item.id)}><span>{item.label}</span><small>{rank < item.rank ? 'Upgrade' : item.id === selected.id ? 'Selecionado' : ''}</small></button>)}</div>}
                 </div>
-                <div className="prism-chat-reference__right-controls"><span className="prism-chat-reference__project">Project⌄</span>{sending ? <button type="button" className="prism-chat-reference__send stop" onClick={() => controllerRef.current?.abort()}>■</button> : <button type="button" className="prism-chat-reference__send" disabled={!canSend} onClick={send} aria-label="Enviar">↑</button>}</div>
+                <div className="prism-reference-thinking"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending} /></div>
+              </div>
+              <div className="prism-reference-composer__right">
+                <select className="prism-reference-project-select" aria-label="Projeto" defaultValue="project"><option value="project">Project⌄</option></select>
+                {sending ? <button className="prism-reference-send stop" type="button" onClick={() => controllerRef.current?.abort()} aria-label="Parar">■</button> : <button className="prism-reference-send" type="button" disabled={!canSend} onClick={send} aria-label="Enviar">{canSend ? '↑' : '◉'}</button>}
               </div>
             </div>
-          </footer>
-        </main>
-      </div>
+          </div>
+        </footer>
+      </main>
+
       <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} />
     </div>
   );

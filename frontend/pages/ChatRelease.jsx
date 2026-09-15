@@ -148,15 +148,11 @@ export default function ChatRelease() {
       <main className="prism-chat-main">
         <header className="prism-chat-topbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}><button className="prism-sidebar-mobile-toggle" type="button" onClick={() => setMobileOpen(true)}>☰</button><h1>{activeTitle}</h1></div>
-          <div className="prism-model-menu-wrap">
-            <button className="prism-model-trigger" type="button" onClick={() => setModelOpen((value) => !value)}>Prism {selected.label} · {selected.maturity}</button>
-            {modelOpen && <div className="prism-model-menu" role="menu"><strong>MODELOS</strong>{MODELS.map((item) => <button key={item.id} type="button" className={item.id === model ? 'active' : ''} onClick={() => chooseModel(item.id)}><span><strong>Prism {item.label}</strong><small>{item.maturity}</small></span><b>{rank < item.rank ? 'Upgrade' : item.id === model ? 'Atual' : ''}</b></button>)}</div>}
-          </div>
         </header>
         <section className="prism-chat-scroll">
           {loading && <div className="prism-status">Carregando conversa…</div>}
           {error && <div className="prism-status error" role="alert">{error}</div>}
-          {!loading && !messages.length && <div className="prism-message prism-message--welcome"><div className="prism-message__author"><strong>Prism IA</strong></div><div className="prism-message__body"><h2>Como posso ajudar?</h2><p>Conversa, escrita, código, arquivos e pesquisa quando necessário.</p></div></div>}
+          {!loading && !messages.length && <div className="prism-message prism-message--welcome"><div className="prism-message__author"><strong>Prism IA</strong></div><div className="prism-message__body"><h2>O que você quer criar?</h2><p>Conversa, escrita, código, arquivos e pesquisa quando necessário.</p></div></div>}
           {messages.map((message) => {
             const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : [];
             return <article className={`prism-message ${message.role}`} key={message.id}>
@@ -171,8 +167,19 @@ export default function ChatRelease() {
           <div ref={endRef} />
         </section>
         <footer className="prism-composer-wrap"><div className="prism-composer">
-          <textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Escreva uma mensagem" />
-          <div className="prism-composer__row"><div className="prism-composer__tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} onUploadingChange={setUploading} label="Adicionar arquivos" /><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending} /></div><span className="prism-composer__hint">Enter envia · Shift+Enter quebra linha</span>{sending ? <button className="prism-cancel" type="button" onClick={() => controllerRef.current?.abort()}>Parar</button> : <button className="prism-send" type="button" disabled={!canSend} onClick={send}>Enviar</button>}</div>
+          <textarea ref={textareaRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça ao Prism para construir..." />
+          <div className="prism-composer__row">
+            <div className="prism-composer__tools">
+              <FileAttachments value={attachments} onChange={setAttachments} disabled={sending} onUploadingChange={setUploading} label="Adicionar arquivos" />
+              <div className="prism-model-menu-wrap prism-model-menu-wrap--composer">
+                <button className="prism-model-trigger" type="button" onClick={() => setModelOpen((value) => !value)} aria-expanded={modelOpen}>Prism {selected.label}</button>
+                {modelOpen && <div className="prism-model-menu" role="menu"><strong>MODELOS</strong>{MODELS.map((item) => <button key={item.id} type="button" className={item.id === model ? 'active' : ''} onClick={() => chooseModel(item.id)}><span><strong>Prism {item.label}</strong><small>{item.maturity}</small></span><b>{rank < item.rank ? 'Upgrade' : item.id === model ? 'Atual' : ''}</b></button>)}</div>}
+              </div>
+              <ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending} />
+            </div>
+            <span className="prism-composer__hint">Enter envia · Shift+Enter quebra linha</span>
+            {sending ? <button className="prism-cancel" type="button" onClick={() => controllerRef.current?.abort()}>Parar</button> : <button className="prism-send" type="button" disabled={!canSend} onClick={send}>Enviar</button>}
+          </div>
         </div></footer>
       </main>
       <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel} />

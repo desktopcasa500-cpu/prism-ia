@@ -5,10 +5,11 @@ import { DEFAULT_TIMEZONE, normalizeTimeZone } from '../services/timezone.js';
 
 const router = Router();
 router.use(requireAuth);
+const MAX_INSTRUCTIONS = 6000;
 
 router.get('/me', async (req, res) => {
   const result = await pool.query(
-    'SELECT id, email, name, plan, timezone, created_at FROM users WHERE id = $1',
+    'SELECT id, email, name, plan, timezone, assistant_instructions, created_at FROM users WHERE id = $1',
     [req.userId]
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -17,24 +18,29 @@ router.get('/me', async (req, res) => {
 
 router.patch('/me', async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-  if (!name) return res.status(400).json({ error: 'O nome não pode ficar vazio.' });
-  if (name.length > 80) return res.status(400).json({ error: 'O nome deve ter no máximo 80 caracteres.' });
-
-  const result = await pool.query(
-    'UPDATE users SET name = $1 WHERE id = $2 RETURNING id, email, name, plan, timezone, created_at',
-    [name, req.userId]
-  );
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+  const hasInstructions = typeof req.body?.assistant_instructions === 'string';
+  const assistantInstructions = hasInstructions ? req.body.assistant_instructions.replace(/\u0000/g, '').trim().slice(0, MAX_INSTRUCTIONS) : null;
+  if (name && name.length > 80) return res.status(400).json({ error: 'O nome deve ter no máximo 80 caracteres.' });
+  if (!name && !hasInstructions) return res.status(400).json({ error: 'Nenhuma alteração foi enviada.' });
+  if (name && hasInstructions) {
+    const result = await pool.query('UPDATE users SET name=$1, assistant_instructions=$2 WHERE id=$3 RETURNING id,email,name,plan,timezone,assistant_instructions,created_at', [name, assistantInstructions, req.userId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    return res.json({ user: result.rows[0] });
+  }
+  if (name) {
+    const result = await pool.query('UPDATE users SET name=$1 WHERE id=$2 RETURNING id,email,name,plan,timezone,assistant_instructions,created_at', [name, req.userId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    return res.json({ user: result.rows[0] });
+  }
+  const result = await pool.query('UPDATE users SET assistant_instructions=$1 WHERE id=$2 RETURNING id,email,name,plan,timezone,assistant_instructions,created_at', [assistantInstructions, req.userId]);
+  if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
   res.json({ user: result.rows[0] });
 });
 
 router.patch('/me/timezone', async (req, res) => {
   const candidate = typeof req.body?.timezone === 'string' ? req.body.timezone.trim() : '';
   const timezone = normalizeTimeZone(candidate || DEFAULT_TIMEZONE);
-  const result = await pool.query(
-    'UPDATE users SET timezone = $1 WHERE id = $2 RETURNING id, timezone',
-    [timezone, req.userId]
-  );
+  const result = await pool.query('UPDATE users SET timezone = $1 WHERE id = $2 RETURNING id, timezone', [timezone, req.userId]);
   if (result.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
   res.json({ timezone: result.rows[0].timezone });
 });
@@ -45,11 +51,7 @@ router.get('/me/stats', async (req, res) => {
     pool.query('SELECT COUNT(*)::int AS count FROM messages WHERE user_id = $1', [req.userId]),
     pool.query('SELECT COALESCE(SUM(tokens_used), 0)::int AS total FROM messages WHERE user_id = $1', [req.userId]),
   ]);
-  res.json({
-    sessions: sessions.rows[0].count,
-    messages: messages.rows[0].count,
-    total_tokens: tokens.rows[0].total,
-  });
+  res.json({ sessions: sessions.rows[0].count, messages: messages.rows[0].count, total_tokens: tokens.rows[0].total });
 });
 
 export default router;

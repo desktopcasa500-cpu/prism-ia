@@ -7,6 +7,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { buildProject } from '../services/buildService.js';
 import { zipWorkspace } from '../services/artifactService.js';
+import { releaseUsage, recordTokens, reserveUsage } from '../services/usage.js';
 
 const router = Router();
 const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
@@ -66,11 +67,14 @@ router.use(requireAuth);
 
 router.post('/', async (req, res) => {
   let build = null;
+  let reservation = null;
   const target = targetOf(req.body?.target);
   const projectId = String(req.body?.projectId || '').trim();
   if (!projectId) return res.status(400).json({ error: 'Projeto não informado.', code: 'PROJECT_REQUIRED' });
   if (!target) return res.status(400).json({ error: 'Destino de compilação não suportado. Use "jar", "zip" ou "win32-x64".', code: 'TARGET_UNSUPPORTED' });
   try {
+    reservation = await reserveUsage(req.userId, `build:${target}`);
+    if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
     const { project, files } = await loadProject(projectId, req.userId);
     if (target === 'zip') {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), `prism-project-${crypto.randomUUID()}-`));
@@ -82,6 +86,9 @@ router.post('/', async (req, res) => {
       }
       const workspace = { root, projectId, userId: req.userId, project, files, cleanup: async () => {} };
       const result = await zipWorkspace(workspace);
+      await recordTokens(reservation.reservationId, 'build', 0);
+      reservation = null;
+      await fs.rm(root, { recursive: true, force: true }).catch(() => {});
       return res.json(result);
     }
     build = await buildProject({ projectName: project.name, files, target });
@@ -89,8 +96,11 @@ router.post('/', async (req, res) => {
     buildCache.set(build.buildId, { userId: req.userId, projectId, tempDir: build.tempDir, outputPath: build.outputPath, filename: build.filename, expiresAt });
     await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))", [build.buildId, req.userId, projectId, target, build.filename, build.outputPath, expiresAt]);
     const token = signDownload(build.buildId, req.userId, expiresAt);
+    await recordTokens(reservation.reservationId, 'build', 0);
+    reservation = null;
     return res.json({ ok: true, buildId: build.buildId, target, filename: build.filename, size: build.size, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`, details: build.details });
   } catch (error) {
+    if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
     if (build?.tempDir) await fs.rm(build.tempDir, { recursive: true, force: true }).catch(() => {});
     const code = error?.code || 'BUILD_FAILED';
     const status = Number.isInteger(error?.status) ? error.status : code === 'BUILD_TIMEOUT' ? 504 : 422;

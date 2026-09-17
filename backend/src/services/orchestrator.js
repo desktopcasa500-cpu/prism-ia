@@ -132,9 +132,7 @@ function providers(model, effort) {
   return list.sort((a, b) => priority.indexOf(a.name) - priority.indexOf(b.name));
 }
 
-export async function runOrchestration(prompt,effort='medium',profile=null,context='',userId=null,options={}){
-  const model=profile?.model||profile?.id||'prism-mini-1.0';
-  if (isMegaBrainCommand(model, effort, prompt)) return runMegaBrain({prompt,context,userId,projectId:options.projectId||null,onProgress:options.onProgress});
+async function runCoreOrchestration(prompt,effort='medium',profile=null,context='',userId=null,options={}){
 
   const model=profile?.model||profile?.id||'prism-mini-1.0';const normalizedEffort=normalizeEffort(effort);const input=String(context||'').slice(-MAX_CONTEXT)+`\n\nPedido atual:\n${String(prompt||'').slice(0,MAX_CONTEXT)}`;const execution={userId,projectId:options.projectId,onProgress:options.onProgress,model};let workspace=null;let mcp={tools:[],errors:[],execute:async()=>{throw new Error('MCP indisponível.')},close:async()=>{}};
   try{
@@ -147,4 +145,14 @@ export async function runOrchestration(prompt,effort='medium',profile=null,conte
     for(const provider of list){const started=Date.now();try{emit(execution,'provider_start',{provider:provider.name,model:provider.model});let result=await callOpenAICompatible({provider:provider.name,key:keys[provider.name](),model:provider.model,prompt:input,effort:normalizedEffort,tools,execution,url:provider.url,headers:provider.headers});if(result?.text?.trim()){emit(execution,'provider_complete',{provider:result.provider,elapsedMs:Date.now()-started});emit(execution,'finalizing',{message:'Revisando a resposta.'});return{status:'ok',text:result.text.trim(),tokens:Number(result.tokens||0),providers:[result.provider],tools_used:result.used||[],mcp_errors:mcp.errors,provider_errors:errors,model,effort:normalizedEffort};}errors.push({provider:provider.name,reason:'empty_response',elapsedMs:Date.now()-started);}catch(error){errors.push({provider:provider.name,reason:error?.code||'provider_error',message:String(error?.message||'').slice(0,500),elapsedMs:Date.now()-started});emit(execution,'provider_error',{provider:provider.name,message:error?.message||'Falha no provedor.'});}}
     return{status:'unavailable',message:'Todos os provedores configurados falharam.',providers:[],provider_errors:errors,mcp_errors:mcp.errors,model,effort:normalizedEffort,tools_used:[]};
   }finally{await mcp.close().catch(()=>{});await workspace?.cleanup?.();emit(execution,'done');}
+}
+
+export async function runOrchestration(prompt, effort='medium', profile=null, context='', userId=null, options={}) {
+  const model = profile?.model || profile?.id || 'prism-mini-1.0';
+  if (isMegaBrainCommand(model, effort, prompt)) {
+    const mega = await runMegaBrain({ prompt, context, userId, projectId: options.projectId || null, onProgress: options.onProgress });
+    if (mega?.status !== 'ok') return mega;
+    return runCoreOrchestration(mega.enrichedPrompt, 'ultracode', profile, context, userId, options);
+  }
+  return runCoreOrchestration(prompt, effort, profile, context, userId, options);
 }

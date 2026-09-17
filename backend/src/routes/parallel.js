@@ -7,7 +7,7 @@ import { getUsage, reserveUsage, releaseUsage, recordTokens, MODEL_REQUIREMENTS,
 
 const router = Router();
 router.use(requireAuth);
-const ALLOWED_PROVIDERS = new Set(['anthropic', 'openai', 'gemini']);
+const ALLOWED_PROVIDERS = new Set(['nvidia', 'groq', 'opencode']);
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_MODELS = 3;

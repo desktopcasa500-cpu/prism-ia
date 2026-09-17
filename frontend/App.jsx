@@ -12,16 +12,15 @@ import Register from './pages/Register.jsx';
 import ChatReleaseV2 from './pages/ChatReleaseV2.jsx';
 import CodexReleaseV2 from './pages/CodexReleaseV2.jsx';
 import Studio from './pages/Studio.jsx';
-import Settings from './pages/Settings.jsx';
+import SettingsV2 from './pages/SettingsV2.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';
 import TrafficNotice from './components/TrafficNotice.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { api } from './lib/api.js';
 import { detectUserTimeZone } from './lib/timezone.js';
-
 function LoadingScreen(){return <div className="app-loading" role="status"><div className="loading-wordmark">PRISM</div><div className="loading-line"/></div>}
 function PrivateRoute({children}){const{user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?children:<Navigate to="/login" replace/>}
 function PublicRoute({children}){const{user,loading}=useAuth();if(loading)return <LoadingScreen/>;return user?<Navigate to="/chat" replace/>:children}
 function StudioWithProfile(){const{user,updateUser,logout}=useAuth();return <><Studio/><StudioProfileMenu user={user} updateUser={updateUser} logout={logout}/></>}
 function TimezoneSync(){const{user}=useAuth();const syncedUserRef=useRef(null);useEffect(()=>{if(!user?.id||syncedUserRef.current===user.id)return;syncedUserRef.current=user.id;api.patch('/user/me/timezone',{timezone:detectUserTimeZone()}).catch(()=>{});},[user?.id]);return null}
-export default function App(){return <><TimezoneSync/><Routes><Route path="/" element={<Landing/>}/><Route path="/prism-taff" element={<TaffPresentation/>}/><Route path="/informacoes" element={<InfoV2/>}/><Route path="/informacoes/:id" element={<PrismDetailV2 type="info"/>}/><Route path="/modelos" element={<ModelsV2/>}/><Route path="/modelos/:id" element={<PrismDetailV2 type="models"/>}/><Route path="/termos" element={<TermsV2/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><><ChatReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><><CodexReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><Settings/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></>}
+export default function App(){return <><TimezoneSync/><Routes><Route path="/" element={<Landing/>}/><Route path="/prism-taff" element={<TaffPresentation/>}/><Route path="/informacoes" element={<InfoV2/>}/><Route path="/informacoes/:id" element={<PrismDetailV2 type="info"/>}/><Route path="/modelos" element={<ModelsV2/>}/><Route path="/modelos/:id" element={<PrismDetailV2 type="models"/>}/><Route path="/termos" element={<TermsV2/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><><ChatReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><><CodexReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><SettingsV2/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/></Routes></>}

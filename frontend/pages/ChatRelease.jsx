@@ -33,7 +33,7 @@ function eventLabel(event) {
   return map[event?.type] || event?.message || event?.type || 'Executando';
 }
 
-export default function ChatReleaseV2() {
+export default function ChatRelease() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const rank = rankOf(user?.plan);

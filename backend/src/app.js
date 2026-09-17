@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
-import chatRoutes from './routes/chat-v3.js';
+import chatRoutes from './routes/chat.js';
 import parallelRoutes from './routes/parallel.js';
 import skillsRoutes from './routes/skills.js';
 import modelsRoutes from './routes/models.js';

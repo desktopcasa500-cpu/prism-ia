@@ -35,6 +35,7 @@ import './release-hardened.css';
 import './release-hotfix.css';
 import './reference-experience-v5.css';
 import './chat-agent-v6.css';
+import './codex-agent-v7.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

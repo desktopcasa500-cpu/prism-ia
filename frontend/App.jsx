@@ -9,7 +9,7 @@ import TermDetail from './pages/TermDetail.jsx';
 import PrismDetail from './pages/PrismDetail.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
-import ChatRelease from './pages/ChatRelease.jsx';
+import ChatReleaseV2 from './pages/ChatReleaseV2.jsx';
 import CodexRelease from './pages/CodexRelease.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
@@ -37,7 +37,7 @@ export default function App() {
     <Route path="/termos/:topic" element={<TermDetail />} />
     <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-    <Route path="/chat" element={<PrivateRoute><><ChatRelease /><TrafficNotice /></></PrivateRoute>} />
+    <Route path="/chat" element={<PrivateRoute><><ChatReleaseV2 /><TrafficNotice /></></PrivateRoute>} />
     <Route path="/codex" element={<PrivateRoute><><CodexRelease /><TrafficNotice /></></PrivateRoute>} />
     <Route path="/studio" element={<PrivateRoute><StudioWithProfile /></PrivateRoute>} />
     <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />

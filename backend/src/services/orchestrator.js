@@ -2,7 +2,7 @@ import { runMegaBrain, isMegaBrainCommand } from './megaBrain.js';
 import { getModelProfile, normalizeEffort } from './modelRouter.js';
 import { createMcpExecutionContext } from './mcp.js';
 import { skillToolDefinitions, executeSkill } from './skills.js';
-import { searchWeb, webSearchConfigured } from './webSearch.js';
+import { searchWeb, fetchWebPage, webSearchConfigured } from './webSearch.js';
 import { createAgentWorkspace, executeAgentTool, agentToolDefinitions } from './agentRuntime.js';
 
 const TIMEOUT = 25_000;
@@ -10,6 +10,7 @@ const MCP_TIMEOUT = 8_000;
 const MAX_ROUNDS = 10;
 const MAX_CONTEXT = 30_000;
 const WEB = 'prism_web_search';
+const WEB_OPEN = 'prism_web_open';
 const keys = {
   nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
   groq: () => process.env.GROQ_API_KEY,
@@ -18,7 +19,8 @@ const keys = {
 };
 
 const emit = (execution, type, data = {}) => execution?.onProgress?.({ type, timestamp: Date.now(), ...data });
-const webTool = () => ({ modelName: WEB, serverId: 'prism-native', serverName: 'Prism Web Search', toolName: 'web_search', kind: 'native', description: 'Busca informação atual na internet.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } });
+const webTool = () => ({ modelName: WEB, serverId: 'prism-native', serverName: 'Prism Web', toolName: 'web_search', kind: 'native', description: 'Pesquisa informação atual na internet.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } });
+const webOpenTool = () => ({ modelName: WEB_OPEN, serverId: 'prism-native', serverName: 'Prism Web', toolName: 'web_open', kind: 'native', description: 'Abre uma página pública da internet e lê seu conteúdo.', inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] } });
 const cleanSchema = (schema) => {
   if (!schema || typeof schema !== 'object') return { type: 'object', properties: {} };
   const out = {};
@@ -37,7 +39,7 @@ const geminiSchema = (schema) => {
 const openAiTools = (tools) => tools.map((tool) => ({ type: 'function', function: { name: tool.modelName, description: tool.description, parameters: cleanSchema(tool.inputSchema) } }));
 const anthropicTools = (tools) => tools.map((tool) => ({ name: tool.modelName, description: tool.description, input_schema: cleanSchema(tool.inputSchema) }));
 const geminiTools = (tools) => [{ functionDeclarations: tools.map((tool) => ({ name: tool.modelName, description: tool.description, parameters: geminiSchema(tool.inputSchema) })) }];
-const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|google|github|repo|reposit[oó]rio|issue|pull request|mcp|execute|execut[eá]|rode|rodar|compile|compil[eá]|zip|\.exe|\.jar|\.zip|build|arquivo|projeto|ferramenta)\b/i.test(String(prompt || ''));
+const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|google|github|repo|reposit[oó]rio|issue|pull request|mcp|execute|execut[eá]|rode|rodar|compile|compil[eá]|zip|\.exe|\.jar|\.zip|build|arquivo|projeto|ferramenta|url|link|site|página|pagina|acesse|abra|leia)\b/i.test(String(prompt || ''));
 
 function systemPrompt(model, effort, tools, prompt) {
   const profile = getModelProfile(model);
@@ -67,7 +69,12 @@ async function executeTool(tool, args, execution) {
   emit(execution, 'tool_start', { tool: tool?.toolName || tool?.modelName, kind: tool?.kind });
   try {
     if (!tool) throw Object.assign(new Error('Ferramenta não encontrada.'), { code: 'TOOL_NOT_FOUND' });
-    if (tool.modelName === WEB) {
+        if (tool.modelName === WEB_OPEN) {
+      const page = await fetchWebPage(String(args?.url || ''));
+      emit(execution, 'tool_complete', { tool: tool.toolName, kind: tool.kind, ok: true });
+      return { text: JSON.stringify(page).slice(0, 30_000), used: [{ kind: 'native', tool: tool.toolName }] };
+    }
+if (tool.modelName === WEB) {
       const results = await searchWeb(String(args?.query || ''), { count: 6 });
       const text = results.length ? results.map((item, index) => `${index + 1}. ${item.title}\n${item.description}\n${item.url}`).join('\n\n') : 'Nenhum resultado encontrado.';
       emit(execution, 'tool_complete', { tool: tool.toolName, kind: tool.kind, ok: true });
@@ -139,7 +146,7 @@ async function runCoreOrchestration(prompt,effort='medium',profile=null,context=
     emit(execution,'start',{stage:'prepare',message:'Preparando contexto e ferramentas.'});
     if(userId&&options.projectId){emit(execution,'workspace_start',{projectId:options.projectId});workspace=await createAgentWorkspace({projectId:options.projectId,userId});execution.workspace=workspace;emit(execution,'workspace_ready',{files:workspace.files.length});}
     if(userId){emit(execution,'mcp_start',{message:'Conectando MCPs e integrações.'});try{mcp=await Promise.race([createMcpExecutionContext(userId,{serverIds:options.mcpServerIds}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('MCP_TIMEOUT')),MCP_TIMEOUT))]);emit(execution,'mcp_ready',{tools:mcp.tools.length});}catch(error){emit(execution,'mcp_error',{message:error.message});}}
-    execution.mcp=mcp;execution.mcpTools=mcp.tools;execution.skillTools=options.enableSkills===false?[]:skillToolDefinitions();const tools=[...agentToolDefinitions().map((tool)=>({...tool,kind:'native'})),...(webSearchConfigured()?[webTool()]:[]),...mcp.tools.map((tool)=>({...tool,kind:'mcp'})),...execution.skillTools.map((tool)=>({...tool,kind:'skill',serverName:'Prism Skills'}))];emit(execution,'tools_ready',{count:tools.length});
+    execution.mcp=mcp;execution.mcpTools=mcp.tools;execution.skillTools=options.enableSkills===false?[]:skillToolDefinitions();const tools=[...agentToolDefinitions().map((tool)=>({...tool,kind:'native'})),...(webSearchConfigured()?[webTool(),webOpenTool()]:[]),...mcp.tools.map((tool)=>({...tool,kind:'mcp'})),...execution.skillTools.map((tool)=>({...tool,kind:'skill',serverName:'Prism Skills'}))];emit(execution,'tools_ready',{count:tools.length});
     const list=providers(model,normalizedEffort);if(!list.length)return{status:'unavailable',message:'Nenhum provedor de IA configurado.',providers:[],tools_used:[],model,effort:normalizedEffort};emit(execution,'providers_ready',{providers:list.map((item)=>item.name)});
     const errors=[];
     for(const provider of list){const started=Date.now();try{emit(execution,'provider_start',{provider:provider.name,model:provider.model});let result=await callOpenAICompatible({provider:provider.name,key:keys[provider.name](),model:provider.model,prompt:input,effort:normalizedEffort,tools,execution,url:provider.url,headers:provider.headers});if(result?.text?.trim()){emit(execution,'provider_complete',{provider:result.provider,elapsedMs:Date.now()-started});emit(execution,'finalizing',{message:'Revisando a resposta.'});return{status:'ok',text:result.text.trim(),tokens:Number(result.tokens||0),providers:[result.provider],tools_used:result.used||[],mcp_errors:mcp.errors,provider_errors:errors,model,effort:normalizedEffort};}errors.push({provider:provider.name,reason:'empty_response',elapsedMs:Date.now()-started);}catch(error){errors.push({provider:provider.name,reason:error?.code||'provider_error',message:String(error?.message||'').slice(0,500),elapsedMs:Date.now()-started});emit(execution,'provider_error',{provider:provider.name,message:error?.message||'Falha no provedor.'});}}

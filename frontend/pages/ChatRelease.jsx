@@ -65,6 +65,7 @@ export default function ChatRelease() {
   const filteredSessions = useMemo(() => { const q = search.trim().toLowerCase(); return q ? sessions.filter((item) => String(item.title || '').toLowerCase().includes(q)) : sessions; }, [search, sessions]);
   const canSend = Boolean(input.trim() || attachments.length) && !sending;
 
+  useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
   useEffect(() => { localStorage.setItem('prism.home.model', model); }, [model]);
   useEffect(() => { localStorage.setItem('prism-default-effort', effort); }, [effort]);
   useEffect(() => { localStorage.setItem('prism.chat.project', projectId); }, [projectId]);

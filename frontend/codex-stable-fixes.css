@@ -12,3 +12,94 @@
   .codex-rebuild .codex-command-trigger{display:none!important}
   .codex-rebuild .code-artifacts-panel{width:100vw!important;max-width:100vw!important}
 }
+
+/* Actual CodexRelease surface: beat the component's legacy dark runtime style
+   without creating another stylesheet or changing the existing component API. */
+body .prism-codex-reference{
+  --cx-bg:#ffffff!important;
+  --cx-sidebar:#f7f7f5!important;
+  --cx-panel:#ffffff!important;
+  --cx-panel-2:#fafaf7!important;
+  --cx-line:#e1e1dc!important;
+  --cx-muted:#77766f!important;
+  --cx-text:#24241f!important;
+  --cx-soft:#f0f0eb!important;
+  --cx-accent:#24241f!important;
+  background:#fff!important;
+  color:#24241f!important;
+}
+body .prism-codex-reference .prism-release-sidebar{background:#f7f7f5!important;border-right:1px solid #e1e1dc!important;color:#2b2b26!important}
+body .prism-codex-reference .prism-release-sidebar__top{background:#f7f7f5!important}
+body .prism-codex-reference .prism-release-brand{color:#25251f!important}
+body .prism-codex-reference .prism-sidebar-toggle{background:transparent!important;border-color:#dcdcd7!important;color:#6f6e67!important}
+body .prism-codex-reference .prism-sidebar-mode button{color:#77766f!important}
+body .prism-codex-reference .prism-sidebar-mode button.active{background:#fff!important;color:#25251f!important;box-shadow:0 1px 3px rgba(20,20,18,.06)!important}
+body .prism-codex-reference .prism-sidebar-new{background:#24241f!important;border-color:#24241f!important;color:#fff!important}
+body .prism-codex-reference .prism-sidebar-new:hover{background:#33322d!important}
+body .prism-codex-reference .prism-sidebar-nav button{color:#66655e!important}
+body .prism-codex-reference .prism-sidebar-nav button:hover{background:#e9e9e4!important;color:#25251f!important}
+body .prism-codex-reference .prism-sidebar-history h4{color:#97968d!important}
+body .prism-codex-reference .prism-sidebar-history button{color:#6b6a62!important}
+body .prism-codex-reference .prism-sidebar-history button:hover{background:#ededE9!important;color:#24241f!important}
+body .prism-codex-reference .prism-sidebar-history button.active{background:#e7e7e1!important;color:#24241f!important}
+body .prism-codex-reference .prism-sidebar-bottom{background:#f7f7f5!important;border-top-color:#e1e1dc!important}
+body .prism-codex-reference .prism-profile-mini{color:#24241f!important}
+body .prism-codex-reference .prism-profile-mini:hover{background:#ecece8!important}
+body .prism-codex-reference .prism-profile-avatar{background:#24241f!important;color:#fff!important}
+
+body .prism-codex-reference .prism-workspace{background:#fff!important}
+body .prism-codex-reference .prism-chat-topbar{background:#fff!important;border-bottom-color:#e1e1dc!important;color:#24241f!important}
+body .prism-codex-reference .prism-chat-topbar h1{color:#24241f!important}
+body .prism-codex-reference .prism-chat-topbar small{color:#8b8a83!important}
+body .prism-codex-reference .prism-sidebar-mobile-toggle{background:#fff!important;border-color:#d7d7d2!important;color:#363631!important}
+body .prism-codex-reference .prism-model-trigger{background:#fafaf7!important;color:#55544d!important;border-color:#d3d3cc!important}
+body .prism-codex-reference .prism-model-trigger:hover{background:#fff!important}
+body .prism-codex-reference .prism-model-menu{background:#fff!important;border-color:#d3d3cc!important;box-shadow:0 18px 45px rgba(20,20,18,.12)!important}
+body .prism-codex-reference .prism-model-menu button{color:#44433d!important}
+body .prism-codex-reference .prism-model-menu button:hover,body .prism-codex-reference .prism-model-menu button.active{background:#eeeeea!important}
+body .prism-codex-reference .prism-model-menu small{color:#86857e!important}
+body .prism-codex-reference .prism-model-menu b{color:#24241f!important}
+
+body .prism-codex-reference .prism-workspace__body{background:#fff!important}
+body .prism-codex-reference .prism-workspace__conversation{background:#fff!important}
+body .prism-codex-reference .prism-chat-scroll{background:#fff!important;color:#24241f!important;scrollbar-color:#d8d8d3 transparent!important}
+body .prism-codex-reference .prism-message{color:#24241f!important}
+body .prism-codex-reference .prism-message__author{color:#97968e!important}
+body .prism-codex-reference .prism-message__author strong{color:#5f5e57!important}
+body .prism-codex-reference .prism-message__body{color:#292923!important}
+body .prism-codex-reference .prism-message__body code{background:#f1f1ed!important;border-color:#deded8!important;color:#2b2b26!important}
+body .prism-codex-reference .prism-message.user .prism-message__body{background:#f3f3ef!important;border-color:#e5e5e0!important;color:#24241f!important}
+body .prism-codex-reference .prism-status{background:#f5f5f1!important;border-color:#deded8!important;color:#77766f!important}
+body .prism-codex-reference .prism-status.error{background:#fbefed!important;border-color:#e9c9c4!important;color:#91554d!important}
+body .prism-codex-reference .prism-progress__track{background:#e5e5e0!important}
+body .prism-codex-reference .prism-progress__fill{background:#24241f!important}
+
+body .prism-codex-reference .prism-composer-wrap{background:#fff!important;border-top-color:#e1e1dc!important}
+body .prism-codex-reference .prism-composer{background:#fff!important;border-color:#d3d3cc!important;box-shadow:0 2px 10px rgba(30,30,25,.04)!important}
+body .prism-codex-reference .prism-composer:focus-within{border-color:#bdbdb6!important;box-shadow:0 3px 15px rgba(30,30,25,.06)!important}
+body .prism-codex-reference .prism-composer textarea{color:#24241f!important}
+body .prism-codex-reference .prism-composer textarea::placeholder{color:#77766e!important}
+body .prism-codex-reference .prism-thinking-trigger{background:#fff!important;border-color:#d3d3cc!important;color:#5f5e57!important}
+body .prism-codex-reference .prism-thinking-trigger:hover{background:#f3f3ef!important}
+body .prism-codex-reference .attach-trigger{background:#fff!important;border-color:#d3d3cc!important;color:#55544d!important}
+body .prism-codex-reference .attach-trigger:hover:not(:disabled){background:#f3f3ef!important}
+body .prism-codex-reference .attachment-chip{background:#f4f4f1!important;border-color:#deded8!important;color:#4e4d47!important}
+body .prism-codex-reference .attachment-chip small{color:#8a8982!important}
+body .prism-codex-reference .prism-send{background:#24241f!important;color:#fff!important}
+body .prism-codex-reference .prism-send:hover:not(:disabled){background:#11110f!important}
+body .prism-codex-reference .prism-send:disabled{background:#e4e4df!important;color:#9a9992!important}
+body .prism-codex-reference .prism-cancel{background:#fff!important;border-color:#d2d2cc!important;color:#5b5a53!important}
+
+body .prism-codex-reference .prism-file-panel{background:#fbfbf8!important;border-left-color:#deded8!important}
+body .prism-codex-reference .prism-file-panel__tabs{background:#fff!important;border-bottom-color:#deded8!important}
+body .prism-codex-reference .prism-file-panel__tabs button{background:transparent!important;color:#8a8981!important;border:0!important}
+body .prism-codex-reference .prism-file-panel__tabs button.active{background:#f0f0eb!important;color:#292923!important}
+body .prism-codex-reference .prism-file-tree{background:#fbfbf8!important;border-bottom-color:#deded8!important}
+body .prism-codex-reference .prism-file-tree button{background:transparent!important;color:#77766f!important;border:0!important}
+body .prism-codex-reference .prism-file-tree button:hover,body .prism-codex-reference .prism-file-tree button.active{background:#eeeeea!important;color:#292923!important}
+body .prism-codex-reference .prism-editor{background:#151513!important;color:#f2f2eb!important}
+body .prism-codex-reference .prism-editor pre{background:#151513!important;color:#e9e9e2!important}
+body .prism-codex-reference .prism-preview{background:#f2f2ef!important}
+body .prism-codex-reference .prism-preview iframe{background:#fff!important;border:1px solid #deded8!important}
+
+@media(max-width:900px){body .prism-codex-reference .prism-workspace__body{grid-template-columns:1fr!important}body .prism-codex-reference .prism-file-panel{border-left:0!important;border-top:1px solid #deded8!important}}

@@ -5,8 +5,8 @@ import { skillToolDefinitions, executeSkill } from './skills.js';
 import { searchWeb, fetchWebPage, webSearchConfigured } from './webSearch.js';
 import { createAgentWorkspace, executeAgentTool, agentToolDefinitions } from './agentRuntime.js';
 
-const TIMEOUT = 25_000;
-const MCP_TIMEOUT = 8_000;
+const TIMEOUT = 120_000;
+const MCP_TIMEOUT = 40_000;
 const MAX_ROUNDS = 10;
 const MAX_CONTEXT = 30_000;
 const WEB = 'prism_web_search';
@@ -37,8 +37,6 @@ const geminiSchema = (schema) => {
   if (clean.properties) out.properties = Object.fromEntries(Object.entries(clean.properties).map(([key, value]) => [key, geminiSchema(value)])); if (clean.items) out.items = geminiSchema(clean.items); return out;
 };
 const openAiTools = (tools) => tools.map((tool) => ({ type: 'function', function: { name: tool.modelName, description: tool.description, parameters: cleanSchema(tool.inputSchema) } }));
-const anthropicTools = (tools) => tools.map((tool) => ({ name: tool.modelName, description: tool.description, input_schema: cleanSchema(tool.inputSchema) }));
-const geminiTools = (tools) => [{ functionDeclarations: tools.map((tool) => ({ name: tool.modelName, description: tool.description, parameters: geminiSchema(tool.inputSchema) })) }];
 const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|google|github|repo|reposit[oó]rio|issue|pull request|mcp|execute|execut[eá]|rode|rodar|compile|compil[eá]|zip|\.exe|\.jar|\.zip|build|arquivo|projeto|ferramenta|url|link|site|página|pagina|acesse|abra|leia)\b/i.test(String(prompt || ''));
 
 function systemPrompt(model, effort, tools, prompt) {

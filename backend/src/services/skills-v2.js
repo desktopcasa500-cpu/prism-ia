@@ -1,4 +1,4 @@
-import { runOrchestration } from './orchestrator-v2.js';
+import { runOrchestration } from './orchestrator-v3.js';
 
 const MAX_INPUT = 16_000;
 const skills = new Map([
@@ -17,10 +17,7 @@ function cleanInput(value) {
   return input;
 }
 
-export function listSkills() {
-  return [...skills.entries()].map(([id, skill]) => ({ id, ...skill, output: { type: 'string' } }));
-}
-
+export function listSkills() { return [...skills.entries()].map(([id, skill]) => ({ id, ...skill, output: { type: 'string' } })); }
 export async function executeSkill(skillId, value, context = {}) {
   const skill = skills.get(skillId);
   if (!skill) throw Object.assign(new Error('Skill não encontrada.'), { code: 'SKILL_NOT_FOUND' });
@@ -28,12 +25,4 @@ export async function executeSkill(skillId, value, context = {}) {
   const result = await runOrchestration(skill.prompt(input), skill.effort, { model: skill.model }, '', context.userId || null, { enableSkills: false, projectId: context.projectId, onProgress: context.onProgress });
   return { ...result, skill: skillId, mode: skill.effort };
 }
-
-export function skillToolDefinitions() {
-  return [...skills.entries()].map(([id, skill]) => ({
-    modelName: `skill_${id}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
-    serverId: 'prism-skills', serverName: 'Prism Skills', toolName: id, skillId: id, kind: 'skill',
-    description: `${skill.name}: ${skill.description}`,
-    inputSchema: { type: 'object', properties: { input: { type: 'string', description: `Material para ${skill.name}.` } }, required: ['input'] },
-  }));
-}
+export function skillToolDefinitions() { return [...skills.entries()].map(([id, skill]) => ({ modelName: `skill_${id.replace(/[^a-zA-Z0-9_-]/g, '_')}`, serverId: 'prism-skills', serverName: 'Prism Skills', toolName: id, skillId: id, kind: 'skill', description: `${skill.name}: ${skill.description}`, inputSchema: { type: 'object', properties: { input: { type: 'string', description: `Material para ${skill.name}.` } }, required: ['input'] } })); }

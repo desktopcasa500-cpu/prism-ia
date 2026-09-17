@@ -53,6 +53,12 @@ export async function syncWorkspaceToProject(workspace) {
         [workspace.projectId, workspace.userId, keep],
       );
       removed = result.rowCount || 0;
+    } else {
+      const result = await client.query(
+        'DELETE FROM project_files WHERE project_id=$1 AND user_id=$2',
+        [workspace.projectId, workspace.userId],
+      );
+      removed = result.rowCount || 0;
     }
     await client.query('UPDATE projects SET updated_at=now() WHERE id=$1 AND user_id=$2', [workspace.projectId, workspace.userId]);
     await client.query('COMMIT');

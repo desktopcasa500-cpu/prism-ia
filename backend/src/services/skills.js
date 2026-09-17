@@ -1,4 +1,4 @@
-import { runOrchestration } from './orchestrator-v3.js';
+import { runOrchestration } from './orchestrator.js';
 
 const MAX_INPUT = 16_000;
 const skills = new Map([

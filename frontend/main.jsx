@@ -19,8 +19,6 @@ import './prism-identity.css';
 import './prism-original-pages.css';
 import './prism-polish.css';
 import './prism-logo-overrides.css';
-import './taff-presentation-v2.css';
-import './settings-simple-v2.css';
 import './production-polish.css';
 import './release-hardened.css';
 import './release-hotfix.css';

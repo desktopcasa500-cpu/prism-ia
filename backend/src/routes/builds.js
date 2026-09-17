@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { promises as fs } from 'node:fs';
 import crypto from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { buildProject } from '../services/buildService.js';
@@ -42,10 +44,7 @@ function targetOf(value) {
   if (target === 'win32-x64' || target === 'windows' || target === 'exe' || target === 'win') return 'win32-x64';
   return '';
 }
-function cleanup() {
-  const now = Date.now();
-  for (const [id, item] of buildCache) if (item.expiresAt <= now) { fs.rm(item.tempDir, { recursive: true, force: true }).catch(() => {}); buildCache.delete(id); }
-}
+function cleanup() { const now = Date.now(); for (const [id, item] of buildCache) if (item.expiresAt <= now) { fs.rm(item.tempDir, { recursive: true, force: true }).catch(() => {}); buildCache.delete(id); } }
 setInterval(cleanup, 60_000).unref();
 
 router.get('/:id/download', async (req, res) => {
@@ -74,8 +73,13 @@ router.post('/', async (req, res) => {
   try {
     const { project, files } = await loadProject(projectId, req.userId);
     if (target === 'zip') {
-      const root = await fs.mkdtemp(`/${process.platform === 'win32' ? 'tmp' : 'tmp'}-prism-project-`);
-      await Promise.all(files.map(async (file) => { const absolute = require('node:path').join(root, file.path); await fs.mkdir(require('node:path').dirname(absolute), { recursive: true }); await fs.writeFile(absolute, String(file.content || ''), 'utf8'); }));
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), `prism-project-${crypto.randomUUID()}-`));
+      for (const file of files) {
+        const absolute = path.join(root, file.path);
+        if (!absolute.startsWith(root + path.sep)) throw Object.assign(new Error('Caminho de arquivo inválido.'), { code: 'INVALID_PROJECT_PATH' });
+        await fs.mkdir(path.dirname(absolute), { recursive: true });
+        await fs.writeFile(absolute, String(file.content || ''), 'utf8');
+      }
       const workspace = { root, projectId, userId: req.userId, project, files, cleanup: async () => {} };
       const result = await zipWorkspace(workspace);
       return res.json(result);

@@ -1,5 +1,3 @@
-import { runOrchestration } from './orchestrator.js';
-
 const MAX_INPUT = 16_000;
 const skills = new Map([
   ['code-review', { name: 'Revisão de código', category: 'Engineering', description: 'Encontra bugs, riscos de segurança, problemas de arquitetura e melhorias verificáveis.', effort: 'high', model: 'prism-tex-1.5', prompt: (input) => `Revise este material como engenheiro sênior. Encontre somente problemas sustentados pelo texto, explique impacto e correção e indique como validar.\n\n${input}` }],
@@ -22,6 +20,7 @@ export async function executeSkill(skillId, value, context = {}) {
   const skill = skills.get(skillId);
   if (!skill) throw Object.assign(new Error('Skill não encontrada.'), { code: 'SKILL_NOT_FOUND' });
   const input = cleanInput(value);
+  const { runOrchestration } = await import('./orchestrator.js');
   const result = await runOrchestration(skill.prompt(input), skill.effort, { model: skill.model }, '', context.userId || null, { enableSkills: false, projectId: context.projectId, onProgress: context.onProgress });
   return { ...result, skill: skillId, mode: skill.effort };
 }

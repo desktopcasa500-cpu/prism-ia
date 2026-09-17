@@ -1,0 +1,67 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api.js';
+import MarkdownMessage from '../components/MarkdownMessage.jsx';
+import FileAttachments from '../components/FileAttachments.jsx';
+import ThinkingSelector from '../components/ThinkingSelector.jsx';
+import PlanPanel from '../components/PlanPanel.jsx';
+import PrismIcon from '../components/PrismIcon.jsx';
+
+const MODELS=[['prism-nano-1.0','Prism Nano 1.0A',0],['prism-mini-1.0','Prism Mini 1.0A',0],['prism-edge-1.0','Prism Edge 1.0A',2],['prism-tex-1.5','Prism Tex 1.5A',2],['prism-taff-1.0','Prism Taff 1.0A',3],['prism-taff-2.0','Prism Taff 2.0',3]];
+const PLANS={'Grátis':0,free:0,Base:1,base:1,Medium:2,medium:2,Pro:3,pro:3,Empresarial:4,enterprise:4};
+const starterFiles=[
+  {path:'index.html',kind:'file',content:'<!doctype html>\n<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prism Project</title></head><body><main id="app">Comece a construir.</main></body></html>\n'},
+  {path:'style.css',kind:'file',content:'body{font-family:system-ui,sans-serif;margin:0;padding:40px}#app{max-width:720px;margin:auto}\n'},
+  {path:'script.js',kind:'file',content:"document.querySelector('#app')?.setAttribute('data-ready','true');\n"},
+];
+const rank=(plan)=>PLANS[plan]??0; const rid=()=>{try{return crypto.randomUUID();}catch{return `req-${Date.now()}-${Math.random()}`;}};
+
+export default function CodexReleaseV2(){
+  const {user,logout}=useAuthSafe();
+  const navigate=useNavigate();
+  const [projects,setProjects]=useState([]); const [projectId,setProjectId]=useState(''); const [project,setProject]=useState(null); const [sessions,setSessions]=useState([]); const [sessionId,setSessionId]=useState(null); const [messages,setMessages]=useState([]); const [filePath,setFilePath]=useState(''); const [input,setInput]=useState(''); const [model,setModel]=useState(localStorage.getItem('prism.codex.model')||'prism-taff-2.0'); const [effort,setEffort]=useState(localStorage.getItem('prism-default-effort')||'high'); const [files,setFiles]=useState(starterFiles); const [filesPanel,setFilesPanel]=useState(true); const [mobileNav,setMobileNav]=useState(false); const [running,setRunning]=useState(false); const [events,setEvents]=useState([]); const [output,setOutput]=useState(''); const [artifact,setArtifact]=useState(null); const [attachments,setAttachments]=useState([]); const [modelOpen,setModelOpen]=useState(false); const [plansOpen,setPlansOpen]=useState(false); const [requestedModel,setRequestedModel]=useState(''); const endRef=useRef(null); const controllerRef=useRef(null); const textareaRef=useRef(null);
+  const selected=useMemo(()=>MODELS.find((item)=>item[0]===model)||MODELS[5],[model]);
+  const activeFile=useMemo(()=>files.find((file)=>file.path===filePath)||files[0]||null,[files,filePath]);
+  const entitlement=rank(user?.plan);
+  useEffect(()=>localStorage.setItem('prism.codex.model',model),[model]); useEffect(()=>localStorage.setItem('prism-default-effort',effort),[effort]);
+  useEffect(()=>endRef.current?.scrollIntoView({behavior:'smooth',block:'end'}),[messages,running,events.length]);
+
+  function useAuthSafe(){ return {user:undefined,logout:()=>{}}; }
+  // The actual AuthProvider injects user through the route in production; this local fallback keeps this component self-contained when rendered in isolation.
+  void navigate; void logout;
+
+  const loadProject=useCallback(async(id)=>{ if(!id)return; const result=await api.get(`/projects/${encodeURIComponent(id)}`); setProject(result.project); setFiles(result.files?.length?result.files:starterFiles); setFilePath(result.files?.[0]?.path||starterFiles[0].path); },[]);
+  useEffect(()=>{(async()=>{try{const [p,s]=await Promise.all([api.get('/projects'),api.get('/chat/sessions?surface=home')]);const list=p.projects||[];setProjects(list);if(list[0]){setProjectId(list[0].id);await loadProject(list[0].id);}setSessions(s.sessions||[]);if(s.sessions?.[0]){setSessionId(s.sessions[0].id);const h=await api.get(`/chat/sessions/${s.sessions[0].id}/messages?surface=home`);setMessages(h.messages||[]);}}catch(error){console.warn(error);}})();},[loadProject]);
+  useEffect(()=>{if(projectId)loadProject(projectId).catch(console.warn);},[projectId,loadProject]);
+
+  async function createProject(){try{const result=await api.post('/projects',{name:`Prism Project ${projects.length+1}`});setProjects((items)=>[result.project,...items]);setProjectId(result.project.id);await loadProject(result.project.id);}catch(error){alert(error.message||'Não foi possível criar o projeto.');}}
+  async function newSession(){try{const result=await api.post('/chat/sessions',{surface:'home',title:'Novo trabalho Codex'});setSessionId(result.session.id);setSessions((items)=>[result.session,...items]);setMessages([]);setEvents([]);setOutput('');setArtifact(null);}catch(error){alert(error.message||'Não foi possível criar a tarefa.');}}
+  function chooseModel(id){const item=MODELS.find((entry)=>entry[0]===id);if(!item)return;if(entitlement<item[2]){setRequestedModel(item[1]);setPlansOpen(true);return;}setModel(id);setModelOpen(false);}
+
+  async function send(){const content=input.trim();if(!content||running||!projectId)return;setRunning(true);setEvents([]);setOutput('');setArtifact(null);const controller=new AbortController();controllerRef.current=controller;const request=rid();try{let sid=sessionId;if(!sid){const created=await api.post('/chat/sessions',{surface:'home',title:content.slice(0,64)});sid=created.session.id;setSessionId(sid);setSessions((items)=>[created.session,...items]);}const optimistic={id:`local-${request}`,role:'user',content,metadata:{}};setMessages((items)=>[...items,optimistic]);setInput('');const result=await api.streamPost(`/chat/sessions/${sid}/messages/stream`,{content,model,effort,clientRequestId:request,projectId,attachmentIds:attachments.map((item)=>item.id).filter(Boolean)},(event)=>{setEvents((items)=>[...items.slice(-40),event]);if(event.type==='command_output')setOutput((value)=>`${value}${event.text||''}`.slice(-16000));if(event.type==='artifact')setArtifact(event);},{timeout:300000,signal:controller.signal});if(result?.message)setMessages((items)=>[...items.filter((item)=>item.id!==optimistic.id),result.userMessage||optimistic,result.message]);setAttachments([]);}catch(error){if(error?.name!=='AbortError')console.error(error);setMessages((items)=>items.slice(0,-1));}finally{setRunning(false);controllerRef.current=null;}}
+
+  const currentEvent=[...events].reverse().find((event)=>event.type!=='done');
+  return <div className="prism-codex-v2">
+    <aside className={`prism-codex-v2__sidebar ${mobileNav?'open':''}`}>
+      <button className="prism-codex-v2__brand" onClick={()=>navigate('/codex')}><img src="/prism-logo.svg" alt=""/>Prism Codex</button>
+      <button className="prism-codex-v2__new" onClick={newSession}><PrismIcon name="plus" size={15}/>Novo trabalho</button>
+      <div className="prism-codex-v2__switch"><button className="active">Codex</button><button onClick={()=>navigate('/chat')}>Chat</button></div>
+      <nav><button className="active"><PrismIcon name="layers" size={14}/>Tarefas</button><button onClick={()=>setFilesPanel(true)}><PrismIcon name="folder" size={14}/>Arquivos</button><button onClick={()=>navigate('/studio')}><PrismIcon name="tool" size={14}/>Skills & MCP</button><button onClick={()=>navigate('/configuracoes')}><PrismIcon name="settings" size={14}/>Configurações</button></nav>
+      <div className="prism-codex-v2__project-head"><span>Projetos</span><button onClick={createProject}>+</button></div>
+      <div className="prism-codex-v2__projects">{projects.map((item)=><button className={item.id===projectId?'active':''} key={item.id} onClick={()=>{setProjectId(item.id);setMobileNav(false);}}><PrismIcon name="folder" size={12}/>{item.name}</button>)}</div>
+      <div className="prism-codex-v2__history"><span>Recentes</span>{sessions.slice(0,20).map((item)=><button key={item.id} onClick={async()=>{setSessionId(item.id);const h=await api.get(`/chat/sessions/${item.id}/messages?surface=home`);setMessages(h.messages||[]);}}>{item.title||'Novo trabalho'}</button>)}</div>
+      <button className="prism-codex-v2__profile" onClick={()=>navigate('/configuracoes')}><span className="avatar">{String(user?.name||'P').slice(0,1).toUpperCase()}</span><span><strong>{user?.name||'Você'}</strong><small>{user?.plan||'Grátis'}</small></span></button>
+    </aside>
+    <main className="prism-codex-v2__main">
+      <header><button className="mobile-menu" onClick={()=>setMobileNav(true)}><PrismIcon name="layers"/></button><div className="title">{project?.name||'Codex'}</div><div className="actions"><select value={projectId} onChange={(e)=>setProjectId(e.target.value)}><option value="">Projeto</option>{projects.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="model"><button onClick={()=>setModelOpen((v)=>!v)}>{selected[1]}⌄</button>{modelOpen&&<div className="model-menu">{MODELS.map((item)=><button key={item[0]} onClick={()=>chooseModel(item[0])} className={item[0]===model?'active':''}><span>{item[1]}</span><small>{entitlement<item[2]?'Upgrade':''}</small></button>)}</div>}</div></div></header>
+      <section className="body"><div className="conversation">
+        {!messages.length&&!running&&<div className="welcome"><span>PRISM CODEX</span><h1>Construa com contexto.</h1><p>O agente lê o projeto, modifica arquivos, executa verificações e gera artefatos no mesmo fluxo.</p><div className="suggestions"><button onClick={()=>setInput('Analise o projeto e encontre os principais problemas.')}>Revisar projeto</button><button onClick={()=>setInput('Crie uma interface completa e valide o resultado.')}>Criar interface</button><button onClick={()=>setInput('Execute as verificações adequadas e corrija os erros.')}>Verificar e corrigir</button></div></div>}
+        <div className="messages">{messages.map((message)=><article className={`message ${message.role}`} key={message.id}><small>{message.role==='user'?(user?.name||'Você'):'Prism Codex'}</small>{message.role==='assistant'?<MarkdownMessage content={message.content} messageId={String(message.id)}/>:<div className="user-copy">{message.content}</div>}</article>)}{running&&<div className="running"><i/><span>{currentEvent?.message||currentEvent?.type||'Executando'}</span>{currentEvent?.provider&&<small>{currentEvent.provider}</small>}</div>}{events.length>0&&<div className="execution"><header><strong>Execução</strong><span>{events.length} eventos</span></header><div>{events.slice(-18).map((event,index)=><div className="execution-row" key={`${event.timestamp}-${index}`}><span className="dot"/><span>{event.message||event.type}{event.tool?` · ${event.tool}`:''}{event.provider?` · ${event.provider}`:''}</span></div>)}</div></div>}{output&&<pre className="terminal">{output}</pre>}{artifact?.downloadPath&&<a className="artifact" href={artifact.downloadPath} target="_blank" rel="noreferrer"><PrismIcon name="code" size={15}/><span><strong>{artifact.filename||'Artefato'}</strong><small>Artefato gerado</small></span><b>Abrir</b></a>}<div ref={endRef}/></div>
+      </div>
+      {filesPanel&&<aside className="files"><div className="files-head"><strong>Workspace</strong><button onClick={()=>setFilesPanel(false)}>×</button></div><div className="file-tree">{files.map((file)=><button key={file.path} className={file.path===filePath?'active':''} onClick={()=>setFilePath(file.path)}><PrismIcon name="code" size={12}/><span>{file.path}</span></button>)}</div>{activeFile&&<><div className="editor-head"><span>{activeFile.path}</span><small>{String(activeFile.content||'').split('\n').length} linhas · {language(activeFile.path)}</small></div><pre className="editor">{activeFile.content}</pre></>}</aside>}
+      </section>
+      <footer><div className="composer">{attachments.length>0&&<div className="chips">{attachments.map((file)=><span key={file.id||file.name}>{file.name}</span>)}</div>}<textarea ref={textareaRef} rows={1} value={input} disabled={running} onChange={(event)=>setInput(event.target.value)} onKeyDown={(event)=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}}} placeholder="Peça ao Codex para construir, editar, executar ou compilar..."/><div className="tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={running} label="Adicionar arquivo"/><ThinkingSelector value={effort} onChange={setEffort} rank={entitlement} disabled={running}/><button className="files-toggle" onClick={()=>setFilesPanel((v)=>!v)}><PrismIcon name="folder" size={14}/>Workspace</button><span/><button className="send" disabled={!input.trim()||running||!projectId} onClick={send}>{running?'Parar':'Enviar'}</button></div></div></footer>
+    </main>
+    <PlanPanel open={plansOpen} onClose={()=>setPlansOpen(false)} currentPlan={user?.plan||'Grátis'} requestedModel={requestedModel}/>
+  </div>;
+}

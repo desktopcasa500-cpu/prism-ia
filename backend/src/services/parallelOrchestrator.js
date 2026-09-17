@@ -4,23 +4,19 @@ import { normalizeEffort } from './modelRouter.js';
 const REQUEST_TIMEOUT = 90_000;
 const MAX_TOOL_ROUNDS = 6;
 const MAX_CONTEXT = 30_000;
-const PROVIDERS = new Set(['anthropic', 'openai', 'gemini']);
-
+const PROVIDERS = new Set(['nvidia', 'groq', 'opencode']);
 const ENV = {
-  anthropic: () => process.env.ANTHROPIC_API_KEY,
-  openai: () => process.env.OPENAI_API_KEY,
-  gemini: () => process.env.GEMINI_API_KEY,
+  nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
+  groq: () => process.env.GROQ_API_KEY,
+  opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
+};
+const ENDPOINTS = {
+  nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
+  groq: 'https://api.groq.com/openai/v1/chat/completions',
+  opencode: 'https://opencode.ai/zen/v1/chat/completions',
 };
 
-const DEFAULT_MODELS = {
-  anthropic: process.env.ANTHROPIC_MODEL || 'claude-fable-5-1',
-  openai: process.env.OPENAI_MODEL || 'gpt-4.1',
-  gemini: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
-};
-
-function safeText(value, max = 4000) {
-  return String(value || '').slice(0, max);
-}
+function safeText(value, max = 4000) { return String(value || '').slice(0, max); }
 
 function systemPrompt(effort) {
   const instructions = {
@@ -31,11 +27,11 @@ function systemPrompt(effort) {
     ultracode: 'Atue como engenheiro principal. Planeje, implemente, revise e considere segurança, edge cases e manutenção.',
   };
   return [
-    'Você é o núcleo de raciocínio do Prism Codex.',
+    'Você é o núcleo de raciocínio paralelo do Prism Codex.',
     instructions[effort] || instructions.medium,
-    'Use ferramentas MCP quando uma estiver disponível e for necessária para o pedido.',
+    'Use ferramentas MCP quando estiverem disponíveis e forem necessárias.',
     'Nunca invente que executou uma ação externa.',
-    'Não revele cadeia de pensamento interna. Forneça somente conclusões, evidências e resumos de alto nível.',
+    'Não revele cadeia de pensamento interna. Forneça apenas conclusões, evidências e resumos de alto nível.',
   ].join('\n');
 }
 
@@ -47,16 +43,12 @@ async function request(url, options, timeout = REQUEST_TIMEOUT) {
     const raw = await response.text();
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
-    if (!response.ok) {
-      throw new Error(safeText(data?.error?.message || data?.error || data?.message || raw || `HTTP ${response.status}`));
-    }
+    if (!response.ok) throw new Error(safeText(data?.error?.message || data?.error || data?.message || raw || `HTTP ${response.status}`));
     return data;
   } catch (error) {
     if (error?.name === 'AbortError') throw new Error('tempo limite do provedor excedido');
     throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  } finally { clearTimeout(timer); }
 }
 
 function openAiTools(tools) {
@@ -72,174 +64,51 @@ function openAiTools(tools) {
 
 async function executeTool(tool, args, mcp) {
   if (!tool) return { text: 'Ferramenta não encontrada.', isError: true };
-  try {
-    return await mcp.execute(tool.modelName, args || {});
-  } catch (error) {
-    return { text: safeText(error?.message || 'Falha na ferramenta MCP'), isError: true };
-  }
+  try { return await mcp.execute(tool.modelName, args || {}); }
+  catch (error) { return { text: safeText(error?.message || 'Falha na ferramenta MCP'), isError: true }; }
 }
 
-async function callOpenAI(model, effort, input, tools, mcp) {
-  const key = ENV.openai();
-  if (!key) throw new Error('OPENAI_API_KEY não configurada');
+async function callProvider(provider, model, effort, input, tools, mcp) {
+  const key = ENV[provider]?.();
+  if (!key) throw new Error(`${provider.toUpperCase()} API não configurada`);
+  const messages = [{ role: 'system', content: systemPrompt(effort) }, { role: 'user', content: input }];
   const declared = openAiTools(tools);
-  const messages = [
-    { role: 'system', content: systemPrompt(effort) },
-    { role: 'user', content: input },
-  ];
   const toolsUsed = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const data = await request('https://api.openai.com/v1/chat/completions', {
+    const body = {
+      model,
+      messages,
+      temperature: effort === 'low' ? 0.35 : 0.2,
+      ...(declared.length ? { tools: declared, tool_choice: 'auto' } : {}),
+    };
+    if (provider === 'groq' && effort !== 'low') body.reasoning_effort = effort === 'ultracode' || effort === 'max' ? 'high' : effort;
+    if (provider === 'nvidia' && effort === 'ultracode') body.reasoning_effort = 'max';
+    const data = await request(ENDPOINTS[provider], {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: effort === 'low' ? 0.35 : 0.2,
-        ...(declared.length ? { tools: declared, tool_choice: 'auto' } : {}),
-      }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...(provider === 'opencode' ? { 'X-Title': 'Prism IA' } : {}) },
+      body: JSON.stringify(body),
     });
     const message = data?.choices?.[0]?.message;
-    if (!message) throw new Error('OpenAI retornou uma resposta inválida');
+    if (!message) throw new Error(`${provider} retornou uma resposta inválida`);
     messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
-    if (!calls.length) {
-      return {
-        text: message.content || '',
-        tokens: Number(data?.usage?.total_tokens || 0),
-        toolsUsed,
-        thinkingSummary: 'Análise concluída.',
-      };
-    }
+    if (!calls.length) return {
+      text: String(message.content || ''),
+      tokens: Number(data?.usage?.total_tokens || 0),
+      toolsUsed,
+      thinkingSummary: 'Análise concluída.',
+    };
     for (const call of calls) {
       const tool = tools.find((entry) => entry.modelName === call?.function?.name);
       let args = {};
-      try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch { args = {}; }
+      try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch {}
       const result = await executeTool(tool, args, mcp);
       if (tool) toolsUsed.push({ server: tool.serverName, tool: tool.toolName, error: Boolean(result.isError) });
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
     }
   }
-  throw new Error('OpenAI excedeu o limite de etapas de ferramentas');
-}
-
-async function callAnthropic(model, effort, input, tools, mcp) {
-  const key = ENV.anthropic();
-  if (!key) throw new Error('ANTHROPIC_API_KEY não configurada');
-  const declared = tools.map((tool) => ({
-    name: tool.modelName,
-    description: tool.description,
-    input_schema: tool.inputSchema || { type: 'object', properties: {} },
-  }));
-  const messages = [{ role: 'user', content: input }];
-  const toolsUsed = [];
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const data = await request('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: effort === 'low' ? 2048 : 8192,
-        system: systemPrompt(effort),
-        messages,
-        ...(declared.length ? { tools: declared } : {}),
-      }),
-    });
-
-    const blocks = Array.isArray(data?.content) ? data.content : [];
-    const calls = blocks.filter((block) => block?.type === 'tool_use');
-    if (!calls.length) {
-      return {
-        text: blocks.filter((block) => block?.type === 'text').map((block) => block.text).join(''),
-        tokens: Number(data?.usage?.input_tokens || 0) + Number(data?.usage?.output_tokens || 0),
-        toolsUsed,
-        thinkingSummary: 'Análise concluída.',
-      };
-    }
-
-    messages.push({ role: 'assistant', content: blocks });
-    const toolResults = [];
-    for (const call of calls) {
-      const tool = tools.find((entry) => entry.modelName === call.name);
-      const result = await executeTool(tool, call.input, mcp);
-      if (tool) toolsUsed.push({ server: tool.serverName, tool: tool.toolName, error: Boolean(result.isError) });
-      toolResults.push({ type: 'tool_result', tool_use_id: call.id, content: result.text || '', is_error: Boolean(result.isError) });
-    }
-    messages.push({ role: 'user', content: toolResults });
-  }
-  throw new Error('Anthropic excedeu o limite de etapas de ferramentas');
-}
-
-function geminiSchema(schema) {
-  if (!schema || typeof schema !== 'object') return { type: 'OBJECT', properties: {} };
-  const out = { type: String(schema.type || 'object').toUpperCase() };
-  if (schema.description) out.description = safeText(schema.description, 1000);
-  if (schema.enum) out.enum = schema.enum;
-  if (schema.required) out.required = schema.required;
-  if (schema.properties) {
-    out.properties = {};
-    for (const [key, value] of Object.entries(schema.properties)) out.properties[key] = geminiSchema(value);
-  }
-  if (schema.items) out.items = geminiSchema(schema.items);
-  return out;
-}
-
-async function callGemini(model, effort, input, tools, mcp) {
-  const key = ENV.gemini();
-  if (!key) throw new Error('GEMINI_API_KEY não configurada');
-  const declarations = tools.map((tool) => ({
-    name: tool.modelName,
-    description: tool.description,
-    parameters: geminiSchema(tool.inputSchema),
-  }));
-  const contents = [{ role: 'user', parts: [{ text: input }] }];
-  const toolsUsed = [];
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const data = await request(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemPrompt(effort) }] },
-        contents,
-        ...(declarations.length ? { tools: [{ functionDeclarations: declarations }] } : {}),
-      }),
-    });
-
-    const parts = data?.candidates?.[0]?.content?.parts || [];
-    const calls = parts.filter((part) => part?.functionCall?.name);
-    if (!calls.length) {
-      return {
-        text: parts.map((part) => part?.text || '').join(''),
-        tokens: Number(data?.usageMetadata?.totalTokenCount || 0),
-        toolsUsed,
-        thinkingSummary: 'Análise concluída.',
-      };
-    }
-
-    contents.push({ role: 'model', parts });
-    const results = [];
-    for (const call of calls) {
-      const tool = tools.find((entry) => entry.modelName === call.functionCall.name);
-      const result = await executeTool(tool, call.functionCall.args || {}, mcp);
-      if (tool) toolsUsed.push({ server: tool.serverName, tool: tool.toolName, error: Boolean(result.isError) });
-      results.push({ functionResponse: { name: call.functionCall.name, response: { result: result.text || '', isError: Boolean(result.isError) } } });
-    }
-    contents.push({ role: 'user', parts: results });
-  }
-  throw new Error('Gemini excedeu o limite de etapas de ferramentas');
-}
-
-async function callProvider(provider, model, effort, input, tools, mcp) {
-  if (provider === 'anthropic') return callAnthropic(model, effort, input, tools, mcp);
-  if (provider === 'openai') return callOpenAI(model, effort, input, tools, mcp);
-  return callGemini(model, effort, input, tools, mcp);
+  throw new Error(`${provider} excedeu o limite de etapas de ferramentas`);
 }
 
 export async function runParallelOrchestration({
@@ -251,22 +120,18 @@ export async function runParallelOrchestration({
   mcpServerIds = [],
 }) {
   const normalizedEffort = normalizeEffort(effort);
-  const selected = (requestedModels.length
-    ? requestedModels
-    : [...PROVIDERS].map((provider) => ({ provider, model: DEFAULT_MODELS[provider] })))
-    .filter((entry) => PROVIDERS.has(entry.provider))
-    .map((entry) => ({ provider: entry.provider, model: String(entry.model || DEFAULT_MODELS[entry.provider]) }));
-
+  const selected = requestedModels
+    .filter((entry) => entry && PROVIDERS.has(String(entry.provider)) && String(entry.model || '').length <= 120)
+    .map((entry) => ({ provider: String(entry.provider), model: String(entry.model) }));
+  if (!selected.length) return { results: [], mcp_errors: [], elapsed_ms: 0 };
   const unique = [...new Map(selected.map((item) => [`${item.provider}:${item.model}`, item])).values()];
   const mcp = userId
     ? await createMcpExecutionContext(userId, { serverIds: mcpServerIds })
     : { tools: [], errors: [], execute: async () => ({ text: 'MCP indisponível', isError: true }), close: async () => {} };
-
   const input = [
     context ? `Contexto recente:\n${String(context).slice(-MAX_CONTEXT)}` : '',
     `Pedido atual:\n${String(prompt).slice(0, MAX_CONTEXT)}`,
   ].filter(Boolean).join('\n\n');
-
   const started = Date.now();
   try {
     const settled = await Promise.allSettled(unique.map(async (entry) => {
@@ -282,20 +147,10 @@ export async function runParallelOrchestration({
         elapsed_ms: Date.now() - started,
       };
     }));
-
     return {
       results: settled.map((entry, index) => entry.status === 'fulfilled'
         ? entry.value
-        : {
-            provider: unique[index].provider,
-            model: unique[index].model,
-            status: 'rejected',
-            text: '',
-            error: safeText(entry.reason?.message || 'Falha no provedor'),
-            tools_used: [],
-            thinking_summary: '',
-            elapsed_ms: Date.now() - started,
-          }),
+        : { provider: unique[index].provider, model: unique[index].model, status: 'rejected', text: '', error: safeText(entry.reason?.message || 'Falha no provedor'), tools_used: [], thinking_summary: '', elapsed_ms: Date.now() - started }),
       mcp_errors: Array.isArray(mcp.errors) ? mcp.errors : [],
       elapsed_ms: Date.now() - started,
     };

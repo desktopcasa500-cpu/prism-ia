@@ -38,7 +38,6 @@ import './home-artifacts-v2.css';
 import './release-hardened.css';
 import './release-hotfix.css';
 import './reference-experience-v5.css';
-import './calm-chat-codex.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

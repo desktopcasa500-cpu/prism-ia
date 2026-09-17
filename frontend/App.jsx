@@ -10,7 +10,7 @@ import PrismDetail from './pages/PrismDetail.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import ChatReleaseV2 from './pages/ChatReleaseV2.jsx';
-import CodexRelease from './pages/CodexRelease.jsx';
+import CodexReleaseV2 from './pages/CodexReleaseV2.jsx';
 import Studio from './pages/Studio.jsx';
 import Settings from './pages/Settings.jsx';
 import StudioProfileMenu from './components/StudioProfileMenu.jsx';
@@ -38,7 +38,7 @@ export default function App() {
     <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
     <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
     <Route path="/chat" element={<PrivateRoute><><ChatReleaseV2 /><TrafficNotice /></></PrivateRoute>} />
-    <Route path="/codex" element={<PrivateRoute><><CodexRelease /><TrafficNotice /></></PrivateRoute>} />
+    <Route path="/codex" element={<PrivateRoute><><CodexReleaseV2 /><TrafficNotice /></></PrivateRoute>} />
     <Route path="/studio" element={<PrivateRoute><StudioWithProfile /></PrivateRoute>} />
     <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
     <Route path="/workspace" element={<Navigate to="/studio" replace />} />

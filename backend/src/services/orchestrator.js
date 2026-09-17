@@ -31,11 +31,6 @@ const cleanSchema = (schema) => {
   if (out.type === 'object' && !out.properties) out.properties = {};
   return out;
 };
-const geminiSchema = (schema) => {
-  const clean = cleanSchema(schema); const out = { type: String(clean.type || 'object').toUpperCase() };
-  if (clean.description) out.description = clean.description; if (clean.enum) out.enum = clean.enum; if (clean.required?.length) out.required = clean.required;
-  if (clean.properties) out.properties = Object.fromEntries(Object.entries(clean.properties).map(([key, value]) => [key, geminiSchema(value)])); if (clean.items) out.items = geminiSchema(clean.items); return out;
-};
 const openAiTools = (tools) => tools.map((tool) => ({ type: 'function', function: { name: tool.modelName, description: tool.description, parameters: cleanSchema(tool.inputSchema) } }));
 const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|google|github|repo|reposit[oó]rio|issue|pull request|mcp|execute|execut[eá]|rode|rodar|compile|compil[eá]|zip|\.exe|\.jar|\.zip|build|arquivo|projeto|ferramenta|url|link|site|página|pagina|acesse|abra|leia)\b/i.test(String(prompt || ''));
 

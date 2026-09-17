@@ -7,7 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
-    "check": "node --check src/app.js && node --check src/server.js && node --check src/routes/chat-v3.js && node --check src/routes/parallel.js && node --check src/routes/mcp.js && node --check src/routes/builds.js && node --check src/services/agentRuntime-v3.js && node --check src/services/orchestrator-v3.js && node --check src/services/skills-v2.js && node --check src/services/artifactService.js && node --check src/services/buildService.js && node --check src/services/modelRouter.js && node --check src/services/usage.js && node --check src/services/stripe.js"
+    "check": "node --check src/app.js && node --check src/server.js && node --check src/routes/chat.js && node --check src/routes/parallel.js && node --check src/routes/mcp.js && node --check src/routes/builds.js && node --check src/services/agentRuntime.js && node --check src/services/orchestrator.js && node --check src/services/skills.js && node --check src/services/artifactService.js && node --check src/services/buildService.js && node --check src/services/modelRouter.js && node --check src/services/usage.js && node --check src/services/stripe.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

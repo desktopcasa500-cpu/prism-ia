@@ -36,6 +36,7 @@ import './release-hotfix.css';
 import './reference-experience-v5.css';
 import './chat-agent-v6.css';
 import './codex-agent-v7.css';
+import './prism-platform-v8.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { pool } from './db/pool.js';
+import { pool } from '../db/pool.js';
 
 const TTL = 60 * 60 * 1000;
 const SECRET = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');

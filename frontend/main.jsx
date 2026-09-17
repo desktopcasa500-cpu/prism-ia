@@ -27,8 +27,6 @@ import './taff-presentation-v2.css';
 import './artifacts-refined-v3.css';
 import './settings-simple-v2.css';
 import './artifacts-layout-final.css';
-import './codex-stable.css';
-import './codex-stable-fixes.css';
 import './production-polish.css';
 import './codex-artifacts-fix.css';
 import './home-artifacts-stable.css';

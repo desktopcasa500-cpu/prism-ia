@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { buildProject } from '../services/buildService.js';
+import { zipWorkspace } from '../services/artifactService.js';
 
 const router = Router();
 const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
@@ -15,7 +16,6 @@ function signDownload(buildId, userId, expiresAt) {
   const sig = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
   return Buffer.from(`${payload}.${sig}`).toString('base64url');
 }
-
 function verifyDownload(token, buildId) {
   try {
     const value = Buffer.from(String(token || ''), 'base64url').toString('utf8');
@@ -23,15 +23,11 @@ function verifyDownload(token, buildId) {
     if (id !== buildId || !userId || !sig || Number(expiresAt) <= Date.now()) return null;
     const payload = `${id}.${userId}.${expiresAt}`;
     const expected = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
-    const left = Buffer.from(sig);
-    const right = Buffer.from(expected);
+    const left = Buffer.from(sig); const right = Buffer.from(expected);
     if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
     return userId;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
-
 async function loadProject(projectId, userId) {
   const project = await pool.query('SELECT id,name FROM projects WHERE id=$1 AND user_id=$2', [projectId, userId]);
   if (!project.rows.length) throw Object.assign(new Error('Projeto não encontrado.'), { code: 'PROJECT_NOT_FOUND', status: 404 });
@@ -39,22 +35,16 @@ async function loadProject(projectId, userId) {
   if (!files.rows.length) throw Object.assign(new Error('O projeto não possui arquivos.'), { code: 'NO_PROJECT_FILES', status: 422 });
   return { project: project.rows[0], files: files.rows };
 }
-
 function targetOf(value) {
   const target = String(value || '').trim().toLowerCase();
   if (target === 'jar' || target === 'java' || target === 'java-jar') return 'jar';
+  if (target === 'zip' || target === 'archive') return 'zip';
   if (target === 'win32-x64' || target === 'windows' || target === 'exe' || target === 'win') return 'win32-x64';
   return '';
 }
-
 function cleanup() {
   const now = Date.now();
-  for (const [id, item] of buildCache) {
-    if (item.expiresAt <= now) {
-      fs.rm(item.tempDir, { recursive: true, force: true }).catch(() => {});
-      buildCache.delete(id);
-    }
-  }
+  for (const [id, item] of buildCache) if (item.expiresAt <= now) { fs.rm(item.tempDir, { recursive: true, force: true }).catch(() => {}); buildCache.delete(id); }
 }
 setInterval(cleanup, 60_000).unref();
 
@@ -70,9 +60,7 @@ router.get('/:id/download', async (req, res) => {
     const filePath = cached?.outputPath || row.rows[0].output_path;
     await fs.access(filePath);
     return res.download(filePath, row.rows[0].filename);
-  } catch (error) {
-    return res.status(404).json({ error: error?.message || 'Arquivo não encontrado.', code: 'BUILD_FILE_NOT_FOUND' });
-  }
+  } catch (error) { return res.status(404).json({ error: error?.message || 'Arquivo não encontrado.', code: 'BUILD_FILE_NOT_FOUND' }); }
 });
 
 router.use(requireAuth);
@@ -82,38 +70,27 @@ router.post('/', async (req, res) => {
   const target = targetOf(req.body?.target);
   const projectId = String(req.body?.projectId || '').trim();
   if (!projectId) return res.status(400).json({ error: 'Projeto não informado.', code: 'PROJECT_REQUIRED' });
-  if (!target) return res.status(400).json({ error: 'Destino de compilação não suportado. Use "jar" ou "win32-x64".', code: 'TARGET_UNSUPPORTED' });
-
+  if (!target) return res.status(400).json({ error: 'Destino de compilação não suportado. Use "jar", "zip" ou "win32-x64".', code: 'TARGET_UNSUPPORTED' });
   try {
     const { project, files } = await loadProject(projectId, req.userId);
+    if (target === 'zip') {
+      const root = await fs.mkdtemp(`/${process.platform === 'win32' ? 'tmp' : 'tmp'}-prism-project-`);
+      await Promise.all(files.map(async (file) => { const absolute = require('node:path').join(root, file.path); await fs.mkdir(require('node:path').dirname(absolute), { recursive: true }); await fs.writeFile(absolute, String(file.content || ''), 'utf8'); }));
+      const workspace = { root, projectId, userId: req.userId, project, files, cleanup: async () => {} };
+      const result = await zipWorkspace(workspace);
+      return res.json(result);
+    }
     build = await buildProject({ projectName: project.name, files, target });
     const expiresAt = Date.now() + BUILD_TTL_MS;
     buildCache.set(build.buildId, { userId: req.userId, projectId, tempDir: build.tempDir, outputPath: build.outputPath, filename: build.filename, expiresAt });
-    await pool.query(
-      "INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))",
-      [build.buildId, req.userId, projectId, target, build.filename, build.outputPath, expiresAt],
-    );
+    await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))", [build.buildId, req.userId, projectId, target, build.filename, build.outputPath, expiresAt]);
     const token = signDownload(build.buildId, req.userId, expiresAt);
-    return res.json({
-      ok: true,
-      buildId: build.buildId,
-      target,
-      filename: build.filename,
-      size: build.size,
-      expiresAt: new Date(expiresAt).toISOString(),
-      downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`,
-      details: build.details,
-    });
+    return res.json({ ok: true, buildId: build.buildId, target, filename: build.filename, size: build.size, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`, details: build.details });
   } catch (error) {
     if (build?.tempDir) await fs.rm(build.tempDir, { recursive: true, force: true }).catch(() => {});
     const code = error?.code || 'BUILD_FAILED';
     const status = Number.isInteger(error?.status) ? error.status : code === 'BUILD_TIMEOUT' ? 504 : 422;
-    try {
-      await pool.query(
-        "INSERT INTO builds(user_id,project_id,platform,filename,status,error_message) VALUES($1,$2,$3,$4,'failed',$5)",
-        [req.userId, projectId, target, target === 'jar' ? 'prism-app.jar' : 'prism-app.exe', String(error?.message || code).slice(0, 1000)],
-      );
-    } catch {}
+    try { await pool.query("INSERT INTO builds(user_id,project_id,platform,filename,status,error_message) VALUES($1,$2,$3,$4,'failed',$5)", [req.userId, projectId, target, target === 'jar' ? 'prism-app.jar' : target === 'zip' ? 'prism-app.zip' : 'prism-app.exe', String(error?.message || code).slice(0, 1000)]); } catch {}
     return res.status(status).json({ error: error?.message || 'Não foi possível criar o artefato.', code });
   }
 });

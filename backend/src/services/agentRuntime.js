@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { pool } from '../db/pool.js';
 import { buildProject } from './buildService.js';
 import { zipWorkspace } from './artifactService.js';
+import { syncWorkspaceToProject } from './workspaceSync.js';
 
 const MAX_FILES = 500;
 const MAX_FILE_BYTES = 2_000_000;
@@ -69,6 +70,25 @@ export async function verifyWorkspace({workspace,command}={}){
   const checks=[];const js=await verifyJs(workspace);if(js)checks.push(js);const java=await verifyJava(workspace);if(java)checks.push(java);return{ok:checks.every((check)=>check.ok),checks};
 }
 
+async function buildJavaScriptWorkspace(workspace){
+  const packageFile=workspace.files.find((file)=>file.path==='package.json');
+  if(!packageFile){
+    const details=await verifyWorkspace({workspace});
+    return {ok:details.ok,type:'verification',target:'js',details};
+  }
+  let packageJson={};
+  try{packageJson=JSON.parse(String(packageFile.content||''));}catch(error){throw Object.assign(new Error('package.json inválido: '+error.message),{code:'PACKAGE_JSON_INVALID'});}
+  if(!packageJson?.scripts?.build)return{ok:true,type:'verification',target:'js',details:await verifyWorkspace({workspace})};
+  const hasNodeModules=await fs.access(path.join(workspace.root,'node_modules')).then(()=>true).catch(()=>false);
+  if(!hasNodeModules){
+    const installer=packageJson?.packageLockVersion||packageJson?.lockfileVersion?'npm ci --ignore-scripts --no-audit --no-fund':'npm install --ignore-scripts --no-audit --no-fund';
+    await runWorkspaceCommand({workspace,command:installer,timeoutMs:MAX_TIMEOUT});
+  }
+  const build=await runWorkspaceCommand({workspace,command:'npm run build',timeoutMs:MAX_TIMEOUT});
+  const verification=await verifyWorkspace({workspace});
+  return{ok:true,type:'build',target:'js',details:{build,verification}};
+}
+
 export async function buildWorkspace({workspace,target}){
   if(!workspace?.files?.length)throw Object.assign(new Error('Nenhum arquivo disponível para build.'),{code:'WORKSPACE_REQUIRED'});const allowed=new Set(['jar','win32-x64','zip','js']);if(!allowed.has(target))throw Object.assign(new Error('Destino de build não suportado.'),{code:'TARGET_UNSUPPORTED'});
   if(target==='js')return{ok:true,type:'verification',target,details:await verifyWorkspace({workspace})};
@@ -89,8 +109,17 @@ export async function executeAgentTool(tool,args,workspace){
   if(tool==='prism_read_file')return readProjectFile(workspace,args.path);
   if(tool==='prism_write_file')return upsertProjectFile(workspace,args.path,args.content);
   if(tool==='prism_list_files')return listProjectFiles(workspace);
-  if(tool==='prism_verify')return verifyWorkspace({workspace,command:args.command});
-  if(tool==='prism_exec')return runWorkspaceCommand({workspace,command:args.command,cwd:args.cwd||'.',timeoutMs:args.timeoutMs});
-  if(tool==='prism_build')return buildWorkspace({workspace,target:String(args.target||'')});
+  if(tool==='prism_verify'){
+    try{return {...await verifyWorkspace({workspace,command:args.command}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
+  }
+  if(tool==='prism_exec'){
+    try{return {...await runWorkspaceCommand({workspace,command:args.command,cwd:args.cwd||'.',timeoutMs:args.timeoutMs}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
+  }
+  if(tool==='prism_build'){
+    try{return {...await buildWorkspace({workspace,target:String(args.target||'')}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
+  }
   throw Object.assign(new Error('Ferramenta do runtime não encontrada.'),{code:'AGENT_TOOL_NOT_FOUND'});
 }

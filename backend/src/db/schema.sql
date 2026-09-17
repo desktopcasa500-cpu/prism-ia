@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   stripe_price_id TEXT,
+  assistant_instructions TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -25,6 +26,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_locked_until TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_price_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS assistant_instructions TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 
 CREATE TABLE IF NOT EXISTS sessions (

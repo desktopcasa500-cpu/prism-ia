@@ -2,9 +2,9 @@ import { useCallback, useRef, useState } from 'react';
 import { api } from './api.js';
 
 const DEFAULTS = [
-  { id: 'anthropic', label: 'Anthropic', model: 'claude-3-7-sonnet-latest' },
-  { id: 'openai', label: 'OpenAI', model: 'gpt-4.1' },
-  { id: 'gemini', label: 'Gemini', model: 'gemini-2.5-pro' },
+  { id: 'nvidia', label: 'NVIDIA', model: 'moonshotai/kimi-k3' },
+  { id: 'groq', label: 'Groq', model: 'openai/gpt-oss-120b' },
+  { id: 'opencode', label: 'OpenCode Zen', model: 'big-pickle' },
 ];
 
 export function useParallelModels(initial = DEFAULTS) {

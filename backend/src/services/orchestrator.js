@@ -1,1 +1,3 @@
-export { runOrchestration } from './orchestrator-v3.js';
+import { runOrchestration as runCoreOrchestration } from './orchestrator-v3.js';
+import { runMegaBrain } from './megaBrain.js';
+export async function runOrchestration(prompt,effort='medium',profile=null,context='',userId=null,options={}){const model=profile?.model||profile?.id||'prism-mini-1.0';const command=/^\/megabrain(?:\s|$)/i.test(String(prompt||'').trim());if(model==='prism-taff-2.0'&&command&&(effort==='ultracode'||effort==='high'))return runMegaBrain({prompt,context,userId,projectId:options.projectId||null,onProgress:options.onProgress});return runCoreOrchestration(prompt,effort,profile,context,userId,options);}

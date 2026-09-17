@@ -159,7 +159,22 @@ export async function runOrchestration(prompt, effort='medium', profile=null, co
   if (isMegaBrainCommand(model, effort, prompt)) {
     const mega = await runMegaBrain({ prompt, context, userId, projectId: options.projectId || null, onProgress: options.onProgress });
     if (mega?.status !== 'ok') return mega;
-    return runCoreOrchestration(mega.enrichedPrompt, 'ultracode', profile, context, userId, options);
+    const final = await runCoreOrchestration(mega.enrichedPrompt, 'ultracode', profile, context, userId, options);
+    if (final?.status === 'ok') {
+      options.onProgress?.({
+        type: 'megabrain_done',
+        timestamp: Date.now(),
+        message: 'MegaBrain concluído e execução finalizada pelo Taff 2.0.',
+        advisors: mega.advisors || [],
+      });
+      return {
+        ...final,
+        megabrain: true,
+        advisors: mega.advisors || [],
+        providers: [...(mega.providers || []), ...(final.providers || [])],
+      };
+    }
+    return final;
   }
   return runCoreOrchestration(prompt, effort, profile, context, userId, options);
 }

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/auth.js';
 import { encryptSecret, getMcpServers, probeMcpServer } from '../services/mcp.js';
+import { releaseUsage, recordTokens, reserveUsage } from '../services/usage.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -40,6 +41,19 @@ async function resolveServer(id, userId) {
   return ownsServer(id, userId);
 }
 
+async function probeWithQuota(userId, server) {
+  const reservation = await reserveUsage(userId, 'mcp');
+  if (!reservation.ok) throw Object.assign(new Error('O limite de uso desta janela foi atingido.'), { status: reservation.status || 429, code: reservation.code, usage: reservation.usage });
+  try {
+    const result = await probeWithQuota(req.userId, server);
+    await recordTokens(reservation.reservationId, 'mcp', 0);
+    return result;
+  } catch (error) {
+    await releaseUsage(reservation.reservationId).catch(() => {});
+    throw error;
+  }
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const servers = await getMcpServers(req.userId);
@@ -71,7 +85,7 @@ router.post('/', async (req, res, next) => {
 
     let probe;
     try {
-      probe = await probeMcpServer(candidate);
+      probe = await probeWithQuota(req.userId, candidate);
     } catch (error) {
       return res.status(422).json({ error: error?.message || 'Não foi possível conectar ao servidor MCP.' });
     }
@@ -125,7 +139,7 @@ router.patch('/:id', async (req, res, next) => {
 
     if (enabled) {
       try {
-        await probeMcpServer({ ...existing, name, endpoint_url: endpointUrl, auth_token_encrypted: encryptedToken, enabled: true });
+        await probeWithQuota(req.userId, { ...existing, name, endpoint_url: endpointUrl, auth_token_encrypted: encryptedToken, enabled: true });
       } catch (error) {
         return res.status(422).json({ error: error?.message || 'O servidor MCP não respondeu.' });
       }

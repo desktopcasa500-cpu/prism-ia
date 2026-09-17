@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import Landing from './pages/Landing.jsx';
 import TaffPresentation from './components/TaffPresentation.jsx';
 import Info from './pages/Info.jsx';
-import Models from './pages/Models.jsx';
+import ModelsV2 from './pages/ModelsV2.jsx';
 import Terms from './pages/Terms.jsx';
 import TermDetail from './pages/TermDetail.jsx';
 import PrismDetail from './pages/PrismDetail.jsx';
@@ -24,24 +24,6 @@ function PrivateRoute({ children }) { const { user, loading } = useAuth(); if (l
 function PublicRoute({ children }) { const { user, loading } = useAuth(); if (loading) return <LoadingScreen />; return user ? <Navigate to="/chat" replace /> : children; }
 function StudioWithProfile() { const { user, updateUser, logout } = useAuth(); return <><Studio /><StudioProfileMenu user={user} updateUser={updateUser} logout={logout} /></>; }
 function TimezoneSync() { const { user } = useAuth(); const syncedUserRef = useRef(null); useEffect(() => { if (!user?.id || syncedUserRef.current === user.id) return; syncedUserRef.current = user.id; api.patch('/user/me/timezone', { timezone: detectUserTimeZone() }).catch(() => {}); }, [user?.id]); return null; }
-
-export default function App() {
-  return <><TimezoneSync /><Routes>
-    <Route path="/" element={<Landing />} />
-    <Route path="/prism-taff" element={<TaffPresentation />} />
-    <Route path="/informacoes" element={<Info />} />
-    <Route path="/informacoes/:id" element={<PrismDetail type="info" />} />
-    <Route path="/modelos" element={<Models />} />
-    <Route path="/modelos/:id" element={<PrismDetail type="models" />} />
-    <Route path="/termos" element={<Terms />} />
-    <Route path="/termos/:topic" element={<TermDetail />} />
-    <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-    <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-    <Route path="/chat" element={<PrivateRoute><><ChatReleaseV2 /><TrafficNotice /></></PrivateRoute>} />
-    <Route path="/codex" element={<PrivateRoute><><CodexReleaseV2 /><TrafficNotice /></></PrivateRoute>} />
-    <Route path="/studio" element={<PrivateRoute><StudioWithProfile /></PrivateRoute>} />
-    <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
-    <Route path="/workspace" element={<Navigate to="/studio" replace />} />
-    <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes></>;
-}
+export default function App(){return <><TimezoneSync/><Routes>
+  <Route path="/" element={<Landing/>}/><Route path="/prism-taff" element={<TaffPresentation/>}/><Route path="/informacoes" element={<Info/>}/><Route path="/informacoes/:id" element={<PrismDetail type="info"/>}/><Route path="/modelos" element={<ModelsV2/>}/><Route path="/modelos/:id" element={<PrismDetail type="models"/>}/><Route path="/termos" element={<Terms/>}/><Route path="/termos/:topic" element={<TermDetail/>}/><Route path="/login" element={<PublicRoute><Login/></PublicRoute>}/><Route path="/register" element={<PublicRoute><Register/></PublicRoute>}/><Route path="/chat" element={<PrivateRoute><><ChatReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/codex" element={<PrivateRoute><><CodexReleaseV2/><TrafficNotice/></></PrivateRoute>}/><Route path="/studio" element={<PrivateRoute><StudioWithProfile/></PrivateRoute>}/><Route path="/configuracoes" element={<PrivateRoute><Settings/></PrivateRoute>}/><Route path="/workspace" element={<Navigate to="/studio" replace/>}/><Route path="*" element={<Navigate to="/" replace/>}/>
+</Routes></>;}

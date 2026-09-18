@@ -1,5 +1,6 @@
 import { createMcpExecutionContext } from './mcp.js';
 import { normalizeEffort } from './modelRouter.js';
+import { getGroqKeyCandidates, isGroqConfigured } from './groqRouter.js';
 
 const REQUEST_TIMEOUT = 90_000;
 const MAX_TOOL_ROUNDS = 6;
@@ -7,7 +8,7 @@ const MAX_CONTEXT = 30_000;
 const PROVIDERS = new Set(['nvidia', 'groq', 'opencode']);
 const ENV = {
   nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
-  groq: () => process.env.GROQ_API_KEY,
+  groq: () => isGroqConfigured(),
   opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
 };
 const ENDPOINTS = {
@@ -68,15 +69,26 @@ async function executeTool(tool, args, mcp) {
   catch (error) { return { text: safeText(error?.message || 'Falha na ferramenta MCP'), isError: true }; }
 }
 
-async function callProvider(provider, model, effort, input, tools, mcp) {
-  const key = ENV[provider]?.();
-  if (!key) throw new Error(`${provider.toUpperCase()} API não configurada`);
+async function callProvider(provider, model, effort, input, tools, mcp, userId) {
+  const keys = provider === 'groq'
+    ? getGroqKeyCandidates(userId || 'anonymous')
+    : [{ slot: provider, key: ENV[provider]?.() }];
+
+  if (!keys.length || !keys[0].key) throw new Error(`${provider.toUpperCase()} API não configurada`);
   const messages = [{ role: 'system', content: systemPrompt(effort) }, { role: 'user', content: input }];
   const declared = openAiTools(tools);
   const toolsUsed = [];
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const body = {
+  let lastError = null;
+
+  for (const keyEntry of keys) {
+    try {
+      const messages = [{ role: 'system', content: systemPrompt(effort) }, { role: 'user', content: input }];
+      const declared = openAiTools(tools);
+      const toolsUsed = [];
+
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+        const body = {
       model,
       messages,
       temperature: effort === 'low' ? 0.35 : 0.2,
@@ -84,31 +96,41 @@ async function callProvider(provider, model, effort, input, tools, mcp) {
     };
     if (provider === 'groq' && effort !== 'low') body.reasoning_effort = effort === 'ultracode' || effort === 'max' ? 'high' : effort;
     if (provider === 'nvidia' && effort === 'ultracode') body.reasoning_effort = 'max';
-    const data = await request(ENDPOINTS[provider], {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...(provider === 'opencode' ? { 'X-Title': 'Prism IA' } : {}) },
-      body: JSON.stringify(body),
-    });
-    const message = data?.choices?.[0]?.message;
-    if (!message) throw new Error(`${provider} retornou uma resposta inválida`);
-    messages.push(message);
-    const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
-    if (!calls.length) return {
-      text: String(message.content || ''),
-      tokens: Number(data?.usage?.total_tokens || 0),
-      toolsUsed,
-      thinkingSummary: 'Análise concluída.',
-    };
-    for (const call of calls) {
-      const tool = tools.find((entry) => entry.modelName === call?.function?.name);
-      let args = {};
-      try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch {}
-      const result = await executeTool(tool, args, mcp);
-      if (tool) toolsUsed.push({ server: tool.serverName, tool: tool.toolName, error: Boolean(result.isError) });
-      messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+        const data = await request(ENDPOINTS[provider], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyEntry.key}`, ...(provider === 'opencode' ? { 'X-Title': 'Prism IA' } : {}) },
+          body: JSON.stringify(body),
+        });
+        const message = data?.choices?.[0]?.message;
+        if (!message) throw new Error(`${provider} retornou uma resposta inválida`);
+        messages.push(message);
+        const calls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+        if (!calls.length) return {
+          text: String(message.content || ''),
+          tokens: Number(data?.usage?.total_tokens || 0),
+          toolsUsed,
+          thinkingSummary: 'Análise concluída.',
+        };
+        for (const call of calls) {
+          const tool = tools.find((entry) => entry.modelName === call?.function?.name);
+          let args = {};
+          try { args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {}; } catch {}
+          const result = await executeTool(tool, args, mcp);
+          if (tool) toolsUsed.push({ server: tool.serverName, tool: tool.toolName, error: Boolean(result.isError) });
+          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+        }
+      }
+      throw new Error(`${provider} excedeu o limite de etapas de ferramentas`);
+    } catch (error) {
+      lastError = error;
+      if (provider !== 'groq') throw error;
     }
   }
-  throw new Error(`${provider} excedeu o limite de etapas de ferramentas`);
+
+  throw Object.assign(
+    new Error('Groq indisponível: as duas chaves do Groq falharam.'),
+    { code: 'GROQ_KEYS_FAILED', cause: lastError },
+  );
 }
 
 export async function runParallelOrchestration({
@@ -135,7 +157,7 @@ export async function runParallelOrchestration({
   const started = Date.now();
   try {
     const settled = await Promise.allSettled(unique.map(async (entry) => {
-      const result = await callProvider(entry.provider, entry.model, normalizedEffort, input, mcp.tools, mcp);
+      const result = await callProvider(entry.provider, entry.model, normalizedEffort, input, mcp.tools, mcp, userId);
       return {
         provider: entry.provider,
         model: entry.model,

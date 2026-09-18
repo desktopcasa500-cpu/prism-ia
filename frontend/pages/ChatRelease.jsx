@@ -75,7 +75,7 @@ export default function ChatRelease() {
   const authFail = useCallback((cause) => { if (cause?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
 
   const loadSession = useCallback(async (id) => {
-    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setError('');
+    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError('');
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
     catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
     finally { setLoading(false); }
@@ -156,7 +156,7 @@ export default function ChatRelease() {
   const workingEvent = [...events].reverse().find((event) => !['done', 'provider_complete'].includes(event.type));
 
   return <div className="prism-agent-chat">
-    <aside className="prism-agent-sidebar">
+    <aside className={`prism-agent-sidebar${mobileOpen ? " open" : ""}`}>
       <button className="prism-agent-brand" onClick={() => navigate('/chat')}><img src="/prism-logo.svg" alt=""/>Prism IA</button>
       <button className="prism-agent-sidebar__new" onClick={newSession}><PrismIcon name="plus" size={15}/>Nova conversa</button>
       <div className="prism-agent-sidebar__nav">
@@ -177,7 +177,9 @@ export default function ChatRelease() {
     </aside>
 
     <main className="prism-agent-main">
+      {mobileOpen && <button className="prism-agent-mobile-overlay" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
       <header className="prism-agent-topbar">
+        <button className="prism-agent-mobile-toggle" aria-label="Abrir menu" onClick={() => setMobileOpen(true)}><PrismIcon name="menu" size={15}/></button>
         <div className="prism-agent-topbar-title">{hasMessages ? (sessions.find((item) => item.id === sessionId)?.title || 'Conversa') : 'O que você quer criar?'}</div>
         <div className="prism-agent-topbar-right">
           <select className="prism-agent-project-select" value={projectId} onChange={(event) => setProjectId(event.target.value)} aria-label="Projeto"><option value="">Sem projeto</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select>

@@ -4,6 +4,7 @@ import { createMcpExecutionContext } from './mcp.js';
 import { skillToolDefinitions, executeSkill } from './skills.js';
 import { searchWeb, fetchWebPage, webSearchConfigured } from './webSearch.js';
 import { createAgentWorkspace, executeAgentTool, agentToolDefinitions } from './agentRuntime.js';
+import { getGroqKeyCandidates, isGroqConfigured } from './groqRouter.js';
 
 const TIMEOUT = 120_000;
 const MCP_TIMEOUT = 40_000;
@@ -13,7 +14,7 @@ const WEB = 'prism_web_search';
 const WEB_OPEN = 'prism_web_open';
 const keys = {
   nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
-  groq: () => process.env.GROQ_API_KEY,
+  groq: () => isGroqConfigured(),
   opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
   openrouter: () => process.env.OPENROUTER_API_KEY,
 };
@@ -102,6 +103,63 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
   throw new Error(`${provider} atingiu o limite de ferramentas.`);
 }
 
+async function callProviderWithRouting(provider, input, execution) {
+  if (provider.name !== 'groq') {
+    return callOpenAICompatible({
+      provider: provider.name,
+      key: keys[provider.name](),
+      model: provider.model,
+      prompt: input,
+      effort: execution.effort,
+      tools: execution.tools,
+      execution,
+      url: provider.url,
+      headers: provider.headers,
+    });
+  }
+
+  const candidates = getGroqKeyCandidates(execution.userId || execution.id || 'anonymous');
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    try {
+      emit(execution, 'groq_key_attempt', {
+        provider: 'groq',
+        slot: candidate.slot,
+      });
+
+      const result = await callOpenAICompatible({
+        provider: provider.name,
+        key: candidate.key,
+        model: provider.model,
+        prompt: input,
+        effort: execution.effort,
+        tools: execution.tools,
+        execution,
+        url: provider.url,
+        headers: provider.headers,
+      });
+
+      return result;
+    } catch (error) {
+      lastError = error;
+      emit(execution, 'groq_key_error', {
+        provider: 'groq',
+        slot: candidate.slot,
+        message: error?.message || 'Falha na chave Groq.',
+      });
+    }
+  }
+
+  throw Object.assign(
+    new Error('Groq indisponível: as duas chaves do Groq falharam.'),
+    {
+      code: 'GROQ_KEYS_FAILED',
+      cause: lastError,
+    },
+  );
+}
+
 function providers(model, effort) {
   const profile = getModelProfile(model);
   const mappings = profile.providers || {};
@@ -141,6 +199,9 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
     projectId: options.projectId,
     onProgress: options.onProgress,
     model,
+    effort: normalizedEffort,
+    tools: [],
+    id: String(userId || 'anonymous') + ':' + String(Date.now()),
   };
 
   let workspace = null;
@@ -218,6 +279,8 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
       })),
     ];
 
+    execution.tools = tools;
+
     emit(execution, 'tools_ready', {
       count: tools.length,
     });
@@ -249,17 +312,11 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
           model: provider.model,
         });
 
-        const result = await callOpenAICompatible({
-          provider: provider.name,
-          key: keys[provider.name](),
-          model: provider.model,
-          prompt: input,
-          effort: normalizedEffort,
-          tools,
+        const result = await callProviderWithRouting(
+          provider,
+          input,
           execution,
-          url: provider.url,
-          headers: provider.headers,
-        });
+        );
 
         if (result?.text?.trim()) {
           emit(execution, 'provider_complete', {

@@ -132,19 +132,193 @@ function providers(model, effort) {
   return list.sort((a, b) => priority.indexOf(a.name) - priority.indexOf(b.name));
 }
 
-async function runCoreOrchestration(prompt,effort='medium',profile=null,context='',userId=null,options={}){
+async function runCoreOrchestration(prompt, effort = 'medium', profile = null, context = '', userId = null, options = {}) {
+  const model = profile?.model || profile?.id || 'prism-mini-1.0';
+  const normalizedEffort = normalizeEffort(effort);
+  const input = String(context || '').slice(-MAX_CONTEXT) + `\\n\\nPedido atual:\\n${String(prompt || '').slice(0, MAX_CONTEXT)}`;
+  const execution = {
+    userId,
+    projectId: options.projectId,
+    onProgress: options.onProgress,
+    model,
+  };
 
-  const model=profile?.model||profile?.id||'prism-mini-1.0';const normalizedEffort=normalizeEffort(effort);const input=String(context||'').slice(-MAX_CONTEXT)+`\n\nPedido atual:\n${String(prompt||'').slice(0,MAX_CONTEXT)}`;const execution={userId,projectId:options.projectId,onProgress:options.onProgress,model};let workspace=null;let mcp={tools:[],errors:[],execute:async()=>{throw new Error('MCP indisponível.')},close:async()=>{}};
-  try{
-    emit(execution,'start',{stage:'prepare',message:'Preparando contexto e ferramentas.'});
-    if(userId&&options.projectId){emit(execution,'workspace_start',{projectId:options.projectId});workspace=await createAgentWorkspace({projectId:options.projectId,userId});execution.workspace=workspace;emit(execution,'workspace_ready',{files:workspace.files.length});}
-    if(userId){emit(execution,'mcp_start',{message:'Conectando MCPs e integrações.'});try{mcp=await Promise.race([createMcpExecutionContext(userId,{serverIds:options.mcpServerIds}),new Promise((_,reject)=>setTimeout(()=>reject(new Error('MCP_TIMEOUT')),MCP_TIMEOUT))]);emit(execution,'mcp_ready',{tools:mcp.tools.length});}catch(error){emit(execution,'mcp_error',{message:error.message});}}
-    execution.mcp=mcp;execution.mcpTools=mcp.tools;execution.skillTools=options.enableSkills===false?[]:skillToolDefinitions();const tools=[...agentToolDefinitions().map((tool)=>({...tool,kind:'native'})),...(webSearchConfigured()?[webTool(),webOpenTool()]:[]),...mcp.tools.map((tool)=>({...tool,kind:'mcp'})),...execution.skillTools.map((tool)=>({...tool,kind:'skill',serverName:'Prism Skills'}))];emit(execution,'tools_ready',{count:tools.length});
-    const list=providers(model,normalizedEffort);if(!list.length)return{status:'unavailable',message:'Nenhum provedor de IA configurado.',providers:[],tools_used:[],model,effort:normalizedEffort};emit(execution,'providers_ready',{providers:list.map((item)=>item.name)});
-    const errors=[];
-    for(const provider of list){const started=Date.now();try{emit(execution,'provider_start',{provider:provider.name,model:provider.model});let result=await callOpenAICompatible({provider:provider.name,key:keys[provider.name](),model:provider.model,prompt:input,effort:normalizedEffort,tools,execution,url:provider.url,headers:provider.headers});if(result?.text?.trim()){emit(execution,'provider_complete',{provider:result.provider,elapsedMs:Date.now()-started});emit(execution,'finalizing',{message:'Revisando a resposta.'});return{status:'ok',text:result.text.trim(),tokens:Number(result.tokens||0),providers:[result.provider],tools_used:result.used||[],mcp_errors:mcp.errors,provider_errors:errors,model,effort:normalizedEffort};}errors.push({provider:provider.name,reason:'empty_response',elapsedMs:Date.now()-started);}catch(error){errors.push({provider:provider.name,reason:error?.code||'provider_error',message:String(error?.message||'').slice(0,500),elapsedMs:Date.now()-started});emit(execution,'provider_error',{provider:provider.name,message:error?.message||'Falha no provedor.'});}}
-    return{status:'unavailable',message:'Todos os provedores configurados falharam.',providers:[],provider_errors:errors,mcp_errors:mcp.errors,model,effort:normalizedEffort,tools_used:[]};
-  }finally{await mcp.close().catch(()=>{});await workspace?.cleanup?.();emit(execution,'done');}
+  let workspace = null;
+  let mcp = {
+    tools: [],
+    errors: [],
+    execute: async () => {
+      throw new Error('MCP indisponível.');
+    },
+    close: async () => {},
+  };
+
+  try {
+    emit(execution, 'start', {
+      stage: 'prepare',
+      message: 'Preparando contexto e ferramentas.',
+    });
+
+    if (userId && options.projectId) {
+      emit(execution, 'workspace_start', { projectId: options.projectId });
+      workspace = await createAgentWorkspace({
+        projectId: options.projectId,
+        userId,
+      });
+      execution.workspace = workspace;
+      emit(execution, 'workspace_ready', {
+        files: workspace.files.length,
+      });
+    }
+
+    if (userId) {
+      emit(execution, 'mcp_start', {
+        message: 'Conectando MCPs e integrações.',
+      });
+
+      try {
+        mcp = await Promise.race([
+          createMcpExecutionContext(userId, {
+            serverIds: options.mcpServerIds,
+          }),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('MCP_TIMEOUT')), MCP_TIMEOUT);
+          }),
+        ]);
+
+        emit(execution, 'mcp_ready', {
+          tools: mcp.tools.length,
+        });
+      } catch (error) {
+        emit(execution, 'mcp_error', {
+          message: error?.message || 'MCP indisponível.',
+        });
+      }
+    }
+
+    execution.mcp = mcp;
+    execution.mcpTools = mcp.tools;
+    execution.skillTools =
+      options.enableSkills === false ? [] : skillToolDefinitions();
+
+    const tools = [
+      ...agentToolDefinitions().map((tool) => ({
+        ...tool,
+        kind: 'native',
+      })),
+      ...(webSearchConfigured() ? [webTool(), webOpenTool()] : []),
+      ...mcp.tools.map((tool) => ({
+        ...tool,
+        kind: 'mcp',
+      })),
+      ...execution.skillTools.map((tool) => ({
+        ...tool,
+        kind: 'skill',
+        serverName: 'Prism Skills',
+      })),
+    ];
+
+    emit(execution, 'tools_ready', {
+      count: tools.length,
+    });
+
+    const list = providers(model, normalizedEffort);
+    if (!list.length) {
+      return {
+        status: 'unavailable',
+        message: 'Nenhum provedor de IA configurado.',
+        providers: [],
+        tools_used: [],
+        model,
+        effort: normalizedEffort,
+      };
+    }
+
+    emit(execution, 'providers_ready', {
+      providers: list.map((item) => item.name),
+    });
+
+    const errors = [];
+
+    for (const provider of list) {
+      const started = Date.now();
+
+      try {
+        emit(execution, 'provider_start', {
+          provider: provider.name,
+          model: provider.model,
+        });
+
+        const result = await callOpenAICompatible({
+          provider: provider.name,
+          key: keys[provider.name](),
+          model: provider.model,
+          prompt: input,
+          effort: normalizedEffort,
+          tools,
+          execution,
+          url: provider.url,
+          headers: provider.headers,
+        });
+
+        if (result?.text?.trim()) {
+          emit(execution, 'provider_complete', {
+            provider: result.provider,
+            elapsedMs: Date.now() - started,
+          });
+
+          emit(execution, 'finalizing', {
+            message: 'Revisando a resposta.',
+          });
+
+          return {
+            status: 'ok',
+            text: result.text.trim(),
+            tokens: Number(result.tokens || 0),
+            providers: [result.provider],
+            tools_used: result.used || [],
+            mcp_errors: mcp.errors,
+            provider_errors: errors,
+            model,
+            effort: normalizedEffort,
+          };
+        }
+
+        errors.push({
+          provider: provider.name,
+          reason: 'empty_response',
+          elapsedMs: Date.now() - started,
+        });
+      } catch (error) {
+        errors.push({
+          provider: provider.name,
+          reason: error?.code || 'provider_error',
+          message: String(error?.message || '').slice(0, 500),
+          elapsedMs: Date.now() - started,
+        });
+
+        emit(execution, 'provider_error', {
+          provider: provider.name,
+          message: error?.message || 'Falha no provedor.',
+        });
+      }
+    }
+
+    return {
+      status: 'unavailable',
+      message: 'Todos os provedores configurados falharam.',
+      providers: [],
+      provider_errors: errors,
+      mcp_errors: mcp.errors,
+      model,
+      effort: normalizedEffort,
+      tools_used: [],
+    };
+  } finally {
+    await mcp.close().catch(() => {});
+    await workspace?.cleanup?.();
+    emit(execution, 'done');
+  }
 }
 
 export async function runOrchestration(prompt, effort='medium', profile=null, context='', userId=null, options={}) {

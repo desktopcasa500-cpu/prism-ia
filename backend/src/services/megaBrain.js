@@ -1,10 +1,12 @@
+import { getGroqKeyCandidates, isGroqConfigured } from './groqRouter.js';
+
 const TIMEOUT = 60_000;
 const MAX_INPUT = 24_000;
 const MAX_ADVISORY = 14_000;
 
 const keys = {
   nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
-  groq: () => process.env.GROQ_API_KEY,
+  groq: () => isGroqConfigured(),
   opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
 };
 
@@ -67,7 +69,7 @@ function advisorPrompt(task) {
   ].join('\n');
 }
 
-async function consult(advisor, task) {
+async function consult(advisor, task, userId = null) {
   const body = {
     model: advisor.model,
     messages: [
@@ -88,12 +90,29 @@ async function consult(advisor, task) {
     body.temperature = 0.2;
     body.max_tokens = 16_384;
   }
-  const data = await request(advisor.url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${advisor.key()}`, ...advisor.headers },
-    body: JSON.stringify(body),
-  });
-  return textFrom(data);
+  const candidates = advisor.provider === 'groq'
+    ? getGroqKeyCandidates(userId || 'anonymous')
+    : [{ slot: advisor.provider, key: advisor.key() }];
+
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      const data = await request(advisor.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${candidate.key}`, ...advisor.headers },
+        body: JSON.stringify(body),
+      });
+      return textFrom(data);
+    } catch (error) {
+      lastError = error;
+      if (advisor.provider !== 'groq') throw error;
+    }
+  }
+
+  throw Object.assign(
+    new Error('Groq indisponível: as duas chaves do Groq falharam.'),
+    { code: 'GROQ_KEYS_FAILED', cause: lastError },
+  );
 }
 
 export function isMegaBrainCommand(model, requestedEffort, prompt) {
@@ -137,7 +156,7 @@ export async function runMegaBrain({ prompt, context = '', userId = null, projec
     const started = Date.now();
     emit(onProgress, 'megabrain_provider_start', { provider: advisor.provider, model: advisor.model });
     try {
-      const text = String(await consult(advisor, task) || '').slice(0, MAX_ADVISORY);
+      const text = String(await consult(advisor, task, userId) || '').slice(0, MAX_ADVISORY);
       emit(onProgress, 'megabrain_provider_complete', {
         provider: advisor.provider,
         model: advisor.model,

@@ -75,10 +75,6 @@ async function callProvider(provider, model, effort, input, tools, mcp, userId) 
     : [{ slot: provider, key: ENV[provider]?.() }];
 
   if (!keys.length || !keys[0].key) throw new Error(`${provider.toUpperCase()} API não configurada`);
-  const messages = [{ role: 'system', content: systemPrompt(effort) }, { role: 'user', content: input }];
-  const declared = openAiTools(tools);
-  const toolsUsed = [];
-
   let lastError = null;
 
   for (const keyEntry of keys) {
@@ -89,11 +85,11 @@ async function callProvider(provider, model, effort, input, tools, mcp, userId) 
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const body = {
-      model,
-      messages,
-      temperature: effort === 'low' ? 0.35 : 0.2,
-      ...(declared.length ? { tools: declared, tool_choice: 'auto' } : {}),
-    };
+          model,
+          messages,
+          temperature: effort === 'low' ? 0.35 : 0.2,
+          ...(declared.length ? { tools: declared, tool_choice: 'auto' } : {}),
+        };
     if (provider === 'groq' && effort !== 'low') body.reasoning_effort = effort === 'ultracode' || effort === 'max' ? 'high' : effort;
     if (provider === 'nvidia' && effort === 'ultracode') body.reasoning_effort = 'max';
         const data = await request(ENDPOINTS[provider], {

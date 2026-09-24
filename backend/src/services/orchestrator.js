@@ -551,9 +551,11 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
       }
     }
 
+    const groqOnly = errors.length > 0 && errors.every((entry) => entry.provider === 'groq');
+    const groqFailure = errors.find((entry) => entry.reason === 'GROQ_KEYS_FAILED');
     return {
       status: 'unavailable',
-      message: 'Todos os provedores configurados falharam.',
+      message: groqOnly && groqFailure ? groqFailure.message : 'Todos os provedores configurados falharam.',
       providers: [],
       provider_errors: errors,
       mcp_errors: mcp.errors,

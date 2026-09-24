@@ -1409,3 +1409,81 @@
     z-index: 200;
   }
 }
+
+
+/* Migrated controls from the retired chat/codex release layers. */
+.prism-workspace .prism-agent-working-label { margin-left: 18px; }
+.prism-workspace .prism-agent-trace-dot {
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.prism-workspace .prism-agent-artifact-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.prism-workspace .prism-agent-composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+}
+.prism-workspace .prism-agent-composer-spacer { margin-left: auto; }
+.prism-workspace .prism-agent-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px;
+}
+.prism-workspace.prism-codex-v2 .actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.prism-workspace.prism-codex-v2 .running {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--pw-muted);
+  font-size: 10px;
+}
+.prism-workspace.prism-codex-v2 .running i {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pw-text-soft);
+  box-shadow: 10px 0 var(--pw-muted), 20px 0 var(--pw-faint);
+  animation: prismWorkspaceRun 1.15s ease-in-out infinite;
+}
+.prism-workspace.prism-codex-v2 .running small {
+  margin-left: 2px;
+  color: var(--pw-faint);
+}
+.prism-workspace.prism-codex-v2 .execution-row .dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border: 1px solid var(--pw-faint);
+  border-radius: 50%;
+}
+.prism-workspace.prism-codex-v2 .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 3px;
+}
+.prism-workspace.prism-codex-v2 .chips span {
+  border: 1px solid var(--pw-line);
+  background: var(--pw-surface-soft);
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: var(--pw-text-soft);
+  font-size: 7px;
+}
+@keyframes prismWorkspaceRun {
+  0%, 100% { transform: translateX(0); opacity: .45; }
+  50% { transform: translateX(10px); opacity: 1; }
+}

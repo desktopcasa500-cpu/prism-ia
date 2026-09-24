@@ -1212,3 +1212,37 @@
   background: var(--pw-surface-soft);
   color: var(--pw-accent-strong);
 }
+
+
+/* Prism syntax tokens — warm, restrained palette */
+.prism-workspace .prism-markdown-code .token.comment,
+.prism-workspace .prism-markdown-code .token.prolog,
+.prism-workspace .prism-markdown-code .token.doctype,
+.prism-workspace .prism-markdown-code .token.cdata { color: #8f887f; }
+.prism-workspace .prism-markdown-code .token.punctuation { color: #d8d1c6; }
+.prism-workspace .prism-markdown-code .token.property,
+.prism-workspace .prism-markdown-code .token.tag,
+.prism-workspace .prism-markdown-code .token.boolean,
+.prism-workspace .prism-markdown-code .token.number,
+.prism-workspace .prism-markdown-code .token.constant,
+.prism-workspace .prism-markdown-code .token.symbol { color: #d5a878; }
+.prism-workspace .prism-markdown-code .token.selector,
+.prism-workspace .prism-markdown-code .token.attr-name,
+.prism-workspace .prism-markdown-code .token.string,
+.prism-workspace .prism-markdown-code .token.char,
+.prism-workspace .prism-markdown-code .token.builtin,
+.prism-workspace .prism-markdown-code .token.inserted { color: #c7d3a0; }
+.prism-workspace .prism-markdown-code .token.operator,
+.prism-workspace .prism-markdown-code .token.entity,
+.prism-workspace .prism-markdown-code .token.url,
+.prism-workspace .prism-markdown-code .language-css .token.string,
+.prism-workspace .prism-markdown-code .style .token.string { color: #c9b7a0; }
+.prism-workspace .prism-markdown-code .token.atrule,
+.prism-workspace .prism-markdown-code .token.attr-value,
+.prism-workspace .prism-markdown-code .token.keyword { color: #d8b98f; }
+.prism-workspace .prism-markdown-code .token.function,
+.prism-workspace .prism-markdown-code .token.class-name { color: #e2d0ae; }
+.prism-workspace .prism-markdown-code .token.regex,
+.prism-workspace .prism-markdown-code .token.important,
+.prism-workspace .prism-markdown-code .token.variable { color: #d3b8a2; }
+.prism-workspace .prism-markdown-code .token.deleted { color: #cf988d; }

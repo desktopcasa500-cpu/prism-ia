@@ -237,6 +237,7 @@ if (tool.modelName === WEB) {
 async function callOpenAICompatible({ provider, key, model, prompt, effort, tools, execution, url, headers = {} }) {
   const messages = [{ role: 'system', content: systemPrompt(model, effort, tools, prompt) }, { role: 'user', content: prompt }]; const declarations = tools.length ? openAiTools(tools) : undefined; const used = []; let tokens = 0;
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
+    if (execution?.signal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' });
     emit(execution, 'provider_round', { provider, round: round + 1 });
     const body = {
       model,
@@ -266,7 +267,7 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
     if (!message) throw new Error(`${provider} retornou resposta inválida.`);
     messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : []; if (!calls.length) return { provider, text: String(message.content || ''), tokens, used };
-    for (const call of calls) { const tool = tools.find((item) => item.modelName === call?.function?.name); let args = {}; try { args = JSON.parse(call?.function?.arguments || '{}'); } catch {} const result = await executeTool(tool, args, execution); used.push(...result.used); messages.push({ role: 'tool', tool_call_id: call.id, content: result.text }); }
+    for (const call of calls) { if (execution?.signal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' }); const tool = tools.find((item) => item.modelName === call?.function?.name); let args = {}; try { args = JSON.parse(call?.function?.arguments || '{}'); } catch {} const result = await executeTool(tool, args, execution); if (execution?.signal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' }); used.push(...result.used); messages.push({ role: 'tool', tool_call_id: call.id, content: result.text }); }
   }
   throw new Error(`${provider} atingiu o limite de ferramentas.`);
 }

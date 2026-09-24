@@ -34,6 +34,7 @@ const server = await ensureDatabase()
 
 let resetJobTimer = null;
 let newsJobTimer = null;
+let shuttingDown = false;
 if (server) {
   const runResetJob = async () => {
     try {
@@ -63,12 +64,23 @@ if (server) {
 }
 
 async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`Recebido ${signal}; encerrando Prism IA.`);
   if (resetJobTimer) clearInterval(resetJobTimer);
   if (newsJobTimer) clearInterval(newsJobTimer);
-  if (server) await new Promise((resolve) => server.close(resolve));
-  await pool.end().catch(() => {});
-  process.exit(0);
+  const forceExit = setTimeout(() => process.exit(1), 10_000);
+  forceExit.unref?.();
+  try {
+    if (server) await new Promise((resolve) => server.close(resolve));
+    await pool.end().catch(() => {});
+    clearTimeout(forceExit);
+    process.exit(0);
+  } catch (error) {
+    console.error('Falha durante shutdown:', error);
+    clearTimeout(forceExit);
+    process.exit(1);
+  }
 }
 
 process.once('SIGTERM', () => shutdown('SIGTERM'));

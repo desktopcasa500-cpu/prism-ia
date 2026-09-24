@@ -96,7 +96,6 @@ export default function ChatRelease() {
   const [feedbackByMessage, setFeedbackByMessage] = useState({});
   const controllerRef = useRef(null);
   const endRef = useRef(null);
-  const scrollRef = useRef(null);
   const inputRef = useRef(null);
   const searchRef = useRef(null);
   const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]);
@@ -149,8 +148,14 @@ export default function ChatRelease() {
   useEffect(() => {
     const onShortcut = (event) => {
       const key = event.key.toLowerCase();
+      if (event.key === 'Escape') {
+        if (modelOpen) setModelOpen(false);
+        if (mobileOpen) setMobileOpen(false);
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && key === 'k') {
         event.preventDefault();
+        setSidebarCollapsed(false);
         setSearch('');
         requestAnimationFrame(() => searchRef.current?.focus());
       }
@@ -159,9 +164,16 @@ export default function ChatRelease() {
         newSession();
       }
     };
+    const onPointerDown = (event) => {
+      if (!event.target.closest('.prism-agent-model-picker-wrap')) setModelOpen(false);
+    };
     window.addEventListener('keydown', onShortcut);
-    return () => window.removeEventListener('keydown', onShortcut);
-  }, [newSession]);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onShortcut);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [mobileOpen, modelOpen, newSession]);
   const handleScroll = useCallback((event) => {
     const element = event.currentTarget;
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
@@ -195,17 +207,6 @@ export default function ChatRelease() {
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [authFail, loadSession]);
-
-  async function renameSession(session) {
-    const nextTitle = window.prompt('Renomear conversa', session.title || 'Nova conversa')?.trim().replace(/\s+/g, ' ').slice(0, 120);
-    if (!nextTitle || nextTitle === session.title) return;
-    try {
-      const result = await api.patch('/chat/sessions/' + encodeURIComponent(session.id), { title: nextTitle });
-      setSessions((items) => items.map((item) => item.id === session.id ? { ...item, ...result.session } : item));
-    } catch (cause) {
-      if (!authFail(cause)) setError(cause.message || 'Não foi possível renomear a conversa.');
-    }
-  }
 
   async function deleteSession(session) {
     const confirmed = window.confirm('Excluir "' + (session.title || 'Nova conversa') + '"? Essa ação não pode ser desfeita.');

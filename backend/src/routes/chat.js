@@ -38,6 +38,13 @@ async function handle(req,res,stream){
     ? (event) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`); }
     : () => {};
 
+  if (stream) {
+    heartbeat = setInterval(() => {
+      if (!res.writableEnded) res.write(': ping\n\n');
+    }, 15000);
+    heartbeat.unref?.();
+  }
+
   try {
     const input=await prepare(req);if(input.requestId){const duplicate=await pool.query(`SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE user_id=$1 AND role='assistant' AND metadata->>'client_request_id'=$2 ORDER BY created_at DESC LIMIT 1`,[req.userId,input.requestId]);if(duplicate.rows[0]){if(stream)send({type:'result',data:{message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true}});else return res.json({message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true});return;}}
   const result=await process({req,input,onProgress:send});if(stream)send({type:'result',data:result});else res.status(201).json(result);
@@ -50,15 +57,7 @@ router.post('/sessions/:id/messages/stream',async(req,res)=>{
   res.setHeader('Connection','keep-alive');
   res.setHeader('X-Accel-Buffering','no');
   res.flushHeaders?.();
-  heartbeat = setInterval(() => {
-    if (!res.writableEnded) res.write(': ping\\n\\n');
-  }, 15000);
-  heartbeat.unref?.();
-  try {
-    await handle(req,res,true);
-  } finally {
-    if (heartbeat) clearInterval(heartbeat);
-    if (!res.writableEnded) res.end();
-  }
+  await handle(req,res,true);
+  if (!res.writableEnded) res.end();
 });
 export default router;

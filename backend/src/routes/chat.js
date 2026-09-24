@@ -32,6 +32,23 @@ router.patch('/sessions/:id',async(req,res,next)=>{try{if(!isUuid(req.params.id)
 router.get('/sessions/:id/messages',async(req,res,next)=>{try{if(!isUuid(req.params.id))return res.status(400).json({error:'Identificador inválido.',code:'INVALID_SESSION_ID'});const session=await getSession(req.params.id,req.userId,req.query?.surface?surface(req.query.surface):null);if(!session)return res.status(404).json({error:'Sessão não encontrada.',code:'SESSION_NOT_FOUND'});const result=await pool.query('SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at ASC LIMIT 500',[req.params.id,req.userId]);res.json({messages:result.rows,surface:session.surface});}catch(error){next(error);}});
 router.delete('/sessions/:id',async(req,res,next)=>{try{if(!isUuid(req.params.id))return res.status(400).json({error:'Identificador inválido.',code:'INVALID_SESSION_ID'});const result=await pool.query('DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id',[req.params.id,req.userId]);if(!result.rows.length)return res.status(404).json({error:'Sessão não encontrada.',code:'SESSION_NOT_FOUND'});res.status(204).end();}catch(error){next(error);}});
 
+router.post('/messages/:id/feedback',async(req,res,next)=>{
+  try{
+    if(!isUuid(req.params.id)) return res.status(400).json({error:'Identificador inválido.',code:'INVALID_MESSAGE_ID'});
+    const value=clean(req.body?.value,20).toLowerCase();
+    if(!new Set(['positive','negative']).has(value)) return res.status(400).json({error:'Feedback inválido.',code:'INVALID_FEEDBACK'});
+    const result=await pool.query(
+      `UPDATE messages
+       SET metadata=metadata || jsonb_build_object('feedback',jsonb_build_object('value',$1::text,'updated_at',now()::text))
+       WHERE id=$2 AND user_id=$3 AND role='assistant'
+       RETURNING id,metadata->'feedback' AS feedback`,
+      [value,req.params.id,req.userId],
+    );
+    if(!result.rows.length) return res.status(404).json({error:'Mensagem não encontrada.',code:'MESSAGE_NOT_FOUND'});
+    res.json({messageId:result.rows[0].id,feedback:result.rows[0].feedback});
+  }catch(error){next(error);}
+});
+
 async function handle(req,res,stream){
   let heartbeat = null;
   const requestAbort = new AbortController();

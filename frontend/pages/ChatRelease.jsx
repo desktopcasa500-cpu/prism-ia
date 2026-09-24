@@ -30,7 +30,7 @@ function rankOf(plan) { return PLAN_RANK[plan] ?? 0; }
 function requestId() { try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; } }
 function metadataOf(message) { if (!message?.metadata) return {}; if (typeof message.metadata === 'object') return message.metadata; try { return JSON.parse(message.metadata); } catch { return {}; } }
 function eventLabel(event) {
-  const map = { start: 'Preparando', quota_reserved: 'Cota reservada', workspace_start: 'Abrindo projeto', workspace_ready: 'Projeto pronto', mcp_start: 'Conectando MCP', mcp_ready: 'MCP pronto', mcp_error: 'MCP indisponível', tools_ready: 'Ferramentas prontas', providers_ready: 'Provedores disponíveis', provider_start: 'Executando modelo', provider_round: 'Modelo pensando', provider_complete: 'Modelo concluiu', provider_error: 'Tentando outro provedor', tool_start: 'Executando ferramenta', command_output: 'Executando comando', artifact: 'Artefato criado', finalizing: 'Revisando resposta', megabrain_start: 'MegaBrain ativado', megabrain_provider_start: 'Consultando modelo do MegaBrain', megabrain_provider_complete: 'Conselheiro respondeu', megabrain_provider_error: 'Conselheiro falhou', megabrain_synthesis_start: 'Consolidando o MegaBrain', megabrain_done: 'MegaBrain concluído', done: 'Concluído', error: 'Falha' };
+  const map = { start: 'Preparando', quota_reserved: 'Cota reservada', workspace_start: 'Abrindo projeto', workspace_ready: 'Projeto pronto', mcp_start: 'Conectando MCP', mcp_ready: 'MCP pronto', mcp_error: 'MCP indisponível', tools_ready: 'Ferramentas prontas', providers_ready: 'Provedores disponíveis', provider_start: 'Executando modelo', provider_round: 'Modelo pensando', text_delta: 'Gerando resposta', provider_complete: 'Modelo concluiu', provider_error: 'Tentando outro provedor', tool_start: 'Executando ferramenta', command_output: 'Executando comando', artifact: 'Artefato criado', finalizing: 'Revisando resposta', megabrain_start: 'MegaBrain ativado', megabrain_provider_start: 'Consultando modelo do MegaBrain', megabrain_provider_complete: 'Conselheiro respondeu', megabrain_provider_error: 'Conselheiro falhou', megabrain_synthesis_start: 'Consolidando o MegaBrain', megabrain_done: 'MegaBrain concluído', done: 'Concluído', error: 'Falha' };
   return map[event?.type] || event?.message || event?.type || 'Executando';
 }
 
@@ -135,7 +135,7 @@ export default function ChatRelease() {
         if (event.type === 'text_delta') setStreamingText((value) => `${value}${event.delta || ''}`);
         if (event.type === 'result') setStreamingText('');
         if (event.type === 'command_output') setCommandOutput((value) => `${value}${event.text || ''}`.slice(-12_000));
-        setEvents((items) => [...items.slice(-30), event]);
+        if (event.type !== 'text_delta') setEvents((items) => [...items.slice(-30), event]);
         if (event.type === 'artifact' && event.filename) setArtifact(event);
         if (event.type === 'error') setError(event.message || 'A execução falhou.');
       }, { timeout: 300_000, signal: controller.signal });

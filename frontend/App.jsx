@@ -1,12 +1,12 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import Landing from './pages/Landing.jsx';
-import TaffPresentation from './components/TaffPresentation.jsx';
 import TrafficNotice from './components/TrafficNotice.jsx';
 import { useAuth } from './lib/auth.jsx';
 import { api } from './lib/api.js';
 import { detectUserTimeZone } from './lib/timezone.js';
 
+const TaffPresentation = lazy(() => import('./components/TaffPresentation.jsx'));
 const Info = lazy(() => import('./pages/Info.jsx'));
 const Models = lazy(() => import('./pages/Models.jsx'));
 const Terms = lazy(() => import('./pages/Terms.jsx'));

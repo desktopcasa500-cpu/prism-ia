@@ -381,7 +381,7 @@ export default function ChatRelease() {
       <button className="prism-agent-sidebar__new" onClick={newSession}><PrismIcon name="plus" size={15}/><span>Nova conversa</span></button>
       <div className="prism-agent-sidebar__nav">
         <button className="active" aria-current="page"><PrismIcon name="home" size={15}/><span>Início</span></button>
-        <button onClick={() => setSearch(search ? '' : ' ')}><PrismIcon name="search" size={15}/><span>Conversas</span></button>
+        <button onClick={() => { setSidebarCollapsed(false); setSearch(''); requestAnimationFrame(() => searchRef.current?.focus()); }}><PrismIcon name="search" size={15}/><span>Conversas</span></button>
         <button onClick={() => navigate('/studio')}><PrismIcon name="folder" size={15}/><span>Projetos</span></button>
         <button onClick={() => navigate('/modelos')}><PrismIcon name="model" size={15}/><span>Modelos</span></button>
         <button onClick={() => navigate('/configuracoes')}><PrismIcon name="settings" size={15}/><span>Configurações</span></button>
@@ -428,7 +428,7 @@ export default function ChatRelease() {
       <footer className="prism-agent-composer-wrap"><div className="prism-agent-composer">
         {attachments.length > 0 && <div className="prism-agent-attachments">{attachments.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}
         <textarea ref={inputRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça à Prism para construir, executar ou revisar..." aria-label="Mensagem" />
-        <div className="prism-agent-composer-tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} label="Adicionar arquivo"/><div className="prism-agent-thinking"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending}/></div><span className="prism-agent-composer-spacer"/>{sending ? <button className="prism-agent-send" onClick={() => controllerRef.current?.abort()} aria-label="Parar"><PrismIcon name="stop" size={13}/></button> : <button className="prism-agent-send" disabled={!canSend} onClick={send} aria-label="Enviar"><PrismIcon name="send" size={14}/></button>}</div>
+        <div className="prism-agent-composer-tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} label="Adicionar arquivo"/><div className="prism-agent-thinking"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending}/></div><span className="prism-agent-composer-spacer"/>{sending ? <button className="prism-agent-send" onClick={() => controllerRef.current?.abort()} aria-label="Parar"><PrismIcon name="stop" size={13}/></button> : <button className="prism-agent-send" disabled={!canSend||offline} onClick={send} aria-label="Enviar" title={offline ? 'Sem conexão' : 'Enviar'}><PrismIcon name="send" size={14}/></button>}</div>
       </div></footer>
     </main>
     <PlanPanel open={plansOpen} onClose={() => { setPlansOpen(false); setRequestedModel(''); }} currentPlan={user?.plan || 'Grátis'} requestedModel={requestedModel}/>

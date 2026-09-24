@@ -832,7 +832,7 @@
 .prism-workspace.prism-codex-v2 .prism-codex-v2__main .editor {
   background: var(--pw-code-bg);
   border-color: var(--pw-code-line);
-  color: #e6e0d7;
+  color: var(--pw-codex-light-text);
 }
 .prism-workspace.prism-codex-v2 .prism-codex-v2__main .files {
   background: var(--pw-sidebar);

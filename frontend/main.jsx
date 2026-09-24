@@ -25,7 +25,7 @@ import './release-hotfix.css';
 import './chat-agent-v6.css';
 import './codex-agent-v7.css';
 import './prism-platform-v8.css';
-import './workspace-system-v9.css';
+import './workspace.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

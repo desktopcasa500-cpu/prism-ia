@@ -102,6 +102,29 @@ export default function ChatRelease() {
   const groupedSessions = useMemo(() => sessionGroups(filteredSessions), [filteredSessions]);
   const canSend = Boolean(input.trim() || attachments.length) && !sending;
 
+  const authFail = useCallback((cause) => { if (cause?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
+
+  const newSession = useCallback(async () => {
+    if (sending) return;
+    try {
+      const result = await api.post('/chat/sessions', { surface: 'home' });
+      setSessions((items) => [result.session, ...items]);
+      setSessionId(result.session.id);
+      setMessages([]);
+      setEvents([]);
+      setCommandOutput('');
+      setArtifact(null);
+      setInput('');
+      setError('');
+      setRetryPrompt('');
+      setFollowingBottom(true);
+      setShowJumpToEnd(false);
+      setMobileOpen(false);
+    } catch (cause) {
+      if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.');
+    }
+  }, [authFail, sending]);
+
   useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
   useEffect(() => { localStorage.setItem('prism.home.model', model); }, [model]);
   useEffect(() => { localStorage.setItem('prism-default-effort', effort); }, [effort]);
@@ -150,8 +173,6 @@ export default function ChatRelease() {
     requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
   }, []);
 
-  const authFail = useCallback((cause) => { if (cause?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
-
   const loadSession = useCallback(async (id) => {
     setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setFollowingBottom(true); setShowJumpToEnd(false);
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
@@ -172,27 +193,6 @@ export default function ChatRelease() {
       .finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [authFail, loadSession]);
-
-  const newSession = useCallback(async () => {
-    if (sending) return;
-    try {
-      const result = await api.post('/chat/sessions', { surface: 'home' });
-      setSessions((items) => [result.session, ...items]);
-      setSessionId(result.session.id);
-      setMessages([]);
-      setEvents([]);
-      setCommandOutput('');
-      setArtifact(null);
-      setInput('');
-      setError('');
-      setRetryPrompt('');
-      setFollowingBottom(true);
-      setShowJumpToEnd(false);
-      setMobileOpen(false);
-    } catch (cause) {
-      if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.');
-    }
-  }, [authFail, sending]);
 
   async function renameSession(session) {
     const nextTitle = window.prompt('Renomear conversa', session.title || 'Nova conversa')?.trim().replace(/\s+/g, ' ').slice(0, 120);

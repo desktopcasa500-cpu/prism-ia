@@ -42,6 +42,13 @@ function sameOrigin(req, origin) {
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 
 app.use((req, res, next) => {
   req.requestId = String(req.headers['x-request-id'] || randomUUID()).slice(0, 120);

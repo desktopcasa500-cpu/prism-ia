@@ -358,7 +358,7 @@ export default function ChatRelease() {
     const content = String(contentOverride ?? input).trim();
     const activeEditMessageId = editMessageId || editingMessageId || null;
     if ((!content && !attachments.length) || sending) return;
-    setSending(true); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
+    setSending(true); setFollowingBottom(true); setShowJumpToEnd(false); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
     const controller = new AbortController(); controllerRef.current = controller;
     const rid = requestId(); const selectedAttachments = regenerateMessageId ? [] : [...attachments];
     let currentSession = sessionId;

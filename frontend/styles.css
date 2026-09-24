@@ -40,6 +40,33 @@
   --pw-reading: 760px;
   --pw-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --pw-serif: Georgia, "Times New Roman", serif;
+  --pw-codex-bg: #191816;
+  --pw-codex-text: #d9d5ce;
+  --pw-error: #9d554a;
+  --pw-error-soft: #d39d91;
+  --pw-code-line: #34312d;
+  --pw-code-bg: #1d1b19;
+  --pw-code-text: #eee9df;
+  --pw-code-bar: #26231f;
+  --pw-code-muted: #9e988f;
+  --pw-code-control-line: #4a463f;
+  --pw-code-control-text: #ddd7cf;
+  --pw-code-control-hover: #322f2b;
+  --pw-code-control-hover-line: #5a544c;
+  --pw-code-pre-bg: #1b1917;
+  --pw-codex-editor-bg: #141311;
+  --pw-code-comment: #8f887f;
+  --pw-code-punctuation: #d8d1c6;
+  --pw-code-number: #d5a878;
+  --pw-code-string: #c7d3a0;
+  --pw-code-operator: #c9b7a0;
+  --pw-code-keyword: #d8b98f;
+  --pw-code-function: #e2d0ae;
+  --pw-code-variable: #d3b8a2;
+  --pw-code-deleted: #cf988d;
+  --pw-codex-light-text: #e6e0d7;
+}
+
 .prism-workspace[data-theme="dark"] {
   --pw-bg: #22211e;
   --pw-sidebar: #191917;
@@ -58,4 +85,3 @@
   --pw-shadow: 0 18px 44px rgba(0, 0, 0, .22);
   --pw-shadow-soft: 0 5px 20px rgba(0, 0, 0, .16);
 }
-

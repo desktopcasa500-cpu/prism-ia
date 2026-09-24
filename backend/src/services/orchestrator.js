@@ -553,7 +553,7 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
 export async function runOrchestration(prompt, effort='medium', profile=null, context='', userId=null, options={}) {
   const model = profile?.model || profile?.id || 'prism-mini-1.0';
   if (isMegaBrainCommand(model, effort, prompt)) {
-    const mega = await runMegaBrain({ prompt, context, userId, projectId: options.projectId || null, onProgress: options.onProgress });
+    const mega = await runMegaBrain({ prompt, context, userId, projectId: options.projectId || null, onProgress: options.onProgress, signal: options.signal || null });
     if (mega?.status !== 'ok') return mega;
     const final = await runCoreOrchestration(mega.enrichedPrompt, 'ultracode', profile, context, userId, options);
     if (final?.status === 'ok') {

@@ -845,7 +845,7 @@
   z-index: 20;
   flex: none;
   padding: 0 0 max(18px, env(safe-area-inset-bottom));
-  background: linear-gradient(var(--pw-bg), var(--pw-bg));
+  background: var(--pw-bg);
 }
 .prism-workspace .prism-agent-composer {
   width: min(790px, calc(100% - 48px));

@@ -4,7 +4,7 @@ import { acquireTrafficSlot, trafficSnapshot, trafficStatusMessage } from '../se
 
 function isGenerationRequest(req) {
   if (req.method !== 'POST') return false;
-  const path = req.originalUrl || req.path || '';
+  const path = req.path || '';
   return /\/api\/chat\/sessions\/[^/]+\/messages(?:\/stream)?$/.test(path)
     || /\/api\/chat\/parallel$/.test(path)
     || /\/api\/ai\/generate(?:\/stream)?$/.test(path);

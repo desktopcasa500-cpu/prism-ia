@@ -400,7 +400,6 @@ export default function ChatRelease() {
       } else if (payload.message) {
         setMessages((items) => [...items.filter((item) => item.id !== localId), payload.userMessage || optimistic, payload.message]);
       }
-      if (payload.usage) void payload.usage;
     } catch (cause) {
       if (cause?.name === 'AbortError') {
         setError('Geração interrompida.');

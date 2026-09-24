@@ -1530,3 +1530,16 @@
     pointer-events: auto;
   }
 }
+
+
+.prism-workspace.prism-codex-v2 .codex-offline {
+  width: min(var(--pw-reading), calc(100% - 28px));
+  margin: 0 auto 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  background: var(--pw-surface-soft);
+  color: var(--pw-text-soft);
+  font-size: 9px;
+  line-height: 1.5;
+}

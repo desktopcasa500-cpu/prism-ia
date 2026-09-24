@@ -396,7 +396,7 @@
 }
 
 .prism-workspace .prism-agent-composer-wrap {
-  background: linear-gradient(to top, var(--pw-bg) 72%, transparent);
+  background: var(--pw-bg);
 }
 
 .prism-workspace .prism-agent-composer {
@@ -439,6 +439,24 @@
   color: var(--pw-faint);
 }
 
+.prism-workspace .prism-agent-model-picker-wrap { position: relative; }
+.prism-workspace .prism-agent-conversation-search {
+  width: calc(100% - 18px);
+  height: 31px;
+  margin: 0 9px 6px;
+  padding: 0 9px;
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  outline: 0;
+  font-size: 10px;
+  transition: border-color var(--pw-fast) var(--pw-ease), background-color var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-conversation-search::placeholder { color: var(--pw-faint); }
+.prism-workspace .prism-agent-conversation-search:focus { border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-focus); }
+.prism-workspace .prism-agent-trace-count { margin-left: auto; color: var(--pw-faint); }
+.prism-workspace .prism-agent-mobile-toggle { display: none; }
 .prism-workspace .prism-agent-model-picker {
   position: absolute;
   right: 0;

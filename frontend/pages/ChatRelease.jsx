@@ -101,6 +101,7 @@ export default function ChatRelease() {
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [feedbackByMessage, setFeedbackByMessage] = useState({});
   const controllerRef = useRef(null);
+  const sessionLoadSeqRef = useRef(0);
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const searchRef = useRef(null);
@@ -115,6 +116,7 @@ export default function ChatRelease() {
 
   const newSession = useCallback(async () => {
     if (sending) return;
+    sessionLoadSeqRef.current += 1;
     try {
       const result = await api.post('/chat/sessions', { surface: 'home' });
       setSessions((items) => [result.session, ...items]);
@@ -208,11 +210,13 @@ export default function ChatRelease() {
   }, []);
 
   const loadSession = useCallback(async (id) => {
+    if (sending) return;
+    const loadSeq = ++sessionLoadSeqRef.current;
     setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setRetryRegenerateId(null); setRetryEditId(null); setEditingMessageId(null); setFollowingBottom(true); setShowJumpToEnd(false);
-    try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
-    catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
-    finally { setLoading(false); }
-  }, [authFail]);
+    try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); if (loadSeq !== sessionLoadSeqRef.current) return; setMessages(result.messages || []); }
+    catch (cause) { if (loadSeq !== sessionLoadSeqRef.current) return; if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
+    finally { if (loadSeq === sessionLoadSeqRef.current) setLoading(false); }
+  }, [authFail, sending]);
 
   useEffect(() => {
     let active = true;
@@ -328,7 +332,7 @@ export default function ChatRelease() {
             </form>
           ) : (
             <>
-              <button className="prism-agent-conversation-open" onClick={() => loadSession(session.id)} aria-current={session.id === sessionId ? 'page' : undefined}>
+              <button className="prism-agent-conversation-open" onClick={() => loadSession(session.id)} disabled={sending} aria-current={session.id === sessionId ? 'page' : undefined}>
                 <PrismIcon name="layers" size={12} /><span>{session.title || 'Nova conversa'}</span>
               </button>
               <div className="prism-agent-conversation-actions">
@@ -400,7 +404,7 @@ export default function ChatRelease() {
         setInput('');
         setAttachments([]);
       } else if (payload.message && payload.regeneratedMessageId) {
-        setMessages((items) => items.map((item) => item.id === payload.regeneratedMessageId ? payload.message : item));
+        setMessages((items) => { const index = items.findIndex((item) => item.id === payload.regeneratedMessageId); return index < 0 ? [...items, payload.message] : [...items.slice(0, index), payload.message]; });
       } else if (payload.message) {
         setMessages((items) => [...items.filter((item) => item.id !== localId), payload.userMessage || optimistic, payload.message]);
       }

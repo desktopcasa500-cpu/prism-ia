@@ -19,6 +19,10 @@ const PATHS = {
   chevronLeft: <path d="m14.5 5.5-6.5 6.5 6.5 6.5" />,
   chevronRight: <path d="m9.5 5.5 6.5 6.5-6.5 6.5" />,
   copy: <><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></>,
+  edit: <><path d="m4 16.5-.8 3.3 3.3-.8L18.2 7.3a2 2 0 1 0-2.8-2.8z" /><path d="m14.8 5.2 2.8 2.8" /></>,
+  refresh: <><path d="M20 11a8 8 0 0 0-14.8-4L3 10" /><path d="M3 5v5h5" /><path d="M4 13a8 8 0 0 0 14.8 4L21 14" /><path d="M21 19v-5h-5" /></>,
+  thumbUp: <path d="M7 10v10H4V10zm3 10h6.5a2 2 0 0 0 1.9-1.4l1.5-5A2 2 0 0 0 18 11h-4l.6-3.1A2.4 2.4 0 0 0 12.2 5L7 11v9z" />,
+  thumbDown: <path d="M17 14V4h3v10zm-3-10H7.5a2 2 0 0 0-1.9 1.4l-1.5 5A2 2 0 0 0 6 13h4l-.6 3.1A2.4 2.4 0 0 0 11.8 19L17 13V4z" />,
 
 };
 

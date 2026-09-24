@@ -9,6 +9,7 @@ import PlanPanel from '../components/PlanPanel.jsx';
 import PrismIcon from '../components/PrismIcon.jsx';
 import WorkspaceThemeButton from '../components/WorkspaceThemeButton.jsx';
 import { useWorkspaceTheme } from '../lib/workspaceTheme.js';
+import '../workspace.css';
 
 const MODELS = [
   { id: 'prism-nano-1.0', label: 'Prism Nano 1.0A', rank: 0 },

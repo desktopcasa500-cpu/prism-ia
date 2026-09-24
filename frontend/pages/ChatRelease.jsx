@@ -82,7 +82,7 @@ export default function ChatRelease() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [traceOpen, setTraceOpen] = useState(true);
+  const [traceOpen, setTraceOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [commandOutput, setCommandOutput] = useState('');
   const [artifact, setArtifact] = useState(null);
@@ -357,7 +357,7 @@ export default function ChatRelease() {
     const content = String(contentOverride ?? input).trim();
     const activeEditMessageId = editMessageId || editingMessageId || null;
     if ((!content && !attachments.length) || sending) return;
-    setSending(true); setFollowingBottom(true); setShowJumpToEnd(false); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
+    setSending(true); setFollowingBottom(true); setShowJumpToEnd(false); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(false);
     const controller = new AbortController(); controllerRef.current = controller;
     const rid = requestId(); const selectedAttachments = regenerateMessageId ? [] : [...attachments];
     let currentSession = sessionId;
@@ -426,22 +426,27 @@ export default function ChatRelease() {
     <aside className={`prism-agent-sidebar${mobileOpen ? " open" : ""}`} aria-label="Navegação do workspace">
       <div className="prism-agent-sidebar__header"><button className="prism-agent-brand" onClick={() => navigate('/chat')} aria-label="Prism IA"><img src="/prism-logo.svg" alt=""/><span>Prism IA</span></button><button className="prism-agent-sidebar-collapse" type="button" onClick={() => setSidebarCollapsed((value) => !value)} aria-label={sidebarCollapsed ? "Expandir barra lateral" : "Recolher barra lateral"} title={sidebarCollapsed ? "Expandir barra lateral" : "Recolher barra lateral"}><PrismIcon name={sidebarCollapsed ? "chevronRight" : "chevronLeft"} size={15}/></button></div>
       <button className="prism-agent-sidebar__new" onClick={newSession}><PrismIcon name="plus" size={15}/><span>Nova conversa</span></button>
-      <div className="prism-agent-sidebar__nav">
-        <button className="active" aria-current="page"><PrismIcon name="home" size={15}/><span>Início</span></button>
-        <button onClick={() => { setSidebarCollapsed(false); setSearch(''); requestAnimationFrame(() => searchRef.current?.focus()); }}><PrismIcon name="search" size={15}/><span>Conversas</span></button>
-        <button onClick={() => navigate('/studio')}><PrismIcon name="folder" size={15}/><span>Projetos</span></button>
-        <button onClick={() => navigate('/modelos')}><PrismIcon name="model" size={15}/><span>Modelos</span></button>
-        <button onClick={() => navigate('/configuracoes')}><PrismIcon name="settings" size={15}/><span>Configurações</span></button>
-      </div>
       <div className="prism-agent-sidebar__projects">
-        <div className="prism-agent-section-title">Projetos</div>
-        {projects.map((project) => <button key={project.id} className={`prism-agent-project ${project.id === projectId ? 'active' : ''}`} onClick={() => setProjectId(project.id)}><PrismIcon name="folder" size={13}/><span>{project.name}</span></button>)}
-        <div className="prism-agent-section-title prism-agent-section-title--conversations"><span>Conversas</span><kbd>Ctrl K</kbd></div>
-        <input ref={searchRef} className="prism-agent-conversation-search" value={search.trim() === ' ' ? '' : search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" />
-        {groupedSessions.length === 0 && <div className="prism-agent-sidebar-empty">{search ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</div>}
+        <div className="prism-agent-search-wrap">
+          <PrismIcon name="search" size={14}/>
+          <input ref={searchRef} className="prism-agent-conversation-search" value={search.trim() === ' ' ? '' : search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" />
+          <kbd>⌘K</kbd>
+        </div>
+        {projects.length > 0 && <div className="prism-agent-projects-block">
+          <div className="prism-agent-section-title"><span>Projetos</span></div>
+          {projects.slice(0, 6).map((project) => <button key={project.id} className={`prism-agent-project ${project.id === projectId ? 'active' : ''}`} onClick={() => setProjectId(project.id)}><PrismIcon name="folder" size={12}/><span>{project.name}</span></button>)}
+        </div>}
+        <div className="prism-agent-section-title prism-agent-section-title--conversations"><span>Conversas</span></div>
+        {groupedSessions.length === 0 && <div className="prism-agent-sidebar-empty">{search ? 'Nenhuma conversa encontrada.' : 'Sua primeira conversa começa aqui.'}</div>}
         {groupedSessions.map(renderSessionGroup)}
       </div>
-      <div className="prism-agent-sidebar__bottom"><button className="prism-agent-profile" onClick={() => navigate('/configuracoes')}><span className="prism-agent-avatar">{initial}</span><span className="prism-agent-profile-copy"><strong>{user?.name || 'Você'}</strong><span>{user?.plan || 'Grátis'}</span></span></button></div>
+      <div className="prism-agent-sidebar__bottom">
+        <button className="prism-agent-profile" onClick={() => navigate('/configuracoes')}>
+          <span className="prism-agent-avatar">{initial}</span>
+          <span className="prism-agent-profile-copy"><strong>{user?.name || 'Você'}</strong><span>{user?.plan || 'Grátis'}</span></span>
+          <PrismIcon name="chevronRight" size={13}/>
+        </button>
+      </div>
     </aside>
 
     <main className="prism-agent-main">
@@ -461,8 +466,8 @@ export default function ChatRelease() {
           {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}
           {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt, { regenerateMessageId: retryRegenerateId, editMessageId: retryEditId })}>Tentar novamente</button>}</div>}
           {hasMessages && <div className="prism-agent-messages">
-            {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div>{renderMessageActions(message)}</article>; })}
-            {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="prism-agent-author">Prism IA</div><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
+            {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="message-bubble">{message.role === 'user' ? <><p>{message.content}</p>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}</> : <MarkdownMessage content={message.content} messageId={String(message.id)} />}</div>{message.role === 'assistant' && files.length > 0 && <div className="prism-agent-attachments prism-agent-assistant-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}{renderMessageActions(message)}</article>; })}
+            {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
             {sending && <div className="prism-agent-working" role="status" aria-live="polite"><span className="prism-agent-working-dot"/><span className="prism-agent-working-label">{eventLabel(workingEvent || { type: 'start' })}</span><span className="prism-agent-working-mode">{workingEvent?.provider ? `· ${workingEvent.provider}` : ''}</span></div>}
             {sending && commandOutput && <pre className="prism-agent-command-output">{commandOutput}</pre>}
             {events.length > 0 && <section className="prism-agent-trace"><button className="prism-agent-trace-toggle" type="button" aria-expanded={traceOpen} onClick={() => setTraceOpen((value) => !value)}><PrismIcon name="tool" size={13}/><strong>{sending ? 'O que a Prism está fazendo' : 'Execução concluída'}</strong><span className="prism-agent-trace-count">{events.length} etapas</span></button>{traceOpen && <div className="prism-agent-trace-list">{events.slice(-20).map((event, index) => <div key={`${event.timestamp}-${index}`} className={`prism-agent-trace-item ${event.type === 'error' || event.ok === false ? 'error' : event.type === 'done' || event.type === 'provider_complete' || event.type === 'tool_complete' && event.ok ? 'ok' : ''}`}><span className="prism-agent-trace-dot"/><span>{eventLabel(event)}{event.provider ? ` · ${event.provider}` : ''}{event.tool ? ` · ${event.tool}` : ''}</span><span className="prism-agent-trace-time">{event.timestamp ? new Date(event.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''}</span></div>)}</div>}</section>}

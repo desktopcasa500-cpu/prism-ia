@@ -32,8 +32,33 @@ router.patch('/sessions/:id',async(req,res,next)=>{try{if(!isUuid(req.params.id)
 router.get('/sessions/:id/messages',async(req,res,next)=>{try{if(!isUuid(req.params.id))return res.status(400).json({error:'Identificador inválido.',code:'INVALID_SESSION_ID'});const session=await getSession(req.params.id,req.userId,req.query?.surface?surface(req.query.surface):null);if(!session)return res.status(404).json({error:'Sessão não encontrada.',code:'SESSION_NOT_FOUND'});const result=await pool.query('SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE session_id=$1 AND user_id=$2 ORDER BY created_at ASC LIMIT 500',[req.params.id,req.userId]);res.json({messages:result.rows,surface:session.surface});}catch(error){next(error);}});
 router.delete('/sessions/:id',async(req,res,next)=>{try{if(!isUuid(req.params.id))return res.status(400).json({error:'Identificador inválido.',code:'INVALID_SESSION_ID'});const result=await pool.query('DELETE FROM sessions WHERE id=$1 AND user_id=$2 RETURNING id',[req.params.id,req.userId]);if(!result.rows.length)return res.status(404).json({error:'Sessão não encontrada.',code:'SESSION_NOT_FOUND'});res.status(204).end();}catch(error){next(error);}});
 
-async function handle(req,res,stream){const send=stream?(event)=>res.write(`data: ${JSON.stringify(event)}\n\n`):()=>{};try{const input=await prepare(req);if(input.requestId){const duplicate=await pool.query(`SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE user_id=$1 AND role='assistant' AND metadata->>'client_request_id'=$2 ORDER BY created_at DESC LIMIT 1`,[req.userId,input.requestId]);if(duplicate.rows[0]){if(stream)send({type:'result',data:{message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true}});else return res.json({message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true});return;}}
+async function handle(req,res,stream){
+  let heartbeat = null;
+  const send = stream
+    ? (event) => { if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`); }
+    : () => {};
+
+  try {
+    const input=await prepare(req);if(input.requestId){const duplicate=await pool.query(`SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE user_id=$1 AND role='assistant' AND metadata->>'client_request_id'=$2 ORDER BY created_at DESC LIMIT 1`,[req.userId,input.requestId]);if(duplicate.rows[0]){if(stream)send({type:'result',data:{message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true}});else return res.json({message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true});return;}}
   const result=await process({req,input,onProgress:send});if(stream)send({type:'result',data:result});else res.status(201).json(result);
 }catch(error){if(stream)send({type:'error',message:error?.message||'Execução falhou.',code:error?.code||'CHAT_EXECUTION_FAILED',status:error?.status||500});else res.status(error?.status||500).json({error:error?.message||'Execução falhou.',code:error?.code||'CHAT_EXECUTION_FAILED',payload:error});}}
-router.post('/sessions/:id/messages',async(req,res)=>handle(req,res,false));router.post('/sessions/:id/messages/stream',async(req,res)=>{res.statusCode=200;res.setHeader('Content-Type','text/event-stream; charset=utf-8');res.setHeader('Cache-Control','no-cache, no-transform');res.setHeader('Connection','keep-alive');res.flushHeaders?.();await handle(req,res,true);res.end();});
+router.post('/sessions/:id/messages',async(req,res)=>handle(req,res,false));
+router.post('/sessions/:id/messages/stream',async(req,res)=>{
+  res.statusCode=200;
+  res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control','no-cache, no-transform');
+  res.setHeader('Connection','keep-alive');
+  res.setHeader('X-Accel-Buffering','no');
+  res.flushHeaders?.();
+  heartbeat = setInterval(() => {
+    if (!res.writableEnded) res.write(': ping\\n\\n');
+  }, 15000);
+  heartbeat.unref?.();
+  try {
+    await handle(req,res,true);
+  } finally {
+    if (heartbeat) clearInterval(heartbeat);
+    if (!res.writableEnded) res.end();
+  }
+});
 export default router;

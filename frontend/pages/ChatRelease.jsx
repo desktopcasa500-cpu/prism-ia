@@ -55,8 +55,9 @@ function sessionGroups(items) {
 }
 
 function eventLabel(event) {
-  const map = { start: 'Preparando', quota_reserved: 'Cota reservada', workspace_start: 'Abrindo projeto', workspace_ready: 'Projeto pronto', mcp_start: 'Conectando MCP', mcp_ready: 'MCP pronto', mcp_error: 'MCP indisponível', tools_ready: 'Ferramentas prontas', providers_ready: 'Provedores disponíveis', provider_start: 'Executando modelo', provider_round: 'Modelo pensando', text_delta: 'Gerando resposta', provider_complete: 'Modelo concluiu', provider_error: 'Tentando outro provedor', tool_start: 'Executando ferramenta', command_output: 'Executando comando', artifact: 'Artefato criado', finalizing: 'Revisando resposta', megabrain_start: 'MegaBrain ativado', megabrain_provider_start: 'Consultando modelo do MegaBrain', megabrain_provider_complete: 'Conselheiro respondeu', megabrain_provider_error: 'Conselheiro falhou', megabrain_synthesis_start: 'Consolidando o MegaBrain', megabrain_done: 'MegaBrain concluído', done: 'Concluído', error: 'Falha' };
-  return map[event?.type] || event?.message || event?.type || 'Executando';
+  if (event?.type === 'activity') return event.detail ? `${event.label} · ${event.detail}` : (event.label || 'Executando');
+  if (event?.type === 'error') return event.message || 'Falha';
+  return event?.message || event?.type || 'Executando';
 }
 
 export default function ChatRelease() {
@@ -375,8 +376,7 @@ export default function ChatRelease() {
         if (event.type === 'provider_start') setStreamingText('');
         if (event.type === 'text_delta') setStreamingText((value) => `${value}${event.delta || ''}`);
         if (event.type === 'result') setStreamingText('');
-        if (event.type === 'command_output') setCommandOutput((value) => `${value}${event.text || ''}`.slice(-12_000));
-        if (event.type !== 'text_delta') setEvents((items) => [...items.slice(-30), event]);
+        if (event.type === 'activity' || event.type === 'error') setEvents((items) => [...items, event].slice(-18));
         if (event.type === 'artifact' && event.filename) setArtifact(event);
         if (event.type === 'error') setError(event.message || 'A execução falhou.');
       }, { timeout: 300_000, signal: controller.signal });
@@ -420,7 +420,7 @@ export default function ChatRelease() {
 
   const initial = String(user?.name || 'P').slice(0, 1).toUpperCase();
   const hasMessages = messages.length > 0;
-  const workingEvent = [...events].reverse().find((event) => !['done', 'provider_complete'].includes(event.type));
+  const workingEvent = [...events].reverse().find((event) => event.type === 'activity' || event.type === 'error');
 
   return <div className={`prism-agent-chat prism-workspace${sidebarCollapsed ? " sidebar-collapsed" : ""}`} data-theme={theme} aria-busy={sending}>
     <aside className={`prism-agent-sidebar${mobileOpen ? " open" : ""}`} aria-label="Navegação do workspace">
@@ -470,7 +470,7 @@ export default function ChatRelease() {
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
             {sending && <div className="prism-agent-working" role="status" aria-live="polite"><span className="prism-agent-working-dot"/><span className="prism-agent-working-label">{eventLabel(workingEvent || { type: 'start' })}</span><span className="prism-agent-working-mode">{workingEvent?.provider ? `· ${workingEvent.provider}` : ''}</span></div>}
             {sending && commandOutput && <pre className="prism-agent-command-output">{commandOutput}</pre>}
-            {events.length > 0 && <section className="prism-agent-trace"><button className="prism-agent-trace-toggle" type="button" aria-expanded={traceOpen} onClick={() => setTraceOpen((value) => !value)}><PrismIcon name="tool" size={13}/><strong>{sending ? 'O que a Prism está fazendo' : 'Execução concluída'}</strong><span className="prism-agent-trace-count">{events.length} etapas</span></button>{traceOpen && <div className="prism-agent-trace-list">{events.slice(-20).map((event, index) => <div key={`${event.timestamp}-${index}`} className={`prism-agent-trace-item ${event.type === 'error' || event.ok === false ? 'error' : event.type === 'done' || event.type === 'provider_complete' || event.type === 'tool_complete' && event.ok ? 'ok' : ''}`}><span className="prism-agent-trace-dot"/><span>{eventLabel(event)}{event.provider ? ` · ${event.provider}` : ''}{event.tool ? ` · ${event.tool}` : ''}</span><span className="prism-agent-trace-time">{event.timestamp ? new Date(event.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''}</span></div>)}</div>}</section>}
+            {events.length > 0 && <section className="prism-agent-trace" aria-label="Atividade da Prism"><div className="prism-agent-trace-list">{events.map((event, index) => <div key={`${event.timestamp}-${index}`} className={`prism-agent-trace-item ${event.type === 'error' ? 'error' : ''}`}><span className="prism-agent-trace-dot"/><span>{eventLabel(event)}</span></div>)}</div></section>}
             {artifact?.downloadPath && <div className="prism-agent-artifact"><div className="prism-agent-artifact-copy"><strong>{artifact.filename}</strong><span>Artefato gerado pela execução</span></div><a href={artifact.downloadPath} target="_blank" rel="noreferrer">Abrir</a></div>}
             <div ref={endRef}/>{showJumpToEnd && <button className="prism-agent-jump-end" type="button" onClick={jumpToEnd}>Ir para o fim <span aria-hidden="true">↓</span></button>}
           </div>}

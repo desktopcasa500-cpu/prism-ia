@@ -8,7 +8,7 @@ function configured() {
   return {
     groq: isGroqConfigured(),
     groqSplit: hasBothGroqKeys(),
-    nvidia: Boolean(process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY),
+    nvidia: Boolean(process.env.NVIDIA_NIM_API_KEY || process.env.NVIDIA_API_KEY || process.env.NIM_API_KEY),
     opencode: Boolean(process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY),
     openrouter: Boolean(process.env.OPENROUTER_API_KEY && process.env.PRISM_OPENROUTER_FREE_FALLBACK === 'true'),
   };

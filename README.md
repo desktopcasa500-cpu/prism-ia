@@ -26,9 +26,13 @@ JWT_SECRET=<segredo longo e aleatório>
 JWT_EXPIRES_IN=7d
 GOOGLE_CLIENT_ID=<Client ID do Google, se o login Google for usado>
 GEMINI_API_KEY=<chave, se usada>
-GROQ_API_KEY=<chave, se usada>
-OPENROUTER_NVIDIA_API_KEY=<chave, se usada>
-NVIDIA_BUILDER_API_KEY=<chave, se usada>
+GROQ_API_KEY_1=<primeira chave Groq>
+GROQ_API_KEY_2=<segunda chave Groq, opcional>
+NVIDIA_NIM_API_KEY=<chave NVIDIA NIM>
+NVIDIA_API_KEY=<alias aceito para NVIDIA NIM>
+OPENCODE_ZEN_API_KEY=<chave OpenCode Zen>
+OPENROUTER_API_KEY=<chave, opcional>
+PRISM_OPENROUTER_FREE_FALLBACK=false
 MCP_ENCRYPTION_KEY=<chave longa e aleatória, se MCP persistido for usado>
 ```
 
@@ -55,3 +59,8 @@ Para preparar o PostgreSQL localmente, use `backend/.env.example` como referênc
 ```bash
 npm run migrate
 ```
+
+
+### Provedores de IA
+
+O endpoint `GET /api/models/providers` mostra somente quais provedores estão configurados, sem expor chaves. Com duas chaves Groq, o roteador distribui usuários entre as chaves e faz failover para a outra quando necessário. O OpenCode Zen usa o endpoint OpenAI-compatible do Zen e a configuração `OPENCODE_ZEN_API_KEY`. 

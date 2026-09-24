@@ -89,6 +89,7 @@ export default function ChatRelease() {
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [retryPrompt, setRetryPrompt] = useState('');
+  const [retryRegenerateId, setRetryRegenerateId] = useState(null);
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [followingBottom, setFollowingBottom] = useState(true);
   const [showJumpToEnd, setShowJumpToEnd] = useState(false);
@@ -118,6 +119,7 @@ export default function ChatRelease() {
       setInput('');
       setError('');
       setRetryPrompt('');
+      setRetryRegenerateId(null);
       setFollowingBottom(true);
       setShowJumpToEnd(false);
       setMobileOpen(false);
@@ -250,7 +252,7 @@ export default function ChatRelease() {
     if (sending) return;
     const index = messages.findIndex((item) => item.id === message.id);
     const source = message.role === 'user' ? message : [...messages.slice(0, index)].reverse().find((item) => item.role === 'user');
-    if (source?.content) await send(source.content);
+    if (source?.content) await send(source.content, { regenerateMessageId: message.role === 'assistant' ? String(message.id) : null });
   }
 
   async function submitFeedback(message, value) {
@@ -320,12 +322,12 @@ export default function ChatRelease() {
     setModel(next.id); setModelOpen(false);
   }
 
-  async function send(contentOverride = null) {
+  async function send(contentOverride = null, { regenerateMessageId = null } = {}) {
     const content = String(contentOverride ?? input).trim();
     if ((!content && !attachments.length) || sending) return;
     setSending(true); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
     const controller = new AbortController(); controllerRef.current = controller;
-    const rid = requestId(); const selectedAttachments = [...attachments];
+    const rid = requestId(); const selectedAttachments = regenerateMessageId ? [] : [...attachments];
     let currentSession = sessionId;
     const localId = `local-${rid}`;
     try {
@@ -334,9 +336,9 @@ export default function ChatRelease() {
         currentSession = created.session.id; setSessionId(currentSession); setSessions((items) => [created.session, ...items]);
       }
       const optimistic = { id: localId, role: 'user', content, model_id: model, effort, metadata: { attachments: selectedAttachments } };
-      setMessages((items) => [...items, optimistic]); setInput(''); setAttachments([]);
+      if (!regenerateMessageId) { setMessages((items) => [...items, optimistic]); setInput(''); setAttachments([]); }
       const result = await api.streamPost(`/chat/sessions/${encodeURIComponent(currentSession)}/messages/stream`, {
-        content, model, effort, clientRequestId: rid, attachmentIds: selectedAttachments.map((file) => file.id).filter(Boolean), projectId: projectId || null,
+        content, model, effort, clientRequestId: rid, regenerateMessageId, attachmentIds: selectedAttachments.map((file) => file.id).filter(Boolean), projectId: projectId || null,
       }, (event) => {
         if (event.type === 'provider_start') setStreamingText('');
         if (event.type === 'text_delta') setStreamingText((value) => `${value}${event.delta || ''}`);
@@ -352,6 +354,8 @@ export default function ChatRelease() {
       if (payload.duplicate) {
         const history = await api.get(`/chat/sessions/${encodeURIComponent(currentSession)}/messages?surface=home`);
         setMessages(history.messages || []);
+      } else if (payload.message && payload.regeneratedMessageId) {
+        setMessages((items) => items.map((item) => item.id === payload.regeneratedMessageId ? payload.message : item));
       } else if (payload.message) {
         setMessages((items) => [...items.filter((item) => item.id !== localId), payload.userMessage || optimistic, payload.message]);
       }
@@ -363,7 +367,8 @@ export default function ChatRelease() {
         if (cause?.payload?.code === 'PLAN_UPGRADE_REQUIRED' || cause?.status === 403) { setRequestedModel(cause.payload?.requiredPlan || selected.label); setPlansOpen(true); }
         else if (!authFail(cause)) setError(cause.message || 'Não foi possível concluir a execução.');
         setRetryPrompt(content);
-        setMessages((items) => items.filter((item) => item.id !== localId));
+        setRetryRegenerateId(regenerateMessageId || null);
+        if (!regenerateMessageId) setMessages((items) => items.filter((item) => item.id !== localId));
       }
       setStreamingText('');
     } finally {
@@ -413,7 +418,7 @@ export default function ChatRelease() {
         <div className="prism-agent-content">
           {!loading && !hasMessages && !error && <div className="prism-agent-empty"><div><h1>O que você quer criar?</h1><p>Converse, execute tarefas, use ferramentas, valide resultados e gere artefatos no mesmo fluxo.</p><div className="prism-agent-starters">{STARTERS.map(([label, prompt]) => <button className="prism-agent-starter" key={label} onClick={() => { setInput(prompt); inputRef.current?.focus(); }}><PrismIcon name={label === 'Código' ? 'code' : 'layers'} size={14}/>{label}</button>)}</div></div></div>}
           {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}
-          {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt)}>Tentar novamente</button>}</div>}
+          {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt, { regenerateMessageId: retryRegenerateId })}>Tentar novamente</button>}</div>}
           {hasMessages && <div className="prism-agent-messages">
             {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div>{renderMessageActions(message)}</article>; })}
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="prism-agent-author">Prism IA</div><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}

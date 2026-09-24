@@ -109,6 +109,10 @@ function readGenerationInput(req) {
 }
 async function runGeneration(req,res,stream=false){
   let reservation=null,heartbeat=null,closed=false;
+  const generationAbort = new AbortController();
+  const abortGeneration = () => generationAbort.abort();
+  req.on('aborted', abortGeneration);
+  res.on('close', () => { if (!res.writableEnded) generationAbort.abort(); });
   try{
     const input=readGenerationInput(req); if(!input.prompt)return res.status(400).json({error:'Prompt vazio',code:'EMPTY_PROMPT'}); if(input.prompt.length>50_000)return res.status(413).json({error:'Pedido muito longo',code:'PROMPT_TOO_LONG'}); if(!ALLOWED_EFFORTS.has(input.rawThinking))return res.status(400).json({error:'Nível de pensamento inválido.',code:'INVALID_EFFORT'});
     const authorization=await authorizeGeneration(req.userId,input.model,input.thinking); if(!authorization.ok)return res.status(authorization.status).json(authorization); await validateSession(input.sessionId,req.userId);
@@ -119,13 +123,16 @@ async function runGeneration(req,res,stream=false){
     try{ send({type:'phase',phase:'received',label:'Pedido recebido',detail:'Preparando o agente'}); const result=await executeGeneration({
   ...input,
   userId:req.userId,
-  signal:req.signal,
+  signal:generationAbort.signal,
   onProgress:(event)=>send({type:'progress',...event,elapsedMs:Date.now()-startedAt}),
   onPhase:(phase)=>send({type:'phase',...phase,elapsedMs:Date.now()-startedAt}),
   onTrace:(trace)=>send({type:'trace',...trace,elapsedMs:Date.now()-startedAt}),
   onArtifact:(artifact)=>send({type:'artifact',...artifact,elapsedMs:Date.now()-startedAt}),
 }); if(closed)return; if(result?.status==='unavailable'){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;send({type:'error',code:'PROVIDERS_UNAVAILABLE',message:UNAVAILABLE_MESSAGE})}else{await recordTokens(reservation.reservationId,result.providers?.[0]||null,result.tokens||0);reservation=null;const saved=await persistGenerationMessages(input.sessionId,req.userId,input.prompt,result,input.thinking,input.model,result.attachments||[]);send({type:'phase',phase:'completed',label:'Concluído',detail:'O workspace recebeu o resultado do agente',elapsedMs:Date.now()-startedAt});send({type:'result',data:{...result,message:saved}})}}catch(error){if(reservation?.reservationId){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null}if(!closed)send({type:'error',code:error?.code||'GENERATION_FAILED',message:error?.code==='PROJECT_NOT_FOUND'?'Projeto não encontrado.':error?.code==='SESSION_NOT_FOUND'?'Sessão não encontrada.':UNAVAILABLE_MESSAGE})}finally{closed=true;if(heartbeat)clearInterval(heartbeat);if(!res.writableEnded)res.end()}
   }catch(error){if(reservation?.reservationId)await releaseUsage(reservation.reservationId).catch(()=>{});console.error(`${stream?'AI streaming':'AI'} generation error:`,{code:error?.code,status:error?.status,message:error?.message});if(!res.headersSent)return res.status(error?.status||502).json(error?.code==='PROJECT_NOT_FOUND'?{error:'Projeto não encontrado.',code:error.code}:error?.code==='SESSION_NOT_FOUND'?{error:'Sessão não encontrada.',code:error.code}:{error:error?.message||'Não foi possível iniciar a geração.',code:error?.code||'GENERATION_FAILED'});if(!res.writableEnded)res.end()}
+  }finally{
+    req.off('aborted', abortGeneration);
+  }
 }
 router.post('/generate',(req,res)=>runGeneration(req,res,false));
 router.post('/generate/stream',(req,res)=>runGeneration(req,res,true));

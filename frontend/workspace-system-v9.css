@@ -932,3 +932,7 @@
     border-top-color: var(--pw-line);
   }
 }
+
+
+.prism-workspace .prism-agent-message.user .message-bubble p { margin: 0; }
+.prism-workspace .prism-codex-v2__main .message.user .user-copy { line-height: 1.72; }

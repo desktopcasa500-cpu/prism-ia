@@ -38,8 +38,10 @@ const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|goog
 function clipWithTail(value, maxChars) {
   const text = String(value || '');
   if (text.length <= maxChars) return text;
-  const headSize = Math.max(0, maxChars - 2600);
-  return text.slice(0, headSize) + '\n\n[...conteúdo intermediário omitido...]\n\n' + text.slice(-2500);
+  const marker = '\n\n[...conteúdo intermediário omitido...]\n\n';
+  const tailSize = Math.min(2200, Math.max(0, maxChars - marker.length));
+  const headSize = Math.max(0, maxChars - marker.length - tailSize);
+  return text.slice(0, headSize) + marker + text.slice(-tailSize);
 }
 
 function buildModelInput(prompt, context) {

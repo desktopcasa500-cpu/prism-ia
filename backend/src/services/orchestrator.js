@@ -59,6 +59,121 @@ async function request(url, options, deadline = Date.now() + TIMEOUT) {
   finally { clearTimeout(timer); }
 }
 
+async function requestStream(url, options, onDelta, deadline = Date.now() + TIMEOUT) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
+
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+
+    if (!response.ok) {
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
+      const error = new Error(String(data?.error?.message || data?.error || data?.message || raw || ('HTTP ' + response.status)).slice(0, 2000));
+      error.status = response.status;
+      throw error;
+    }
+
+    if (!response.body || !contentType.includes('text/event-stream')) {
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
+      const text = String(data?.choices?.[0]?.message?.content || '');
+      if (text) onDelta?.(text);
+      return data;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let content = '';
+    let finishReason = null;
+    let usage = null;
+    const toolCalls = new Map();
+
+    const consume = (payload) => {
+      if (!payload || payload === '[DONE]') return;
+
+      let data;
+      try { data = JSON.parse(payload); } catch { return; }
+
+      if (data?.usage) usage = data.usage;
+      const choice = data?.choices?.[0];
+      const delta = choice?.delta || {};
+
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+
+      if (typeof delta.content === 'string' && delta.content) {
+        content += delta.content;
+        onDelta?.(delta.content);
+      }
+
+      if (Array.isArray(delta.tool_calls)) {
+        for (const call of delta.tool_calls) {
+          const index = Number.isInteger(call?.index) ? call.index : 0;
+          const current = toolCalls.get(index) || {
+            id: '',
+            type: 'function',
+            function: { name: '', arguments: '' },
+          };
+
+          if (call?.id) current.id += String(call.id);
+          if (call?.type) current.type = call.type;
+          if (call?.function?.name) current.function.name += String(call.function.name);
+          if (call?.function?.arguments) current.function.arguments += String(call.function.arguments);
+
+          toolCalls.set(index, current);
+        }
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() || '';
+
+      for (const chunk of chunks) {
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          consume(line.slice(5).trim());
+        }
+      }
+
+      if (done) break;
+    }
+
+    if (buffer.trim()) {
+      for (const line of buffer.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        consume(line.slice(5).trim());
+      }
+    }
+
+    return {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content,
+          ...(toolCalls.size ? { tool_calls: [...toolCalls.entries()].sort((a, b) => a[0] - b[0]).map(([, value]) => value) } : {}),
+        },
+        finish_reason: finishReason,
+      }],
+      usage,
+    };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw Object.assign(new Error('Tempo limite do provedor excedido.'), { code: 'PROVIDER_TIMEOUT' });
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function executeTool(tool, args, execution) {
   emit(execution, 'tool_start', { tool: tool?.toolName || tool?.modelName, kind: tool?.kind });
   try {
@@ -95,8 +210,29 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
   const messages = [{ role: 'system', content: systemPrompt(model, effort, tools, prompt) }, { role: 'user', content: prompt }]; const declarations = tools.length ? openAiTools(tools) : undefined; const used = []; let tokens = 0;
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     emit(execution, 'provider_round', { provider, round: round + 1 });
-    const data = await request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, body: JSON.stringify({ model, messages, ...(declarations ? { tools: declarations, tool_choice: needsTool(prompt) ? 'auto' : 'auto' } : {}), ...(provider === 'groq' ? { reasoning_effort: effort === 'low' ? 'low' : effort === 'high' ? 'high' : 'medium' } : {}) }) });
-    tokens += Number(data?.usage?.total_tokens || 0); const message = data?.choices?.[0]?.message; if (!message) throw new Error(`${provider} retornou resposta inválida.`); messages.push(message);
+    const body = {
+      model,
+      messages,
+      ...(declarations ? { tools: declarations, tool_choice: 'auto' } : {}),
+      ...(provider === 'groq' ? { reasoning_effort: effort === 'low' ? 'low' : effort === 'high' ? 'high' : 'medium' } : {}),
+      ...(execution?.streamText ? { stream: true } : {}),
+    };
+
+    const data = execution?.streamText
+      ? await requestStream(
+          url,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, body: JSON.stringify(body) },
+          (delta) => emit(execution, 'text_delta', { provider, delta }),
+        )
+      : await request(
+          url,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, body: JSON.stringify(body) },
+        );
+
+    tokens += Number(data?.usage?.total_tokens || 0);
+    const message = data?.choices?.[0]?.message;
+    if (!message) throw new Error(`${provider} retornou resposta inválida.`);
+    messages.push(message);
     const calls = Array.isArray(message.tool_calls) ? message.tool_calls : []; if (!calls.length) return { provider, text: String(message.content || ''), tokens, used };
     for (const call of calls) { const tool = tools.find((item) => item.modelName === call?.function?.name); let args = {}; try { args = JSON.parse(call?.function?.arguments || '{}'); } catch {} const result = await executeTool(tool, args, execution); used.push(...result.used); messages.push({ role: 'tool', tool_call_id: call.id, content: result.text }); }
   }
@@ -201,6 +337,7 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
     model,
     effort: normalizedEffort,
     tools: [],
+    streamText: options.streamText !== false,
     id: String(userId || 'anonymous') + ':' + String(Date.now()),
   };
 

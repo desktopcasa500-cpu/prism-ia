@@ -215,6 +215,7 @@ export default function ChatRelease() {
   }, [authFail, loadSession]);
 
   async function deleteSession(session) {
+    if (sending) return;
     const confirmed = window.confirm('Excluir "' + (session.title || 'Nova conversa') + '"? Essa ação não pode ser desfeita.');
     if (!confirmed) return;
     try {
@@ -426,7 +427,7 @@ export default function ChatRelease() {
     <main className="prism-agent-main">
       {mobileOpen && <button className="prism-agent-mobile-overlay" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
       <header className="prism-agent-topbar">
-        <button className="prism-agent-mobile-toggle" aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}><PrismIcon name="menu" size={15}/></button>
+        <button className="prism-agent-mobile-toggle" aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => { setSidebarCollapsed(false); setMobileOpen(true); }}><PrismIcon name="menu" size={15}/></button>
         <div className="prism-agent-topbar-title">{hasMessages ? (sessions.find((item) => item.id === sessionId)?.title || 'Conversa') : 'O que você quer criar?'}</div>
         <div className="prism-agent-topbar-right">
           <select className="prism-agent-project-select" value={projectId} onChange={(event) => setProjectId(event.target.value)} aria-label="Projeto"><option value="">Sem projeto</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select>

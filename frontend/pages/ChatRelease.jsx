@@ -101,6 +101,7 @@ export default function ChatRelease() {
   const [copiedMessageId, setCopiedMessageId] = useState(null);
   const [feedbackByMessage, setFeedbackByMessage] = useState({});
   const controllerRef = useRef(null);
+  const sendingRef = useRef(false);
   const sessionLoadSeqRef = useRef(0);
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -136,7 +137,7 @@ export default function ChatRelease() {
     } catch (cause) {
       if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.');
     }
-  }, [authFail, sending]);
+  }, [authFail]);
 
   useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
   useEffect(() => { localStorage.setItem('prism.home.model', model); }, [model]);
@@ -210,7 +211,7 @@ export default function ChatRelease() {
   }, []);
 
   const loadSession = useCallback(async (id) => {
-    if (sending) return;
+    if (sendingRef.current) return;
     const loadSeq = ++sessionLoadSeqRef.current;
     setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setRetryRegenerateId(null); setRetryEditId(null); setEditingMessageId(null); setFollowingBottom(true); setShowJumpToEnd(false);
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); if (loadSeq !== sessionLoadSeqRef.current) return; setMessages(result.messages || []); }
@@ -362,7 +363,7 @@ export default function ChatRelease() {
     const content = String(contentOverride ?? input).trim();
     const activeEditMessageId = editMessageId || editingMessageId || null;
     if ((!content && !attachments.length) || sending) return;
-    setSending(true); setFollowingBottom(true); setShowJumpToEnd(false); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(false);
+    setSending(true); sendingRef.current = true; setFollowingBottom(true); setShowJumpToEnd(false); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(false);
     const controller = new AbortController(); controllerRef.current = controller;
     const rid = requestId(); const selectedAttachments = regenerateMessageId ? [] : [...attachments];
     let currentSession = sessionId;
@@ -421,7 +422,7 @@ export default function ChatRelease() {
       }
       setStreamingText('');
     } finally {
-      setSending(false); setStreamingText(''); controllerRef.current = null;
+      setSending(false); sendingRef.current = false; setStreamingText(''); controllerRef.current = null;
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }

@@ -271,7 +271,6 @@ export default function ChatRelease() {
     setInput(String(message?.content || ''));
     setError('');
     requestAnimationFrame(() => inputRef.current?.focus());
-    setError('');
   }
 
   async function regenerateMessage(message) {
@@ -401,7 +400,7 @@ export default function ChatRelease() {
       } else if (payload.message) {
         setMessages((items) => [...items.filter((item) => item.id !== localId), payload.userMessage || optimistic, payload.message]);
       }
-      if (payload.usage) setSessions((items) => items);
+      if (payload.usage) void payload.usage;
     } catch (cause) {
       if (cause?.name === 'AbortError') {
         setError('Geração interrompida.');

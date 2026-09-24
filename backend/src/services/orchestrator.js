@@ -35,6 +35,28 @@ const cleanSchema = (schema) => {
 const openAiTools = (tools) => tools.map((tool) => ({ type: 'function', function: { name: tool.modelName, description: tool.description, parameters: cleanSchema(tool.inputSchema) } }));
 const needsTool = (prompt) => /\b(pesquise|pesquisa|busque|procure|internet|google|github|repo|reposit[oó]rio|issue|pull request|mcp|execute|execut[eá]|rode|rodar|compile|compil[eá]|zip|\.exe|\.jar|\.zip|build|arquivo|projeto|ferramenta|url|link|site|página|pagina|acesse|abra|leia)\b/i.test(String(prompt || ''));
 
+function clipWithTail(value, maxChars) {
+  const text = String(value || '');
+  if (text.length <= maxChars) return text;
+  const headSize = Math.max(0, maxChars - 2600);
+  return text.slice(0, headSize) + '\n\n[...conteúdo intermediário omitido...]\n\n' + text.slice(-2500);
+}
+
+function buildModelInput(prompt, context) {
+  const rawPrompt = String(prompt || '').trim();
+  const rawContext = String(context || '').trim();
+  const label = 'Pedido atual:\n';
+  const availableForPrompt = Math.max(9000, MAX_CONTEXT - label.length - Math.min(16000, rawContext.length) - 40);
+  const safePrompt = clipWithTail(rawPrompt, availableForPrompt);
+  const contextBudget = Math.max(0, MAX_CONTEXT - label.length - safePrompt.length - 40);
+  const safeContext = rawContext ? clipWithTail(rawContext, contextBudget) : '';
+
+  return [
+    safeContext ? 'Contexto recente:\n' + safeContext : '',
+    label + safePrompt,
+  ].filter(Boolean).join('\n\n');
+}
+
 function systemPrompt(model, effort, tools, prompt) {
   const profile = getModelProfile(model);
   return [
@@ -334,7 +356,7 @@ function providers(model, effort) {
 async function runCoreOrchestration(prompt, effort = 'medium', profile = null, context = '', userId = null, options = {}) {
   const model = profile?.model || profile?.id || 'prism-mini-1.0';
   const normalizedEffort = normalizeEffort(effort);
-  const input = String(context || '').slice(-MAX_CONTEXT) + `\\n\\nPedido atual:\\n${String(prompt || '').slice(0, MAX_CONTEXT)}`;
+  const input = buildModelInput(prompt, context);
   const execution = {
     userId,
     projectId: options.projectId,

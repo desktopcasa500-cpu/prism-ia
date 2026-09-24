@@ -12,9 +12,11 @@ const keys = {
 
 const emit = (onProgress, type, data = {}) => onProgress?.({ type, timestamp: Date.now(), ...data });
 
-async function request(url, options) {
+async function request(url, options, externalSignal = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT);
+  const onExternalAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
     const raw = await response.text();
@@ -23,10 +25,14 @@ async function request(url, options) {
     if (!response.ok) throw Object.assign(new Error(String(data?.error?.message || data?.error || raw || `HTTP ${response.status}`).slice(0, 2000)), { status: response.status });
     return data;
   } catch (error) {
-    if (error?.name === 'AbortError') throw Object.assign(new Error('Tempo limite do MegaBrain excedido.'), { code: 'MEGABRAIN_TIMEOUT' });
+    if (error?.name === 'AbortError') {
+      if (externalSignal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' });
+      throw Object.assign(new Error('Tempo limite do MegaBrain excedido.'), { code: 'MEGABRAIN_TIMEOUT' });
+    }
     throw error;
   } finally {
     clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
   }
 }
 
@@ -69,7 +75,7 @@ function advisorPrompt(task) {
   ].join('\n');
 }
 
-async function consult(advisor, task, userId = null) {
+async function consult(advisor, task, userId = null, signal = null) {
   const body = {
     model: advisor.model,
     messages: [
@@ -101,9 +107,10 @@ async function consult(advisor, task, userId = null) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${candidate.key}`, ...advisor.headers },
         body: JSON.stringify(body),
-      });
+      }, signal);
       return textFrom(data);
     } catch (error) {
+      if (signal?.aborted || error?.code === 'REQUEST_ABORTED') throw error;
       lastError = error;
       if (advisor.provider !== 'groq') throw error;
     }
@@ -125,7 +132,7 @@ export function stripMegaBrainCommand(prompt) {
   return String(prompt || '').trim().replace(/^\/megabrain\s*/i, '').trim();
 }
 
-export async function runMegaBrain({ prompt, context = '', userId = null, projectId = null, onProgress }) {
+export async function runMegaBrain({ prompt, context = '', userId = null, projectId = null, onProgress, signal = null }) {
   const cleanPrompt = stripMegaBrainCommand(prompt);
   const task = [
     'TAREFA:',
@@ -156,7 +163,7 @@ export async function runMegaBrain({ prompt, context = '', userId = null, projec
     const started = Date.now();
     emit(onProgress, 'megabrain_provider_start', { provider: advisor.provider, model: advisor.model });
     try {
-      const text = String(await consult(advisor, task, userId) || '').slice(0, MAX_ADVISORY);
+      const text = String(await consult(advisor, task, userId, signal) || '').slice(0, MAX_ADVISORY);
       emit(onProgress, 'megabrain_provider_complete', {
         provider: advisor.provider,
         model: advisor.model,
@@ -165,6 +172,7 @@ export async function runMegaBrain({ prompt, context = '', userId = null, projec
       });
       return { ...advisor, text };
     } catch (error) {
+      if (signal?.aborted || error?.code === 'REQUEST_ABORTED') throw error;
       emit(onProgress, 'megabrain_provider_error', {
         provider: advisor.provider,
         model: advisor.model,

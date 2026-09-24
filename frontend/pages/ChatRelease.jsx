@@ -154,6 +154,7 @@ export default function ChatRelease() {
     const onShortcut = (event) => {
       const key = event.key.toLowerCase();
       if (event.key === 'Escape') {
+        if (editingMessageId) { setEditingMessageId(null); setInput(''); setError(''); return; }
         if (modelOpen) setModelOpen(false);
         if (mobileOpen) setMobileOpen(false);
         return;
@@ -178,7 +179,7 @@ export default function ChatRelease() {
       window.removeEventListener('keydown', onShortcut);
       document.removeEventListener('pointerdown', onPointerDown);
     };
-  }, [mobileOpen, modelOpen, newSession]);
+  }, [editingMessageId, mobileOpen, modelOpen, newSession]);
   const handleScroll = useCallback((event) => {
     const element = event.currentTarget;
     const distance = element.scrollHeight - element.scrollTop - element.clientHeight;

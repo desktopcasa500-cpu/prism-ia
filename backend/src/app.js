@@ -89,7 +89,7 @@ const generationLimiter = rateLimit({
   max: Number(process.env.PRISM_GENERATION_RATE_LIMIT || 30),
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  skip: (req) => !/\/api\/(?:chat\/sessions\/[^/]+\/messages(?:\/stream)?|chat\/parallel|ai\/generate(?:\/stream)?)$/.test(req.originalUrl || ''),
+  skip: (req) => !/\/api\/(?:chat\/sessions\/[^/]+\/messages(?:\/stream)?|chat\/parallel|ai\/generate(?:\/stream)?)$/.test(req.path || ''),
   handler: limitHandler,
 });
 app.use('/api', apiLimiter);

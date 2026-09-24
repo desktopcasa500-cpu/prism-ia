@@ -1387,3 +1387,25 @@
     flex-direction: column;
   }
 }
+
+
+.prism-workspace.prism-codex-v2 .prism-codex-v2__mobile-overlay { display: none; }
+
+@media (max-width: 900px) {
+  .prism-workspace.prism-codex-v2 .prism-codex-v2__mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 185;
+    border: 0;
+    background: rgba(22, 22, 18, .22);
+    cursor: default;
+  }
+  .prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar {
+    z-index: 190;
+  }
+  .prism-workspace.prism-codex-v2 .prism-codex-v2__main header {
+    position: relative;
+    z-index: 200;
+  }
+}

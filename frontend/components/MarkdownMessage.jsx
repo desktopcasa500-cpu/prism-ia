@@ -40,11 +40,23 @@ function CodeBlock({ block, onOpenCode }) {
   const [copied, setCopied] = useState(false);
   const code = String(block?.code || '');
   const language = String(block?.language || 'text').toLowerCase();
+  const languageAlias = {
+    js: 'javascript',
+    jsx: 'jsx',
+    ts: 'typescript',
+    tsx: 'tsx',
+    py: 'python',
+    sh: 'bash',
+    shell: 'bash',
+    yml: 'yaml',
+    html: 'markup',
+    xml: 'markup',
+  }[language] || language;
   const highlightedCode = useMemo(() => {
-    const grammar = Prism.languages[language] || Prism.languages[language === 'tsx' ? 'jsx' : language];
+    const grammar = Prism.languages[languageAlias] || Prism.languages[languageAlias === 'tsx' ? 'jsx' : languageAlias];
     if (!grammar) return null;
     try { return Prism.highlight(code, grammar, language); } catch { return null; }
-  }, [code, language]);
+  }, [code, languageAlias]);
 
   async function copyCode() {
     try {
@@ -68,7 +80,7 @@ function CodeBlock({ block, onOpenCode }) {
           </button>
         </span>
       </figcaption>
-      <pre><code className={highlightedCode ? 'language-' + language : ''}>{highlightedCode ? <span dangerouslySetInnerHTML={{ __html: highlightedCode }} /> : code}</code></pre>
+      <pre><code className={highlightedCode ? 'language-' + languageAlias : ''}>{highlightedCode ? <span dangerouslySetInnerHTML={{ __html: highlightedCode }} /> : code}</code></pre>
     </figure>
   );
 }

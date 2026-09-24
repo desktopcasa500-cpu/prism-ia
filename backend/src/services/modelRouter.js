@@ -34,7 +34,7 @@ export const MODEL_PROFILES = {
     description: 'Código, documentação e arquitetura.',
     providers: {
       nvidia: 'qwen/qwen2.5-coder-32b-instruct',
-      groq: 'qwen/qwen3-32b',
+      groq: 'openai/gpt-oss-120b',
     },
   },
   'prism-taff-1.0': {
@@ -43,7 +43,7 @@ export const MODEL_PROFILES = {
     description: 'Projetos complexos, raciocínio e debugging.',
     providers: {
       nvidia: 'nvidia/nemotron-3-ultra-550b-a55b',
-      groq: 'deepseek-r1-distill-qwen-32b',
+      groq: 'openai/gpt-oss-120b',
     },
   },
   'prism-taff-2.0': {

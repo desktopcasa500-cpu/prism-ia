@@ -1,385 +1,897 @@
-/* Prism IA internal work surfaces — v9 design system. Landing page is intentionally excluded. */
+/* Prism IA — internal workspaces. Chat is intentionally quiet and reading-first. */
 .prism-workspace {
+  min-height: 100vh;
   background: var(--pw-bg);
   color: var(--pw-text);
   font-family: var(--pw-sans);
   color-scheme: light;
   transition: background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
 }
-
-.prism-workspace[data-theme="dark"] {
-  color-scheme: dark;
-}
-
-
+.prism-workspace[data-theme="dark"] { color-scheme: dark; }
 .prism-workspace *,
 .prism-workspace *::before,
 .prism-workspace *::after { box-sizing: border-box; }
-
 .prism-workspace button,
 .prism-workspace input,
 .prism-workspace textarea,
 .prism-workspace select { font: inherit; }
-
-.prism-workspace button,
-.prism-workspace a,
-.prism-workspace input,
-.prism-workspace textarea,
-.prism-workspace select { -webkit-tap-highlight-color: transparent; }
-
 .prism-workspace :focus-visible {
   outline: 2px solid var(--pw-accent);
   outline-offset: 2px;
 }
 
-.prism-workspace .prism-agent-sidebar,
-.prism-workspace .prism-agent-main,
-.prism-workspace .prism-codex-v2__sidebar,
-.prism-workspace .prism-codex-v2__main {
-  background: var(--pw-bg);
-  color: var(--pw-text);
-  transition: background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease);
-}
-
 /* Chat shell */
 .prism-workspace.prism-agent-chat {
-  grid-template-columns: 252px minmax(0, 1fr);
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  overflow: hidden;
   background: var(--pw-bg);
 }
-
 .prism-workspace.prism-agent-chat.sidebar-collapsed {
-  grid-template-columns: 74px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .prism-workspace .prism-agent-sidebar {
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--pw-sidebar);
   border-right: 1px solid var(--pw-line);
 }
-
 .prism-workspace .prism-agent-sidebar__header {
-  height: 58px;
+  height: 64px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px 0 15px;
+  padding: 0 14px 0 16px;
 }
-
 .prism-workspace .prism-agent-brand {
-  flex: 1;
   min-width: 0;
-  height: 38px;
-  padding: 0 3px;
+  flex: 1;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
   gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--pw-text);
+  cursor: pointer;
+  text-align: left;
   font-size: 12px;
   font-weight: 650;
   letter-spacing: -.01em;
-  transition: color var(--pw-fast) var(--pw-ease);
 }
-
 .prism-workspace .prism-agent-brand img {
   width: 23px;
   height: 23px;
   flex: none;
 }
-
 .prism-workspace .prism-agent-sidebar-collapse,
 .prism-workspace .prism-agent-mobile-toggle,
 .prism-workspace .prism-agent-theme-toggle {
-  width: 31px;
-  height: 31px;
+  width: 30px;
+  height: 30px;
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid var(--pw-line);
-  border-radius: var(--pw-radius-sm);
+  border: 1px solid transparent;
+  border-radius: 7px;
   background: transparent;
   color: var(--pw-muted);
   cursor: pointer;
-  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
 }
-
 .prism-workspace .prism-agent-sidebar-collapse:hover,
 .prism-workspace .prism-agent-mobile-toggle:hover,
 .prism-workspace .prism-agent-theme-toggle:hover {
-  background: var(--pw-surface);
-  border-color: var(--pw-line-strong);
+  background: color-mix(in srgb, var(--pw-surface) 72%, transparent);
+  border-color: var(--pw-line);
   color: var(--pw-text);
 }
-
 .prism-workspace .prism-agent-sidebar__new {
-  margin: 2px 11px 9px;
-  height: 37px;
+  margin: 4px 14px 14px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 0 12px;
   border: 1px solid var(--pw-line-strong);
-  border-radius: var(--pw-radius-md);
+  border-radius: 9px;
   background: var(--pw-surface);
   color: var(--pw-text-soft);
-  box-shadow: none;
-  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
 }
-
 .prism-workspace .prism-agent-sidebar__new:hover {
   background: var(--pw-surface-soft);
   border-color: var(--pw-accent);
-  transform: translateY(-1px);
-}
-
-.prism-workspace .prism-agent-sidebar__nav button,
-.prism-workspace .prism-agent-project {
-  color: var(--pw-muted);
-  transition: background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
-}
-
-.prism-workspace .prism-agent-sidebar__nav button:hover,
-.prism-workspace .prism-agent-sidebar__nav button.active,
-.prism-workspace .prism-agent-project:hover,
-.prism-workspace .prism-agent-project.active {
-  background: rgba(255,255,255,.38);
   color: var(--pw-text);
 }
 
-.prism-workspace[data-theme="dark"] .prism-agent-sidebar__nav button:hover,
-.prism-workspace[data-theme="dark"] .prism-agent-sidebar__nav button.active,
-.prism-workspace[data-theme="dark"] .prism-agent-project:hover,
-.prism-workspace[data-theme="dark"] .prism-agent-project.active {
-  background: rgba(255,255,255,.06);
+.prism-workspace .prism-agent-sidebar__projects {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 0 10px 12px;
+  scrollbar-gutter: stable;
 }
-
-.prism-workspace .prism-agent-sidebar__bottom {
-  border-top-color: var(--pw-line);
+.prism-workspace .prism-agent-search-wrap {
+  position: relative;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 2px 18px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--pw-faint);
+  background: color-mix(in srgb, var(--pw-surface) 46%, transparent);
 }
-
-.prism-workspace .prism-agent-avatar {
-  background: var(--pw-surface-strong);
+.prism-workspace .prism-agent-search-wrap:focus-within {
+  border-color: var(--pw-line-strong);
+  background: var(--pw-surface);
+}
+.prism-workspace .prism-agent-conversation-search {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--pw-text);
+  font-size: 10px;
+}
+.prism-workspace .prism-agent-conversation-search::placeholder { color: var(--pw-faint); }
+.prism-workspace .prism-agent-search-wrap kbd {
+  color: var(--pw-faint);
+  font: 500 8px/1 var(--pw-sans);
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-projects-block {
+  margin: 0 0 20px;
+}
+.prism-workspace .prism-agent-section-title {
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px 6px;
+  color: var(--pw-faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.prism-workspace .prism-agent-section-title--conversations {
+  padding-top: 2px;
+  justify-content: space-between;
+}
+.prism-workspace .prism-agent-section-title--conversations kbd {
+  border: 1px solid var(--pw-line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  color: var(--pw-faint);
+  font: 500 7px/1 var(--pw-sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.prism-workspace .prism-agent-project {
+  width: 100%;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pw-muted);
+  cursor: pointer;
+  font-size: 9px;
+  text-align: left;
+}
+.prism-workspace .prism-agent-project span,
+.prism-workspace .prism-agent-conversation-open span,
+.prism-workspace .prism-agent-profile-copy {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-project:hover,
+.prism-workspace .prism-agent-project.active {
+  background: color-mix(in srgb, var(--pw-surface) 64%, transparent);
   color: var(--pw-text-soft);
 }
-
-.prism-workspace .prism-agent-profile:hover { background: rgba(255,255,255,.35); }
-
-.prism-workspace.sidebar-collapsed .prism-agent-sidebar__header {
-  justify-content: center;
+.prism-workspace .prism-agent-conversation-group { margin-bottom: 13px; }
+.prism-workspace .prism-agent-conversation-row {
+  min-height: 35px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 7px;
+}
+.prism-workspace .prism-agent-conversation-row:hover,
+.prism-workspace .prism-agent-conversation-row.active {
+  background: color-mix(in srgb, var(--pw-surface) 74%, transparent);
+}
+.prism-workspace .prism-agent-conversation-open {
+  min-width: 0;
+  flex: 1;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pw-text-soft);
+  cursor: pointer;
+  font-size: 10px;
+  text-align: left;
+}
+.prism-workspace .prism-agent-conversation-open:hover,
+.prism-workspace .prism-agent-conversation-open[aria-current="page"] { color: var(--pw-text); }
+.prism-workspace .prism-agent-conversation-open > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-conversation-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-conversation-row:hover .prism-agent-conversation-actions,
+.prism-workspace .prism-agent-conversation-row:focus-within .prism-agent-conversation-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.prism-workspace .prism-agent-conversation-actions button {
+  min-height: 23px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pw-faint);
+  cursor: pointer;
+  font-size: 7px;
+}
+.prism-workspace .prism-agent-conversation-actions button:hover {
+  background: var(--pw-surface);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-delete-confirm { padding-right: 3px; color: var(--pw-muted); font-size: 7px; white-space: nowrap; }
+.prism-workspace .prism-agent-conversation-edit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+}
+.prism-workspace .prism-agent-conversation-edit input {
+  min-width: 0;
+  flex: 1;
+  height: 27px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 6px;
+  background: var(--pw-surface);
+  color: var(--pw-text);
   padding: 0 7px;
+  outline: 0;
+  font-size: 9px;
 }
-
-.prism-workspace.sidebar-collapsed .prism-agent-brand {
+.prism-workspace .prism-agent-conversation-edit button {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--pw-line);
+  border-radius: 6px;
+  background: var(--pw-surface);
+  color: var(--pw-muted);
+  cursor: pointer;
+}
+.prism-workspace .prism-agent-sidebar-empty {
+  padding: 14px 7px;
+  color: var(--pw-faint);
+  font-size: 9px;
+  line-height: 1.55;
+}
+.prism-workspace .prism-agent-sidebar__bottom {
   flex: none;
-  width: 31px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--pw-line);
+}
+.prism-workspace .prism-agent-profile {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pw-text-soft);
+  cursor: pointer;
+  text-align: left;
+}
+.prism-workspace .prism-agent-profile:hover { background: var(--pw-surface); }
+.prism-workspace .prism-agent-avatar {
+  width: 27px;
+  height: 27px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pw-surface-strong);
+  color: var(--pw-text-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+.prism-workspace .prism-agent-profile-copy {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+.prism-workspace .prism-agent-profile-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pw-text);
+  font-size: 9px;
+  font-weight: 600;
+}
+.prism-workspace .prism-agent-profile-copy span {
+  color: var(--pw-faint);
+  font-size: 8px;
 }
 
+/* Collapsed sidebar */
+.prism-workspace.sidebar-collapsed .prism-agent-sidebar__header { justify-content: center; padding-inline: 8px; }
+.prism-workspace.sidebar-collapsed .prism-agent-brand { flex: none; width: 30px; }
 .prism-workspace.sidebar-collapsed .prism-agent-brand span,
 .prism-workspace.sidebar-collapsed .prism-agent-sidebar__new span,
-.prism-workspace.sidebar-collapsed .prism-agent-sidebar__nav button > :not(svg),
-.prism-workspace.sidebar-collapsed .prism-agent-project span,
+.prism-workspace.sidebar-collapsed .prism-agent-search-wrap input,
+.prism-workspace.sidebar-collapsed .prism-agent-search-wrap kbd,
 .prism-workspace.sidebar-collapsed .prism-agent-section-title,
-.prism-workspace.sidebar-collapsed .prism-agent-profile-copy,
-.prism-workspace.sidebar-collapsed .prism-agent-project input,
-.prism-workspace.sidebar-collapsed .prism-agent-sidebar__projects > input {
+.prism-workspace.sidebar-collapsed .prism-agent-project span,
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-open span,
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-actions,
+.prism-workspace.sidebar-collapsed .prism-agent-profile-copy {
   display: none;
 }
-
 .prism-workspace.sidebar-collapsed .prism-agent-sidebar__new {
-  margin: 2px 11px 9px;
+  width: 38px;
+  justify-content: center;
   padding: 0;
+  margin-inline: auto;
 }
-
-.prism-workspace.sidebar-collapsed .prism-agent-sidebar__nav {
-  padding-inline: 8px;
+.prism-workspace.sidebar-collapsed .prism-agent-search-wrap {
+  justify-content: center;
+  margin-inline: 10px;
 }
-
-.prism-workspace.sidebar-collapsed .prism-agent-sidebar__nav button,
 .prism-workspace.sidebar-collapsed .prism-agent-project,
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-open,
 .prism-workspace.sidebar-collapsed .prism-agent-profile {
   justify-content: center;
   padding-inline: 0;
 }
+.prism-workspace.sidebar-collapsed .prism-agent-profile { justify-content: center; }
+.prism-workspace.sidebar-collapsed .prism-agent-profile > svg { display: none; }
 
-.prism-workspace.sidebar-collapsed .prism-agent-project { min-height: 34px; }
-.prism-workspace.sidebar-collapsed .prism-agent-profile { padding: 6px 0; }
-
+/* Main */
 .prism-workspace .prism-agent-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: 60px minmax(0, 1fr) auto;
+  overflow: hidden;
   background: var(--pw-bg);
 }
-
 .prism-workspace .prism-agent-topbar {
-  min-height: 56px;
-  background: var(--pw-bg);
-  border-bottom-color: var(--pw-line);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 28px;
+  border-bottom: 1px solid color-mix(in srgb, var(--pw-line) 72%, transparent);
+  background: color-mix(in srgb, var(--pw-bg) 96%, transparent);
 }
-
 .prism-workspace .prism-agent-topbar-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--pw-text-soft);
-  font-size: 11px;
-  letter-spacing: -.01em;
+  font-size: 10px;
+  font-weight: 600;
 }
-
-.prism-workspace .prism-agent-topbar-right { gap: 6px; }
-
+.prism-workspace .prism-agent-topbar-right {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
 .prism-workspace .prism-agent-project-select,
 .prism-workspace .prism-agent-model-select {
+  height: 32px;
+  max-width: 210px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pw-muted);
+  cursor: pointer;
+  padding: 0 9px;
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-project-select:hover,
+.prism-workspace .prism-agent-model-select:hover,
+.prism-workspace .prism-agent-project-select:focus-visible,
+.prism-workspace .prism-agent-model-select:focus-visible {
   border-color: var(--pw-line);
   background: var(--pw-surface);
   color: var(--pw-text-soft);
-  border-radius: 8px;
-  box-shadow: none;
-  transition: border-color var(--pw-fast) var(--pw-ease), background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-model-picker-wrap { position: relative; }
+.prism-workspace .prism-agent-model-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.prism-workspace .prism-agent-model-picker {
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 80;
+  width: min(330px, calc(100vw - 28px));
+  padding: 5px;
+  border: 1px solid var(--pw-line);
+  border-radius: 11px;
+  background: var(--pw-surface);
+  box-shadow: var(--pw-shadow);
+}
+.prism-workspace .prism-agent-model-picker button {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pw-text-soft);
+  padding: 0 10px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-model-picker button:hover,
+.prism-workspace .prism-agent-model-picker button[aria-checked="true"] {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-model-picker small {
+  color: var(--pw-faint);
+  font-size: 7px;
 }
 
-.prism-workspace .prism-agent-model-select { min-width: 154px; }
-
+/* Reading column */
+.prism-workspace .prism-agent-main-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .prism-workspace .prism-agent-content {
-  width: min(var(--pw-reading), calc(100% - 56px));
-  padding: 54px 0 42px;
+  width: min(790px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 46px 0 56px;
 }
-
 .prism-workspace .prism-agent-empty {
-  min-height: calc(100% - 16px);
-  padding: 15vh 0 13vh;
+  min-height: calc(100dvh - 220px);
+  display: grid;
+  place-items: center;
+  text-align: center;
 }
-
+.prism-workspace .prism-agent-empty > div { width: min(640px, 100%); }
 .prism-workspace .prism-agent-empty h1 {
+  margin: 0;
   color: var(--pw-text);
   font-family: var(--pw-serif);
-  font-size: clamp(39px, 5vw, 57px);
-  font-weight: 400;
-  letter-spacing: -.05em;
-  line-height: 1.02;
+  font-size: clamp(38px, 5vw, 54px);
+  font-weight: 500;
+  letter-spacing: -.035em;
 }
-
 .prism-workspace .prism-agent-empty p {
-  max-width: 600px;
-  margin-top: 16px;
+  max-width: 560px;
+  margin: 14px auto 0;
   color: var(--pw-muted);
   font-size: 13px;
-  line-height: 1.8;
+  line-height: 1.75;
 }
-
-.prism-workspace .prism-agent-starters { gap: 7px; margin-top: 25px; }
+.prism-workspace .prism-agent-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 26px;
+}
 .prism-workspace .prism-agent-starter {
-  height: 34px;
-  padding: 0 12px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
   border: 1px solid var(--pw-line);
-  border-radius: 999px;
+  border-radius: 8px;
   background: var(--pw-surface);
   color: var(--pw-text-soft);
-  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+  cursor: pointer;
+  font-size: 9px;
+  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
 }
 .prism-workspace .prism-agent-starter:hover {
-  background: var(--pw-surface-soft);
   border-color: var(--pw-line-strong);
-  transform: translateY(-1px);
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
 }
 
-.prism-workspace .prism-agent-messages { max-width: var(--pw-reading); gap: 38px; }
 .prism-workspace .prism-agent-message {
-  color: var(--pw-text);
-  font-size: 15px;
-  line-height: 1.85;
-}
-.prism-workspace .prism-agent-author {
-  margin-bottom: 7px;
-  color: var(--pw-faint);
-  font-size: 9px;
-  letter-spacing: .02em;
-  text-transform: uppercase;
-}
-.prism-workspace .prism-agent-message.assistant .message-bubble {
-  font-family: var(--pw-serif);
-  font-size: 16px;
-  color: var(--pw-text);
-}
-.prism-workspace .prism-agent-message.assistant .message-bubble p,
-.prism-workspace .prism-agent-message.assistant .message-bubble li {
-  line-height: 1.9;
+  max-width: 100%;
+  margin: 0 0 30px;
+  min-width: 0;
 }
 .prism-workspace .prism-agent-message.user {
-  width: fit-content;
-  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.prism-workspace .prism-agent-message .message-bubble {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--pw-text);
 }
 .prism-workspace .prism-agent-message.user .message-bubble {
-  background: var(--pw-surface-soft);
-  border-color: var(--pw-line);
-  border-radius: 12px 12px 4px 12px;
+  width: fit-content;
+  max-width: min(86%, 620px);
   padding: 10px 13px;
+  border: 1px solid var(--pw-line);
+  border-radius: 15px 15px 5px 15px;
+  background: var(--pw-surface-soft);
   color: var(--pw-text-soft);
   font-size: 14px;
   line-height: 1.72;
 }
-
-.prism-workspace .prism-agent-working {
+.prism-workspace .prism-agent-message.user .message-bubble p { margin: 0; }
+.prism-workspace .prism-agent-message.assistant .message-bubble {
+  padding-right: 12px;
+  font-family: var(--pw-serif);
+  font-size: 17px;
+  line-height: 1.78;
+}
+.prism-workspace .prism-agent-message.assistant .message-bubble p,
+.prism-workspace .prism-agent-message.assistant .message-bubble li { line-height: 1.85; }
+.prism-workspace .prism-agent-assistant-attachments { margin-top: 8px; }
+.prism-workspace .prism-agent-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.prism-workspace .prism-agent-message.user .prism-agent-attachments { margin-top: 8px; }
+.prism-workspace .prism-agent-chip {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 1px solid var(--pw-line);
+  border-radius: 6px;
+  background: var(--pw-surface);
   color: var(--pw-muted);
+  font: 8px/1 var(--pw-sans);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.prism-workspace .prism-agent-working-mode { color: var(--pw-faint); }
-.prism-workspace .prism-agent-working-dot {
-  background: var(--pw-accent);
-  box-shadow: 10px 0 color-mix(in srgb, var(--pw-accent) 60%, transparent), 20px 0 color-mix(in srgb, var(--pw-accent) 24%, transparent);
+.prism-workspace .prism-agent-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 7px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+  transition: opacity var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
 }
-
-.prism-workspace .prism-agent-streaming {
-  position: relative;
+.prism-workspace .prism-agent-message:hover .prism-agent-message-actions,
+.prism-workspace .prism-agent-message:focus-within .prism-agent-message-actions,
+.prism-workspace .prism-agent-message-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
 }
-.prism-workspace .prism-agent-streaming::after {
+.prism-workspace .prism-agent-message-actions button {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pw-faint);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-message-actions button:hover,
+.prism-workspace .prism-agent-message-actions button:focus-visible {
+  border-color: var(--pw-line);
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-message-actions button.selected {
+  border-color: var(--pw-line-strong);
+  background: var(--pw-surface-soft);
+  color: var(--pw-accent-strong);
+}
+.prism-workspace .prism-agent-streaming .message-bubble::after {
   content: "";
   display: inline-block;
   width: .55ch;
-  height: 1.05em;
-  margin-left: .1em;
-  vertical-align: -.12em;
+  height: 1em;
+  margin-left: .12em;
+  vertical-align: -.13em;
   background: var(--pw-accent);
-  animation: prismWorkspaceCursor 850ms steps(1,end) infinite;
+  animation: prismWorkspaceCursor 820ms steps(1,end) infinite;
 }
 @keyframes prismWorkspaceCursor { 50% { opacity: 0; } }
 
+/* Execution status stays compact until the user expands the trace. */
+.prism-workspace .prism-agent-working {
+  min-height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+  color: var(--pw-muted);
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-working-dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pw-accent);
+  box-shadow: 8px 0 color-mix(in srgb, var(--pw-accent) 48%, transparent), 16px 0 color-mix(in srgb, var(--pw-accent) 20%, transparent);
+}
+.prism-workspace .prism-agent-working-label { color: var(--pw-muted); }
+.prism-workspace .prism-agent-working-mode { color: var(--pw-faint); }
+.prism-workspace .prism-agent-command-output {
+  max-height: 180px;
+  margin: 8px 0;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  background: var(--pw-code-bg);
+  color: var(--pw-code-text);
+  font: 10px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
 .prism-workspace .prism-agent-trace {
-  border-color: var(--pw-line);
-  border-radius: var(--pw-radius-md);
-  background: color-mix(in srgb, var(--pw-surface) 72%, transparent);
-  box-shadow: none;
+  margin-top: 10px;
+  border: 1px solid var(--pw-line);
+  border-radius: 9px;
+  background: var(--pw-surface);
+  overflow: hidden;
 }
 .prism-workspace .prism-agent-trace-toggle {
+  width: 100%;
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
   color: var(--pw-muted);
+  cursor: pointer;
+  text-align: left;
 }
-.prism-workspace .prism-agent-trace-item { color: var(--pw-muted); }
-.prism-workspace .prism-agent-trace-time { color: var(--pw-faint); }
-
-.prism-workspace .prism-agent-command-output {
-  background: var(--pw-codex-bg);
-  border: 1px solid rgba(255,255,255,.07);
-  color: var(--pw-codex-text);
-  border-radius: 10px;
-  box-shadow: var(--pw-shadow-soft);
+.prism-workspace .prism-agent-trace-toggle strong {
+  color: var(--pw-text-soft);
+  font-size: 9px;
+  font-weight: 600;
 }
+.prism-workspace .prism-agent-trace-count { margin-left: auto; color: var(--pw-faint); font-size: 8px; }
+.prism-workspace .prism-agent-trace-list {
+  max-height: 240px;
+  overflow: auto;
+  padding: 3px 10px 8px;
+  border-top: 1px solid var(--pw-line);
+}
+.prism-workspace .prism-agent-trace-item {
+  min-height: 28px;
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--pw-muted);
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-trace-item.error { color: var(--pw-error); }
+.prism-workspace .prism-agent-trace-item.ok { color: var(--pw-text-soft); }
+.prism-workspace .prism-agent-trace-dot {
+  width: 5px;
+  height: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.prism-workspace .prism-agent-trace-time { color: var(--pw-faint); font-variant-numeric: tabular-nums; }
 
 .prism-workspace .prism-agent-artifact {
+  margin-top: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pw-line);
+  border-radius: 9px;
   background: var(--pw-surface);
-  border-color: var(--pw-line);
-  box-shadow: none;
 }
+.prism-workspace .prism-agent-artifact-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+.prism-workspace .prism-agent-artifact-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pw-text-soft);
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-artifact-copy span { color: var(--pw-faint); font-size: 8px; }
+.prism-workspace .prism-agent-artifact a {
+  flex: none;
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid var(--pw-line);
+  border-radius: 6px;
+  color: var(--pw-text-soft);
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-artifact a:hover { background: var(--pw-surface-soft); }
+
+.prism-workspace .prism-agent-jump-end {
+  position: sticky;
+  z-index: 10;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 auto;
+  padding: 0 10px;
+  min-height: 30px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 999px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  box-shadow: var(--pw-shadow-soft);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-jump-end:hover { background: var(--pw-surface-soft); }
+
+.prism-workspace .prism-agent-offline,
+.prism-workspace .prism-agent-error {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.prism-workspace .prism-agent-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--pw-error);
+}
+.prism-workspace .prism-agent-error button {
+  flex: none;
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid var(--pw-line);
+  border-radius: 6px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-error button:hover { background: var(--pw-surface-soft); }
 
 .prism-workspace .prism-agent-composer-wrap {
-  background: var(--pw-bg);
+  position: relative;
+  z-index: 20;
+  flex: none;
+  padding: 0 0 max(18px, env(safe-area-inset-bottom));
+  background: linear-gradient(var(--pw-bg), var(--pw-bg));
 }
-
 .prism-workspace .prism-agent-composer {
-  max-width: var(--pw-reading);
-  border-color: var(--pw-line-strong);
-  border-radius: var(--pw-radius-lg);
+  width: min(790px, calc(100% - 48px));
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 16px;
   background: var(--pw-surface);
   box-shadow: var(--pw-shadow-soft);
   transition: border-color var(--pw-fast) var(--pw-ease), box-shadow var(--pw-fast) var(--pw-ease), background-color var(--pw-fast) var(--pw-ease);
 }
 .prism-workspace .prism-agent-composer:focus-within {
-  border-color: color-mix(in srgb, var(--pw-accent) 55%, var(--pw-line-strong));
-  box-shadow: 0 0 0 3px var(--pw-focus), var(--pw-shadow);
+  border-color: var(--pw-accent);
+  box-shadow: 0 0 0 3px var(--pw-focus), var(--pw-shadow-soft);
 }
 .prism-workspace .prism-agent-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  max-height: 190px;
+  resize: none;
+  overflow-y: auto;
+  padding: 15px 16px 9px;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: var(--pw-text);
   font: 15px/1.6 var(--pw-sans);
 }
 .prism-workspace .prism-agent-composer textarea::placeholder { color: var(--pw-faint); }
+.prism-workspace .prism-agent-composer-tools {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 8px;
+}
+.prism-workspace .prism-agent-composer-spacer { margin-left: auto; }
 .prism-workspace .prism-agent-tool-button,
 .prism-workspace .prism-agent-thinking button {
+  min-height: 29px;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--pw-muted);
+  cursor: pointer;
 }
 .prism-workspace .prism-agent-tool-button:hover,
 .prism-workspace .prism-agent-thinking button:hover {
@@ -387,315 +899,100 @@
   color: var(--pw-text);
 }
 .prism-workspace .prism-agent-send {
-  background: var(--pw-accent-strong);
-  color: var(--pw-bg);
-}
-.prism-workspace .prism-agent-send:hover:not(:disabled) {
-  background: var(--pw-accent);
-  transform: translateY(-1px);
-}
-.prism-workspace .prism-agent-send:disabled {
-  background: var(--pw-surface-strong);
-  color: var(--pw-faint);
-}
-
-.prism-workspace .prism-agent-model-picker-wrap { position: relative; }
-.prism-workspace .prism-agent-conversation-search {
-  width: calc(100% - 18px);
+  width: 31px;
   height: 31px;
-  margin: 0 9px 6px;
-  padding: 0 9px;
-  border: 1px solid var(--pw-line);
-  border-radius: 8px;
-  background: var(--pw-surface);
-  color: var(--pw-text-soft);
-  outline: 0;
-  font-size: 10px;
-  transition: border-color var(--pw-fast) var(--pw-ease), background-color var(--pw-fast) var(--pw-ease);
-}
-.prism-workspace .prism-agent-conversation-search::placeholder { color: var(--pw-faint); }
-.prism-workspace .prism-agent-conversation-search:focus { border-color: var(--pw-accent); box-shadow: 0 0 0 3px var(--pw-focus); }
-.prism-workspace .prism-agent-trace-count { margin-left: auto; color: var(--pw-faint); }
-.prism-workspace .prism-agent-mobile-toggle { display: none; }
-.prism-workspace .prism-agent-model-picker {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 7px);
-  z-index: 40;
-  width: min(340px, calc(100vw - 28px));
-  padding: 6px;
-  border: 1px solid var(--pw-line);
-  border-radius: 12px;
-  background: var(--pw-surface);
-  box-shadow: var(--pw-shadow);
-}
-
-.prism-workspace .prism-agent-model-picker button {
-  width: 100%;
-  min-height: 39px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--pw-text-soft);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 10px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease);
-}
-.prism-workspace .prism-agent-model-picker button:hover,
-.prism-workspace .prism-agent-model-picker button[aria-current="true"] {
-  background: var(--pw-surface-soft);
-  color: var(--pw-text);
-}
-
-.prism-workspace .prism-agent-error {
-  padding: 10px 0;
-  color: var(--pw-error);
-  font-size: 11px;
-}
-.prism-workspace[data-theme="dark"] .prism-agent-error { color: var(--pw-error-soft); }
-
-.prism-workspace .prism-agent-mobile-overlay {
-  background: rgba(31,27,22,.24);
-}
-
-@media (max-width: 980px) {
-  .prism-workspace .prism-agent-mobile-toggle { display: grid; }
-  .prism-workspace.prism-agent-chat { grid-template-columns: 1fr; }
-  .prism-workspace.prism-agent-chat.sidebar-collapsed { grid-template-columns: 1fr; }
-  .prism-workspace .prism-agent-sidebar {
-    width: min(300px, 88vw);
-    box-shadow: 22px 0 50px rgba(48, 39, 30, .18);
-  }
-  .prism-workspace .prism-agent-content { width: min(var(--pw-reading), calc(100% - 28px)); }
-  .prism-workspace .prism-agent-composer-wrap { padding-inline: 10px; }
-  .prism-workspace .prism-agent-topbar-right { max-width: 58%; }
-}
-
-@media (max-width: 620px) {
-  .prism-workspace .prism-agent-topbar-right { max-width: 72%; }
-  .prism-workspace .prism-agent-topbar-title { display: none; }
-  .prism-workspace .prism-agent-content { padding-top: 28px; }
-  .prism-workspace .prism-agent-empty { padding: 13vh 0 12vh; }
-  .prism-workspace .prism-agent-empty h1 { font-size: 35px; }
-  .prism-workspace .prism-agent-message { font-size: 14px; }
-  .prism-workspace .prism-agent-message.assistant .message-bubble { font-size: 15px; }
-  .prism-workspace .prism-agent-message.user { max-width: 94%; }
-}
-
-/* Codex uses the same system while keeping its editor surfaces. */
-.prism-workspace.prism-codex-v2 {
-  --pw-reading: 820px;
-  background: var(--pw-bg);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar {
-  background: var(--pw-sidebar);
-  border-right-color: var(--pw-line);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar,
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main,
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main footer {
-  transition: background-color var(--pw-fast) var(--pw-ease), color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main {
-  background: var(--pw-bg);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .header,
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main footer {
-  background: var(--pw-surface);
-  border-color: var(--pw-line);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages,
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .welcome {
-  color: var(--pw-text);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages .message.assistant .content,
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .welcome h1 {
-  font-family: var(--pw-serif);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer {
-  border-color: var(--pw-line-strong);
-  background: var(--pw-surface);
-  box-shadow: var(--pw-shadow-soft);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer textarea {
-  background: transparent;
-  color: var(--pw-text);
-}
-.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer textarea::placeholder { color: var(--pw-faint); }
-
-
-/* Markdown reading system */
-.prism-workspace .markdown-message {
-  max-width: 100%;
-  color: inherit;
-}
-.prism-workspace .markdown-message p {
-  margin: 0 0 1.05em;
-}
-.prism-workspace .markdown-message p:last-child {
-  margin-bottom: 0;
-}
-.prism-workspace .markdown-message h2,
-.prism-workspace .markdown-message h3,
-.prism-workspace .markdown-message h4 {
-  color: var(--pw-text);
-  font-family: var(--pw-serif);
-  font-weight: 600;
-  letter-spacing: -.025em;
-  line-height: 1.2;
-}
-.prism-workspace .markdown-message h2 { margin: 1.5em 0 .55em; font-size: 1.28em; }
-.prism-workspace .markdown-message h3 { margin: 1.35em 0 .5em; font-size: 1.15em; }
-.prism-workspace .markdown-message h4 { margin: 1.15em 0 .45em; font-size: 1.04em; }
-.prism-workspace .markdown-message strong { font-weight: 700; }
-.prism-workspace .markdown-message em { font-style: italic; }
-.prism-workspace .markdown-message del { color: var(--pw-muted); }
-.prism-workspace .markdown-message a {
-  color: var(--pw-accent-strong);
-  text-underline-offset: 3px;
-}
-.prism-workspace .markdown-message a:hover { color: var(--pw-accent); }
-.prism-workspace .markdown-message code:not(pre code) {
-  padding: .14em .38em;
-  border: 1px solid var(--pw-line);
-  border-radius: 5px;
-  background: var(--pw-surface-soft);
-  font: .86em/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-.prism-workspace .markdown-message ul,
-.prism-workspace .markdown-message ol {
-  margin: .25em 0 1.05em;
-  padding-left: 1.45em;
-}
-.prism-workspace .markdown-message li {
-  margin: .28em 0;
-  padding-left: .12em;
-}
-.prism-workspace .markdown-message blockquote {
-  margin: 1.15em 0;
-  padding: .15em 0 .15em 1.05em;
-  border-left: 2px solid var(--pw-accent);
-  color: var(--pw-text-soft);
-}
-.prism-workspace .markdown-message blockquote p { margin-bottom: .5em; }
-.prism-workspace .markdown-message hr {
-  margin: 1.65em 0;
-  border: 0;
-  border-top: 1px solid var(--pw-line);
-}
-.prism-workspace .prism-markdown-table-wrap {
-  width: 100%;
-  margin: 1.1em 0 1.35em;
-  overflow-x: auto;
-  border: 1px solid var(--pw-line);
-  border-radius: 9px;
-  background: var(--pw-surface);
-}
-.prism-workspace .prism-markdown-table-wrap table {
-  width: 100%;
-  min-width: 420px;
-  border-collapse: collapse;
-  font-family: var(--pw-sans);
-  font-size: .84em;
-  line-height: 1.5;
-}
-.prism-workspace .prism-markdown-table-wrap th,
-.prism-workspace .prism-markdown-table-wrap td {
-  padding: 9px 11px;
-  border-bottom: 1px solid var(--pw-line);
-  text-align: left;
-  vertical-align: top;
-}
-.prism-workspace .prism-markdown-table-wrap th {
-  background: var(--pw-surface-soft);
-  color: var(--pw-text-soft);
-  font-weight: 650;
-}
-.prism-workspace .prism-markdown-table-wrap tr:last-child td { border-bottom: 0; }
-.prism-workspace .prism-markdown-code {
-  margin: 1.15em 0 1.4em;
-  overflow: hidden;
-  border: 1px solid var(--pw-code-line);
-  border-radius: 11px;
-  background: var(--pw-code-bg);
-  color: var(--pw-code-text);
-  box-shadow: var(--pw-shadow-soft);
-}
-.prism-workspace .prism-markdown-code__bar {
-  min-height: 39px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 8px 6px 12px;
-  border-bottom: 1px solid var(--pw-code-line);
-  background: var(--pw-code-bar);
-  font-family: var(--pw-sans);
-}
-.prism-workspace .prism-markdown-code__bar > span:first-child {
   display: grid;
-  gap: 2px;
-  min-width: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: var(--pw-text);
+  color: var(--pw-bg);
+  cursor: pointer;
+  transition: transform var(--pw-fast) var(--pw-ease), background-color var(--pw-fast) var(--pw-ease);
 }
-.prism-workspace .prism-markdown-code__bar strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 9px;
-  font-weight: 650;
-}
-.prism-workspace .prism-markdown-code__bar small {
-  color: var(--pw-code-muted);
+.prism-workspace .prism-agent-send:hover:not(:disabled) { transform: translateY(-1px); background: var(--pw-accent-strong); }
+.prism-workspace .prism-agent-send:disabled { background: var(--pw-surface-strong); color: var(--pw-faint); cursor: not-allowed; }
+.prism-workspace .prism-agent-editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px 2px;
+  border-bottom: 1px solid var(--pw-line);
+  color: var(--pw-muted);
   font-size: 8px;
 }
-.prism-workspace .prism-markdown-code__actions {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.prism-workspace .prism-markdown-code__actions button {
-  min-height: 27px;
+.prism-workspace .prism-agent-editing-banner span { font-weight: 600; color: var(--pw-text-soft); }
+.prism-workspace .prism-agent-editing-banner button {
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  border: 1px solid var(--pw-code-control-line);
-  border-radius: 6px;
+  gap: 4px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
   background: transparent;
-  color: var(--pw-code-control-text);
-  padding: 0 8px;
+  color: var(--pw-faint);
   cursor: pointer;
   font-size: 8px;
 }
-.prism-workspace .prism-markdown-code__actions button:hover {
-  background: var(--pw-code-control-hover);
-  border-color: var(--pw-code-control-hover-line);
-}
-.prism-workspace .prism-markdown-code pre {
-  margin: 0;
-  max-width: 100%;
-  overflow: auto;
-  padding: 14px 15px 16px;
-  background: var(--pw-code-pre-bg);
-}
-.prism-workspace .prism-markdown-code pre code {
-  display: block;
-  white-space: pre;
-  font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+.prism-workspace .prism-agent-editing-banner button:hover { color: var(--pw-text); }
+
+/* Mobile */
+.prism-workspace .prism-agent-mobile-toggle { display: none; }
+.prism-workspace .prism-agent-mobile-overlay { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .prism-workspace {
+  .prism-workspace,
+  .prism-workspace * {
     scroll-behavior: auto;
-    --pw-fast: 0ms;
-    --pw-ease: linear;
+    transition-duration: 0ms;
+    animation-duration: .01ms;
   }
-  .prism-workspace * { animation-duration: .01ms; }
 }
-
-
+@media (max-width: 960px) {
+  .prism-workspace.prism-agent-chat { grid-template-columns: 1fr; }
+  .prism-workspace .prism-agent-sidebar {
+    position: fixed;
+    z-index: 200;
+    inset: 0 auto 0 0;
+    width: min(310px, 88vw);
+    transform: translateX(-104%);
+    box-shadow: 18px 0 45px rgba(20,18,14,.16);
+    transition: transform 180ms cubic-bezier(.2,.7,.2,1);
+  }
+  .prism-workspace .prism-agent-sidebar.open { transform: translateX(0); }
+  .prism-workspace .prism-agent-mobile-toggle { display: grid; }
+  .prism-workspace .prism-agent-mobile-overlay {
+    display: block;
+    position: fixed;
+    z-index: 190;
+    inset: 0;
+    border: 0;
+    background: rgba(22,20,16,.24);
+  }
+  .prism-workspace .prism-agent-topbar { padding: 0 16px; }
+  .prism-workspace .prism-agent-topbar-title { max-width: 45%; }
+}
+@media (max-width: 620px) {
+  .prism-workspace .prism-agent-content,
+  .prism-workspace .prism-agent-composer { width: calc(100% - 28px); }
+  .prism-workspace .prism-agent-content { padding-top: 30px; }
+  .prism-workspace .prism-agent-message.user .message-bubble { max-width: 94%; }
+  .prism-workspace .prism-agent-message.assistant .message-bubble { font-size: 15px; }
+  .prism-workspace .prism-agent-composer-wrap { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .prism-workspace .prism-agent-topbar-right { gap: 3px; }
+  .prism-workspace .prism-agent-project-select { display: none; }
+  .prism-workspace .prism-agent-model-select { max-width: 155px; padding-inline: 7px; }
+  .prism-workspace .prism-agent-error { align-items: flex-start; flex-direction: column; }
+  .prism-workspace .prism-agent-message-actions,
+  .prism-workspace .prism-agent-conversation-actions { opacity: 1; pointer-events: auto; transform: none; }
+}
+@media (max-width: 420px) {
+  .prism-workspace .prism-agent-topbar-title { max-width: 36%; }
+  .prism-workspace .prism-agent-content { width: calc(100% - 20px); }
+  .prism-workspace .prism-agent-composer { width: calc(100% - 20px); }
+  .prism-workspace .prism-agent-message.user .message-bubble { max-width: 96%; }
+}
 /* Codex editor surface — warm, quiet, still unmistakably an engineering workspace. */
 .prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar {
   color: var(--pw-text-soft);

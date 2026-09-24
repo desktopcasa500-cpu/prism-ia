@@ -30,6 +30,29 @@ const STARTERS = [
 function rankOf(plan) { return PLAN_RANK[plan] ?? 0; }
 function requestId() { try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; } }
 function metadataOf(message) { if (!message?.metadata) return {}; if (typeof message.metadata === 'object') return message.metadata; try { return JSON.parse(message.metadata); } catch { return {}; } }
+function sessionGroup(value) {
+  const date = new Date(value || 0);
+  if (Number.isNaN(date.getTime())) return 'Mais antigas';
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startYesterday = new Date(startToday);
+  startYesterday.setDate(startYesterday.getDate() - 1);
+  const startSevenDays = new Date(startToday);
+  startSevenDays.setDate(startSevenDays.getDate() - 7);
+  if (date >= startToday) return 'Hoje';
+  if (date >= startYesterday) return 'Ontem';
+  if (date >= startSevenDays) return 'Últimos 7 dias';
+  return 'Mais antigas';
+}
+
+function sessionGroups(items) {
+  const order = ['Hoje', 'Ontem', 'Últimos 7 dias', 'Mais antigas'];
+  return order.map((label) => ({
+    label,
+    items: items.filter((item) => sessionGroup(item.updated_at || item.created_at) === label),
+  })).filter((group) => group.items.length);
+}
+
 function eventLabel(event) {
   const map = { start: 'Preparando', quota_reserved: 'Cota reservada', workspace_start: 'Abrindo projeto', workspace_ready: 'Projeto pronto', mcp_start: 'Conectando MCP', mcp_ready: 'MCP pronto', mcp_error: 'MCP indisponível', tools_ready: 'Ferramentas prontas', providers_ready: 'Provedores disponíveis', provider_start: 'Executando modelo', provider_round: 'Modelo pensando', text_delta: 'Gerando resposta', provider_complete: 'Modelo concluiu', provider_error: 'Tentando outro provedor', tool_start: 'Executando ferramenta', command_output: 'Executando comando', artifact: 'Artefato criado', finalizing: 'Revisando resposta', megabrain_start: 'MegaBrain ativado', megabrain_provider_start: 'Consultando modelo do MegaBrain', megabrain_provider_complete: 'Conselheiro respondeu', megabrain_provider_error: 'Conselheiro falhou', megabrain_synthesis_start: 'Consolidando o MegaBrain', megabrain_done: 'MegaBrain concluído', done: 'Concluído', error: 'Falha' };
   return map[event?.type] || event?.message || event?.type || 'Executando';
@@ -63,11 +86,20 @@ export default function ChatRelease() {
   const [commandOutput, setCommandOutput] = useState('');
   const [artifact, setArtifact] = useState(null);
   const [streamingText, setStreamingText] = useState('');
+  const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [retryPrompt, setRetryPrompt] = useState('');
+  const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [followingBottom, setFollowingBottom] = useState(true);
+  const [showJumpToEnd, setShowJumpToEnd] = useState(false);
   const controllerRef = useRef(null);
   const endRef = useRef(null);
+  const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const searchRef = useRef(null);
   const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]);
   const filteredSessions = useMemo(() => { const q = search.trim().toLowerCase(); return q ? sessions.filter((item) => String(item.title || '').toLowerCase().includes(q)) : sessions; }, [search, sessions]);
+  const groupedSessions = useMemo(() => sessionGroups(filteredSessions), [filteredSessions]);
   const canSend = Boolean(input.trim() || attachments.length) && !sending;
 
   useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
@@ -75,13 +107,53 @@ export default function ChatRelease() {
   useEffect(() => { localStorage.setItem('prism-default-effort', effort); }, [effort]);
   useEffect(() => { localStorage.setItem('prism.chat.project', projectId); }, [projectId]);
   useEffect(() => { localStorage.setItem('prism-compact-sidebar', String(sidebarCollapsed)); }, [sidebarCollapsed]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, sending, events.length]);
+  useEffect(() => {
+    if (!followingBottom) return;
+    endRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto', block: 'end' });
+  }, [messages, streamingText, sending, commandOutput, followingBottom]);
   useEffect(() => { const timer = setTimeout(() => inputRef.current?.focus(), 80); return () => clearTimeout(timer); }, [sessionId]);
+  useEffect(() => {
+    const handleConnectivity = () => setOffline(typeof navigator !== 'undefined' && !navigator.onLine);
+    window.addEventListener('online', handleConnectivity);
+    window.addEventListener('offline', handleConnectivity);
+    return () => {
+      window.removeEventListener('online', handleConnectivity);
+      window.removeEventListener('offline', handleConnectivity);
+    };
+  }, []);
+  useEffect(() => {
+    const onShortcut = (event) => {
+      const key = event.key.toLowerCase();
+      if ((event.ctrlKey || event.metaKey) && key === 'k') {
+        event.preventDefault();
+        setSearch('');
+        requestAnimationFrame(() => searchRef.current?.focus());
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'o') {
+        event.preventDefault();
+        newSession();
+      }
+    };
+    window.addEventListener('keydown', onShortcut);
+    return () => window.removeEventListener('keydown', onShortcut);
+  }, [newSession]);
+  const handleScroll = useCallback((event) => {
+    const element = event.currentTarget;
+    const distance = element.scrollHeight - element.scrollTop - element.clientHeight;
+    const atBottom = distance < 96;
+    setFollowingBottom(atBottom);
+    setShowJumpToEnd(!atBottom && messages.length > 0);
+  }, [messages.length]);
+  const jumpToEnd = useCallback(() => {
+    setFollowingBottom(true);
+    setShowJumpToEnd(false);
+    requestAnimationFrame(() => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }));
+  }, []);
 
   const authFail = useCallback((cause) => { if (cause?.status !== 401) return false; logout(); navigate('/login', { replace: true }); return true; }, [logout, navigate]);
 
   const loadSession = useCallback(async (id) => {
-    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError('');
+    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setFollowingBottom(true); setShowJumpToEnd(false);
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
     catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
     finally { setLoading(false); }
@@ -101,13 +173,98 @@ export default function ChatRelease() {
     return () => { active = false; };
   }, [authFail, loadSession]);
 
-  async function newSession() {
+  const newSession = useCallback(async () => {
     if (sending) return;
     try {
       const result = await api.post('/chat/sessions', { surface: 'home' });
-      setSessions((items) => [result.session, ...items]); setSessionId(result.session.id); setMessages([]); setEvents([]); setCommandOutput(''); setArtifact(null); setInput(''); setError(''); setMobileOpen(false);
-    } catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.'); }
+      setSessions((items) => [result.session, ...items]);
+      setSessionId(result.session.id);
+      setMessages([]);
+      setEvents([]);
+      setCommandOutput('');
+      setArtifact(null);
+      setInput('');
+      setError('');
+      setRetryPrompt('');
+      setFollowingBottom(true);
+      setShowJumpToEnd(false);
+      setMobileOpen(false);
+    } catch (cause) {
+      if (!authFail(cause)) setError(cause.message || 'Não foi possível criar a conversa.');
+    }
+  }, [authFail, sending]);
+
+  async function renameSession(session) {
+    const nextTitle = window.prompt('Renomear conversa', session.title || 'Nova conversa')?.trim().replace(/\s+/g, ' ').slice(0, 120);
+    if (!nextTitle || nextTitle === session.title) return;
+    try {
+      const result = await api.patch('/chat/sessions/' + encodeURIComponent(session.id), { title: nextTitle });
+      setSessions((items) => items.map((item) => item.id === session.id ? { ...item, ...result.session } : item));
+    } catch (cause) {
+      if (!authFail(cause)) setError(cause.message || 'Não foi possível renomear a conversa.');
+    }
   }
+
+  async function deleteSession(session) {
+    const confirmed = window.confirm('Excluir "' + (session.title || 'Nova conversa') + '"? Essa ação não pode ser desfeita.');
+    if (!confirmed) return;
+    try {
+      await api.delete('/chat/sessions/' + encodeURIComponent(session.id));
+      setSessions((items) => items.filter((item) => item.id !== session.id));
+      if (session.id === sessionId) {
+        setSessionId(null);
+        setMessages([]);
+        setEvents([]);
+        setCommandOutput('');
+        setArtifact(null);
+        setRetryPrompt('');
+        setError('');
+        setFollowingBottom(true);
+        setShowJumpToEnd(false);
+      }
+    } catch (cause) {
+      if (!authFail(cause)) setError(cause.message || 'Não foi possível excluir a conversa.');
+    }
+  }
+
+  const renderSessionGroup = (group) => (
+    <div className="prism-agent-conversation-group" key={group.label}>
+      <div className="prism-agent-section-title">{group.label}</div>
+      {group.items.map((session) => (
+        <div className={'prism-agent-conversation-row' + (session.id === sessionId ? ' active' : '')} key={session.id}>
+          {editingSessionId === session.id ? (
+            <form className="prism-agent-conversation-edit" onSubmit={async (event) => {
+              event.preventDefault();
+              const nextTitle = editingTitle.trim().replace(/\s+/g, ' ').slice(0, 120);
+              if (!nextTitle) return;
+              try {
+                const result = await api.patch('/chat/sessions/' + encodeURIComponent(session.id), { title: nextTitle });
+                setSessions((items) => items.map((item) => item.id === session.id ? { ...item, ...result.session } : item));
+                setEditingSessionId(null);
+                setEditingTitle('');
+              } catch (cause) {
+                if (!authFail(cause)) setError(cause.message || 'Não foi possível renomear a conversa.');
+              }
+            }}>
+              <input value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} aria-label="Novo nome da conversa" autoFocus />
+              <button type="submit" aria-label="Salvar nome"><PrismIcon name="check" size={12} /></button>
+              <button type="button" aria-label="Cancelar" onClick={() => { setEditingSessionId(null); setEditingTitle(''); }}><PrismIcon name="close" size={12} /></button>
+            </form>
+          ) : (
+            <>
+              <button className="prism-agent-conversation-open" onClick={() => loadSession(session.id)} aria-current={session.id === sessionId ? 'page' : undefined}>
+                <PrismIcon name="layers" size={12} /><span>{session.title || 'Nova conversa'}</span>
+              </button>
+              <div className="prism-agent-conversation-actions">
+                <button type="button" onClick={() => { setEditingSessionId(session.id); setEditingTitle(session.title || 'Nova conversa'); }} aria-label={'Renomear ' + (session.title || 'conversa')}>Renomear</button>
+                <button type="button" onClick={() => deleteSession(session)} aria-label={'Excluir ' + (session.title || 'conversa')}>Excluir</button>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   function chooseModel(id) {
     const next = MODELS.find((item) => item.id === id); if (!next) return;
@@ -115,11 +272,12 @@ export default function ChatRelease() {
     setModel(next.id); setModelOpen(false);
   }
 
-  async function send() {
-    if (!canSend) return;
+  async function send(contentOverride = null) {
+    const content = String(contentOverride ?? input).trim();
+    if ((!content && !attachments.length) || sending) return;
     setSending(true); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
     const controller = new AbortController(); controllerRef.current = controller;
-    const rid = requestId(); const content = input.trim(); const selectedAttachments = [...attachments];
+    const rid = requestId(); const selectedAttachments = [...attachments];
     let currentSession = sessionId;
     const localId = `local-${rid}`;
     try {
@@ -141,6 +299,8 @@ export default function ChatRelease() {
         if (event.type === 'error') setError(event.message || 'A execução falhou.');
       }, { timeout: 300_000, signal: controller.signal });
       const payload = result || {};
+      setRetryPrompt('');
+      setSessions((items) => items.map((item) => item.id === currentSession ? { ...item, title: item.title === 'Nova conversa' ? (content.replace(/\s+/g, ' ').slice(0, 64) || 'Nova conversa') : item.title, updated_at: new Date().toISOString() } : item));
       if (payload.duplicate) {
         const history = await api.get(`/chat/sessions/${encodeURIComponent(currentSession)}/messages?surface=home`);
         setMessages(history.messages || []);
@@ -149,12 +309,15 @@ export default function ChatRelease() {
       }
       if (payload.usage) setSessions((items) => items);
     } catch (cause) {
-      if (cause?.name !== 'AbortError') {
+      if (cause?.name === 'AbortError') {
+        setError('Geração interrompida.');
+      } else {
         if (cause?.payload?.code === 'PLAN_UPGRADE_REQUIRED' || cause?.status === 403) { setRequestedModel(cause.payload?.requiredPlan || selected.label); setPlansOpen(true); }
         else if (!authFail(cause)) setError(cause.message || 'Não foi possível concluir a execução.');
+        setRetryPrompt(content);
+        setMessages((items) => items.filter((item) => item.id !== localId));
       }
       setStreamingText('');
-      setMessages((items) => items.filter((item) => item.id !== localId));
     } finally {
       setSending(false); setStreamingText(''); controllerRef.current = null;
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -179,9 +342,10 @@ export default function ChatRelease() {
       <div className="prism-agent-sidebar__projects">
         <div className="prism-agent-section-title">Projetos</div>
         {projects.map((project) => <button key={project.id} className={`prism-agent-project ${project.id === projectId ? 'active' : ''}`} onClick={() => setProjectId(project.id)}><PrismIcon name="folder" size={13}/><span>{project.name}</span></button>)}
-        <div className="prism-agent-section-title">Conversas</div>
-        <input className="prism-agent-conversation-search" value={search.trim() === ' ' ? '' : search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" />
-        {filteredSessions.map((session) => <button key={session.id} className={`prism-agent-project ${session.id === sessionId ? 'active' : ''}`} onClick={() => loadSession(session.id)}><PrismIcon name="layers" size={12}/><span>{session.title || 'Nova conversa'}</span></button>)}
+        <div className="prism-agent-section-title prism-agent-section-title--conversations"><span>Conversas</span><kbd>Ctrl K</kbd></div>
+        <input ref={searchRef} className="prism-agent-conversation-search" value={search.trim() === ' ' ? '' : search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conversas" aria-label="Buscar conversas" />
+        {groupedSessions.length === 0 && <div className="prism-agent-sidebar-empty">{search ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</div>}
+        {groupedSessions.map(renderSessionGroup)}
       </div>
       <div className="prism-agent-sidebar__bottom"><button className="prism-agent-profile" onClick={() => navigate('/configuracoes')}><span className="prism-agent-avatar">{initial}</span><span className="prism-agent-profile-copy"><strong>{user?.name || 'Você'}</strong><span>{user?.plan || 'Grátis'}</span></span></button></div>
     </aside>
@@ -197,10 +361,11 @@ export default function ChatRelease() {
         </div>
       </header>
 
-      <section className="prism-agent-main-scroll">
+      <section ref={scrollRef} className="prism-agent-main-scroll" onScroll={handleScroll}>
         <div className="prism-agent-content">
           {!loading && !hasMessages && !error && <div className="prism-agent-empty"><div><h1>O que você quer criar?</h1><p>Converse, execute tarefas, use ferramentas, valide resultados e gere artefatos no mesmo fluxo.</p><div className="prism-agent-starters">{STARTERS.map(([label, prompt]) => <button className="prism-agent-starter" key={label} onClick={() => { setInput(prompt); inputRef.current?.focus(); }}><PrismIcon name={label === 'Código' ? 'code' : 'layers'} size={14}/>{label}</button>)}</div></div></div>}
-          {error && <div className="prism-agent-error" role="alert">{error}</div>}
+          {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}
+          {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt)}>Tentar novamente</button>}</div>}
           {hasMessages && <div className="prism-agent-messages">
             {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div></article>; })}
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="prism-agent-author">Prism IA</div><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
@@ -208,14 +373,14 @@ export default function ChatRelease() {
             {sending && commandOutput && <pre className="prism-agent-command-output">{commandOutput}</pre>}
             {events.length > 0 && <section className="prism-agent-trace"><button className="prism-agent-trace-toggle" onClick={() => setTraceOpen((value) => !value)}><PrismIcon name="tool" size={13}/><strong>{sending ? 'O que a Prism está fazendo' : 'Execução concluída'}</strong><span className="prism-agent-trace-count">{events.length} etapas</span></button>{traceOpen && <div className="prism-agent-trace-list">{events.slice(-20).map((event, index) => <div key={`${event.timestamp}-${index}`} className={`prism-agent-trace-item ${event.type === 'error' || event.ok === false ? 'error' : event.type === 'done' || event.type === 'provider_complete' || event.type === 'tool_complete' && event.ok ? 'ok' : ''}`}><span className="prism-agent-trace-dot"/><span>{eventLabel(event)}{event.provider ? ` · ${event.provider}` : ''}{event.tool ? ` · ${event.tool}` : ''}</span><span className="prism-agent-trace-time">{event.timestamp ? new Date(event.timestamp).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''}</span></div>)}</div>}</section>}
             {artifact?.downloadPath && <div className="prism-agent-artifact"><div className="prism-agent-artifact-copy"><strong>{artifact.filename}</strong><span>Artefato gerado pela execução</span></div><a href={artifact.downloadPath} target="_blank" rel="noreferrer">Abrir</a></div>}
-            <div ref={endRef}/>
+            <div ref={endRef}/>{showJumpToEnd && <button className="prism-agent-jump-end" type="button" onClick={jumpToEnd}>Ir para o fim <span aria-hidden="true">↓</span></button>}
           </div>}
         </div>
       </section>
 
       <footer className="prism-agent-composer-wrap"><div className="prism-agent-composer">
         {attachments.length > 0 && <div className="prism-agent-attachments">{attachments.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}
-        <textarea ref={inputRef} rows={1} value={input} disabled={sending} onChange={(event) => { setInput(event.target.value); event.target.style.height='auto'; event.target.style.height=`${Math.min(190,event.target.scrollHeight)}px`; }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça à Prism para construir, executar ou revisar..." aria-label="Mensagem" />
+        <textarea ref={inputRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça à Prism para construir, executar ou revisar..." aria-label="Mensagem" />
         <div className="prism-agent-composer-tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} label="Adicionar arquivo"/><div className="prism-agent-thinking"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending}/></div><span className="prism-agent-composer-spacer"/>{sending ? <button className="prism-agent-send" onClick={() => controllerRef.current?.abort()} aria-label="Parar"><PrismIcon name="stop" size={13}/></button> : <button className="prism-agent-send" disabled={!canSend} onClick={send} aria-label="Enviar"><PrismIcon name="send" size={14}/></button>}</div>
       </div></footer>
     </main>

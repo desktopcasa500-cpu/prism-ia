@@ -102,6 +102,7 @@ export default function ChatRelease() {
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const searchRef = useRef(null);
+  const mobileToggleRef = useRef(null);
   const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]);
   const filteredSessions = useMemo(() => { const q = search.trim().toLowerCase(); return q ? sessions.filter((item) => String(item.title || '').toLowerCase().includes(q)) : sessions; }, [search, sessions]);
   const groupedSessions = useMemo(() => sessionGroups(filteredSessions), [filteredSessions]);
@@ -151,6 +152,13 @@ export default function ChatRelease() {
       window.removeEventListener('offline', handleConnectivity);
     };
   }, []);
+  useEffect(() => {
+    if (mobileOpen) {
+      requestAnimationFrame(() => document.querySelector('.prism-agent-sidebar button')?.focus());
+    } else {
+      requestAnimationFrame(() => mobileToggleRef.current?.focus());
+    }
+  }, [mobileOpen]);
   useEffect(() => {
     const onShortcut = (event) => {
       const key = event.key.toLowerCase();
@@ -428,7 +436,7 @@ export default function ChatRelease() {
     <main className="prism-agent-main">
       {mobileOpen && <button className="prism-agent-mobile-overlay" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} />}
       <header className="prism-agent-topbar">
-        <button className="prism-agent-mobile-toggle" aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => { setSidebarCollapsed(false); setMobileOpen(true); }}><PrismIcon name="menu" size={15}/></button>
+        <button ref={mobileToggleRef} className="prism-agent-mobile-toggle" aria-label="Abrir menu" aria-expanded={mobileOpen} onClick={() => { setSidebarCollapsed(false); setMobileOpen(true); }}><PrismIcon name="menu" size={15}/></button>
         <div className="prism-agent-topbar-title">{hasMessages ? (sessions.find((item) => item.id === sessionId)?.title || 'Conversa') : 'O que você quer criar?'}</div>
         <div className="prism-agent-topbar-right">
           <select className="prism-agent-project-select" value={projectId} onChange={(event) => setProjectId(event.target.value)} aria-label="Projeto"><option value="">Sem projeto</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select>

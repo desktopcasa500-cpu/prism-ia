@@ -88,6 +88,7 @@ export default function ChatRelease() {
   const [artifact, setArtifact] = useState(null);
   const [streamingText, setStreamingText] = useState('');
   const [editingSessionId, setEditingSessionId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [retryPrompt, setRetryPrompt] = useState('');
@@ -228,11 +229,14 @@ export default function ChatRelease() {
 
   async function deleteSession(session) {
     if (sending) return;
-    const confirmed = window.confirm('Excluir "' + (session.title || 'Nova conversa') + '"? Essa ação não pode ser desfeita.');
-    if (!confirmed) return;
+    if (confirmDeleteId !== session.id) {
+      setConfirmDeleteId(session.id);
+      return;
+    }
     try {
       await api.delete('/chat/sessions/' + encodeURIComponent(session.id));
       setSessions((items) => items.filter((item) => item.id !== session.id));
+      setConfirmDeleteId(null);
       if (session.id === sessionId) {
         setSessionId(null);
         setMessages([]);
@@ -328,8 +332,14 @@ export default function ChatRelease() {
                 <PrismIcon name="layers" size={12} /><span>{session.title || 'Nova conversa'}</span>
               </button>
               <div className="prism-agent-conversation-actions">
-                <button type="button" onClick={() => { setEditingSessionId(session.id); setEditingTitle(session.title || 'Nova conversa'); }} aria-label={'Renomear ' + (session.title || 'conversa')}>Renomear</button>
-                <button type="button" onClick={() => deleteSession(session)} aria-label={'Excluir ' + (session.title || 'conversa')}>Excluir</button>
+                {confirmDeleteId === session.id ? <>
+                  <span className="prism-agent-delete-confirm">Excluir?</span>
+                  <button type="button" onClick={() => deleteSession(session)} aria-label={'Confirmar exclusão de ' + (session.title || 'conversa')}>Sim</button>
+                  <button type="button" onClick={() => setConfirmDeleteId(null)} aria-label="Cancelar exclusão">Não</button>
+                </> : <>
+                  <button type="button" onClick={() => { setEditingSessionId(session.id); setEditingTitle(session.title || 'Nova conversa'); setConfirmDeleteId(null); }} aria-label={'Renomear ' + (session.title || 'conversa')}>Renomear</button>
+                  <button type="button" onClick={() => deleteSession(session)} aria-label={'Excluir ' + (session.title || 'conversa')}>Excluir</button>
+                </>}
               </div>
             </>
           )}

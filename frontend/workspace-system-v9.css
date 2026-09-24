@@ -1246,3 +1246,118 @@
 .prism-workspace .prism-markdown-code .token.important,
 .prism-workspace .prism-markdown-code .token.variable { color: #d3b8a2; }
 .prism-workspace .prism-markdown-code .token.deleted { color: #cf988d; }
+
+
+/* Workspace layout stability — scoped to internal app surfaces */
+.prism-workspace.prism-agent-chat {
+  position: fixed;
+  inset: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.prism-workspace .prism-agent-sidebar {
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+.prism-workspace .prism-agent-sidebar__projects {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.prism-workspace .prism-agent-sidebar__bottom { flex: 0 0 auto; }
+.prism-workspace .prism-agent-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100dvh;
+  overflow: hidden;
+}
+.prism-workspace .prism-agent-main-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.prism-workspace .prism-agent-content {
+  width: min(var(--pw-reading), calc(100% - 48px));
+  padding: 42px 0 30px;
+}
+.prism-workspace .prism-agent-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.prism-workspace .prism-agent-message .message-bubble { max-width: 100%; overflow-wrap: anywhere; }
+.prism-workspace .prism-agent-message.user { max-width: 82%; }
+.prism-workspace .prism-agent-message.user .message-bubble { max-width: 100%; }
+.prism-workspace .prism-agent-topbar { min-width: 0; overflow: visible; }
+.prism-workspace .prism-agent-topbar-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-topbar-right { min-width: 0; max-width: 60%; overflow: visible; }
+.prism-workspace .prism-agent-project-select,
+.prism-workspace .prism-agent-model-select {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-composer-wrap {
+  position: relative;
+  z-index: 10;
+  flex: none;
+  padding-bottom: max(15px, env(safe-area-inset-bottom));
+}
+.prism-workspace .prism-agent-composer { max-width: var(--pw-reading); }
+.prism-workspace .prism-agent-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-mobile-toggle { display: none; }
+.prism-workspace .prism-agent-mobile-overlay { display: none; }
+
+@media (max-width: 900px) {
+  .prism-workspace.prism-agent-chat { grid-template-columns: 1fr; }
+  .prism-workspace .prism-agent-sidebar {
+    position: fixed;
+    z-index: 200;
+    inset: 0 auto 0 0;
+    width: min(300px, 88vw);
+    transform: translateX(-105%);
+    transition: transform var(--pw-fast) var(--pw-ease);
+    box-shadow: 18px 0 45px rgba(20, 20, 18, .16);
+  }
+  .prism-workspace .prism-agent-sidebar.open { transform: translateX(0); }
+  .prism-workspace .prism-agent-mobile-overlay {
+    display: block;
+    position: fixed;
+    z-index: 190;
+    inset: 0;
+    border: 0;
+    background: rgba(22, 22, 18, .22);
+  }
+  .prism-workspace .prism-agent-mobile-toggle { display: grid; }
+  .prism-workspace .prism-agent-topbar { padding: 0 10px; gap: 8px; }
+  .prism-workspace .prism-agent-topbar-right { max-width: none; flex: 0 0 auto; gap: 5px; }
+  .prism-workspace .prism-agent-project-select { display: none; }
+  .prism-workspace .prism-agent-model-select { min-width: 0; max-width: 140px; padding: 0 8px; }
+  .prism-workspace .prism-agent-content { width: calc(100% - 28px); padding: 28px 0 24px; }
+  .prism-workspace .prism-agent-message.user { width: auto; max-width: 88%; }
+  .prism-workspace .prism-agent-composer-wrap { padding: 0 10px max(10px, env(safe-area-inset-bottom)); }
+  .prism-workspace .prism-agent-composer { width: 100%; }
+}
+@media (max-width: 560px) {
+  .prism-workspace .prism-agent-topbar-title { display: none; }
+  .prism-workspace .prism-agent-topbar-right { margin-left: auto; }
+  .prism-workspace .prism-agent-model-select { max-width: 136px; }
+  .prism-workspace .prism-agent-message.user { max-width: 94%; }
+  .prism-workspace .prism-agent-command-output { max-height: 170px; }
+  .prism-workspace .prism-agent-trace-list { max-height: 230px; overflow: auto; }
+}

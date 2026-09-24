@@ -1,4 +1,12 @@
 import { Fragment, useMemo, useState } from 'react';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-jsx';
+import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-sql';
 import { extractCodeBlocks } from '../lib/codeBlocks.js';
 import PrismIcon from './PrismIcon.jsx';
 
@@ -31,6 +39,12 @@ function isTableDivider(line) {
 function CodeBlock({ block, onOpenCode }) {
   const [copied, setCopied] = useState(false);
   const code = String(block?.code || '');
+  const language = String(block?.language || 'text').toLowerCase();
+  const highlightedCode = useMemo(() => {
+    const grammar = Prism.languages[language] || Prism.languages[language === 'tsx' ? 'jsx' : language];
+    if (!grammar) return null;
+    try { return Prism.highlight(code, grammar, language); } catch { return null; }
+  }, [code, language]);
 
   async function copyCode() {
     try {
@@ -54,7 +68,7 @@ function CodeBlock({ block, onOpenCode }) {
           </button>
         </span>
       </figcaption>
-      <pre><code>{code}</code></pre>
+      <pre><code className={highlightedCode ? 'language-' + language : ''}>{highlightedCode ? <span dangerouslySetInnerHTML={{ __html: highlightedCode }} /> : code}</code></pre>
     </figure>
   );
 }

@@ -19,10 +19,12 @@ A landing page fica fora desta arquitetura. As mudanças descritas aqui se aplic
 1. O navegador envia a mensagem autenticada para a API.
 2. Rate limiting, traffic gate, quota gate e autenticação são aplicados antes da geração.
 3. O backend monta histórico, instruções pessoais, projeto e anexos.
-4. O orquestrador escolhe o provedor disponível.
+4. O orquestrador escolhe o provedor disponível e interrompe o failover quando o usuário cancela.
 5. O provedor pode responder por streaming; cada delta é encaminhado pelo SSE.
-6. Se a chamada terminar, a resposta completa é persistida no PostgreSQL.
-7. O cliente mantém o histórico e recebe os estados de execução em tempo real.
+6. Cancelamento percorre navegador → rota → orquestrador → provider/Groq/MegaBrain sem virar uma nova tentativa automática.
+7. Regeneração reutiliza a pergunta original sem duplicar o turno do usuário.
+8. Edição atualiza o turno original e remove respostas posteriores somente quando a nova geração termina com sucesso.
+9. A resposta completa é persistida no PostgreSQL e o cliente mantém o histórico em tempo real.
 
 ## Variáveis de ambiente
 
@@ -89,8 +91,16 @@ O backend possui:
 - IDs de requisição para correlação de logs;
 - headers básicos de segurança;
 - cancelamento do provedor quando o cliente encerra uma geração SSE;
+- cancelamento terminal em failover de Groq/provedores e MegaBrain;
 - heartbeat no SSE para conexões longas;
-- persistência de mensagens e índice para idempotência do request.
+- persistência de mensagens, feedback e edição/regeneração;
+- idempotência por client request id;
+- sanitização de erros internos antes de retorná-los ao cliente;
+- HSTS/DNS-prefetch headers quando o request está em HTTPS.
+
+## Interface do Chat
+
+O Chat usa um único stylesheet interno (`frontend/workspace.css`) e os tokens compartilhados ficam em `frontend/styles.css`. Não crie um CSS novo para cada correção. Antes de remover uma camada antiga, confirme que seus seletores não aparecem nas superfícies ativas.
 
 ## Escala
 

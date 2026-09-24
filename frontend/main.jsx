@@ -20,7 +20,6 @@ import './prism-original-pages.css';
 import './prism-polish.css';
 import './prism-logo-overrides.css';
 import './prism-platform-v8.css';
-import './workspace.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <BrowserRouter>

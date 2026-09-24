@@ -4,7 +4,7 @@ import { pool } from '../db/pool.js';
 
 function isGenerationRequest(req) {
   if (req.method !== 'POST') return false;
-  return /\/api\/chat\/sessions\/[^/]+\/messages(?:\/stream)?$/.test(req.originalUrl || '') || /\/api\/ai\/generate(?:\/stream)?$/.test(req.originalUrl || '');
+  return /\/api\/chat\/sessions\/[^/]+\/messages(?:\/stream)?$/.test(req.path || '') || /\/api\/ai\/generate(?:\/stream)?$/.test(req.path || '');
 }
 
 async function userIdFromToken(req) {

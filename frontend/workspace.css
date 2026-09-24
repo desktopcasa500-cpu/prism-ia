@@ -1323,3 +1323,67 @@
   .prism-workspace .prism-agent-command-output { max-height: 170px; }
   .prism-workspace .prism-agent-trace-list { max-height: 230px; overflow: auto; }
 }
+
+
+.prism-workspace.prism-codex-v2 .codex-error {
+  margin: 0 auto 12px;
+  width: min(var(--pw-reading), calc(100% - 28px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--pw-text-soft);
+  font-size: 10px;
+}
+.prism-workspace.prism-codex-v2 .codex-error button,
+.prism-workspace.prism-codex-v2 .codex-jump-end {
+  min-height: 28px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 7px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  padding: 0 9px;
+  cursor: pointer;
+  font-size: 9px;
+}
+.prism-workspace.prism-codex-v2 .codex-error button:hover,
+.prism-workspace.prism-codex-v2 .codex-jump-end:hover {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .codex-jump-end {
+  position: sticky;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 auto;
+  bottom: 16px;
+  border-radius: 999px;
+  box-shadow: var(--pw-shadow-soft);
+}
+.prism-workspace.prism-codex-v2 .composer textarea {
+  field-sizing: content;
+  min-height: 58px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.prism-workspace.prism-codex-v2 .composer .send,
+.prism-workspace.prism-codex-v2 .composer .stop {
+  min-width: 62px;
+  min-height: 32px;
+  border-radius: 8px;
+}
+.prism-workspace.prism-codex-v2 .composer .stop {
+  border-color: var(--pw-line-strong);
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+  cursor: pointer;
+}
+.prism-workspace.prism-codex-v2 .composer .stop:hover { background: var(--pw-surface-strong); }
+@media (max-width: 620px) {
+  .prism-workspace.prism-codex-v2 .codex-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

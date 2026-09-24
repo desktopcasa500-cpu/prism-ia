@@ -9,6 +9,7 @@ import PlanPanel from '../components/PlanPanel.jsx';
 import PrismIcon from '../components/PrismIcon.jsx';
 import WorkspaceThemeButton from '../components/WorkspaceThemeButton.jsx';
 import { useWorkspaceTheme } from '../lib/workspaceTheme.js';
+import '../workspace.css';
 
 const MODELS=[['prism-nano-1.0','Prism Nano 1.0A',0],['prism-mini-1.0','Prism Mini 1.0A',0],['prism-edge-1.0','Prism Edge 1.0A',2],['prism-tex-1.5','Prism Tex 1.5A',2],['prism-taff-1.0','Prism Taff 1.0A',3],['prism-taff-2.0','Prism Taff 2.0',3]];
 const PLANS={'Grátis':0,free:0,Base:1,base:1,Medium:2,medium:2,Pro:3,pro:3,Empresarial:4,enterprise:4};

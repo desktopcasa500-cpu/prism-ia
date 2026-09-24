@@ -20,8 +20,6 @@ import './prism-original-pages.css';
 import './prism-polish.css';
 import './prism-logo-overrides.css';
 import './production-polish.css';
-import './chat-agent-v6.css';
-import './codex-agent-v7.css';
 import './prism-platform-v8.css';
 import './workspace.css';
 

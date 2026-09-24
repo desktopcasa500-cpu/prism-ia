@@ -1170,3 +1170,45 @@
     align-self: flex-start;
   }
 }
+
+
+.prism-workspace .prism-agent-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 7px;
+  opacity: 0;
+  transform: translateY(2px);
+  pointer-events: none;
+  transition: opacity var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-message:hover .prism-agent-message-actions,
+.prism-workspace .prism-agent-message:focus-within .prism-agent-message-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.prism-workspace .prism-agent-message-actions button {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0 7px;
+  background: transparent;
+  color: var(--pw-faint);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-message-actions button:hover,
+.prism-workspace .prism-agent-message-actions button:focus-visible {
+  border-color: var(--pw-line);
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-message-actions button.selected {
+  border-color: var(--pw-line-strong);
+  background: var(--pw-surface-soft);
+  color: var(--pw-accent-strong);
+}

@@ -78,18 +78,41 @@ const runNewsJob = async () => {
   }
 };
 
-ensureDatabase()
-  .then(async () => {
-    await runResetJob();
-    await runNewsJob();
-    resetJobTimer = setInterval(runResetJob, 60_000);
-    resetJobTimer.unref?.();
-    newsJobTimer = setInterval(runNewsJob, 60 * 60 * 1000);
-    newsJobTimer.unref?.();
-  })
-  .catch((error) => {
-    console.error('Banco permanece indisponível após as tentativas de inicialização:', error);
-  });
+let databaseReady = false;
+let databaseRecoveryTimer = null;
+
+async function startDatabaseJobs() {
+  if (databaseReady) return;
+  await ensureDatabase();
+  databaseReady = true;
+  console.log('Banco de dados disponível; ativando jobs dependentes do PostgreSQL.');
+  await runResetJob();
+  await runNewsJob();
+  resetJobTimer = resetJobTimer || setInterval(runResetJob, 60_000);
+  resetJobTimer.unref?.();
+  newsJobTimer = newsJobTimer || setInterval(runNewsJob, 60 * 60 * 1000);
+  newsJobTimer.unref?.();
+}
+
+const recoverDatabase = async () => {
+  if (databaseReady) return;
+  try {
+    await startDatabaseJobs();
+    if (databaseRecoveryTimer) {
+      clearInterval(databaseRecoveryTimer);
+      databaseRecoveryTimer = null;
+    }
+  } catch (error) {
+    console.error('Banco ainda indisponível; nova tentativa automática em 30s:', {
+      code: error?.code || 'DATABASE_UNAVAILABLE',
+      host: databaseHost(),
+    });
+  }
+};
+
+recoverDatabase();
+databaseRecoveryTimer = setInterval(recoverDatabase, 30_000);
+databaseRecoveryTimer.unref?.();
 
 async function shutdown(signal) {
   if (shuttingDown) return;
@@ -97,6 +120,7 @@ async function shutdown(signal) {
   console.log(`Recebido ${signal}; encerrando Prism IA.`);
   if (resetJobTimer) clearInterval(resetJobTimer);
   if (newsJobTimer) clearInterval(newsJobTimer);
+  if (databaseRecoveryTimer) clearInterval(databaseRecoveryTimer);
   const forceExit = setTimeout(() => process.exit(1), 10_000);
   forceExit.unref?.();
   try {

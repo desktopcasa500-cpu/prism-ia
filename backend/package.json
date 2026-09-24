@@ -7,21 +7,21 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
-    "check": "node --check src/app.js && node --check src/server.js && node --check src/routes/chat.js && node --check src/routes/parallel.js && node --check src/routes/mcp.js && node --check src/routes/builds.js && node --check src/services/agentRuntime.js && node --check src/services/orchestrator.js && node --check src/services/skills.js && node --check src/services/artifactService.js && node --check src/services/buildService.js && node --check src/services/modelRouter.js && node --check src/services/usage.js && node --check src/services/stripe.js"
+    "check": "node ../scripts/check-backend.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@yao-pkg/pkg": "^6.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.4.0",
     "fflate": "^0.8.2",
     "google-auth-library": "^10.5.0",
     "jsonwebtoken": "^9.0.0",
     "pg": "^8.12.0",
-    "stripe": "^18.5.0",
+    "stripe": "^22.6.1",
     "zod": "^3.25.76"
   }
 }

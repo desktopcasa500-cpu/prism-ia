@@ -25,7 +25,6 @@ DATABASE_URL=<Internal Database URL do PostgreSQL do Render>
 JWT_SECRET=<segredo longo e aleatório>
 JWT_EXPIRES_IN=7d
 GOOGLE_CLIENT_ID=<Client ID do Google, se o login Google for usado>
-GEMINI_API_KEY=<chave, se usada>
 GROQ_API_KEY_1=<primeira chave Groq>
 GROQ_API_KEY_2=<segunda chave Groq, opcional>
 NVIDIA_NIM_API_KEY=<chave NVIDIA NIM>

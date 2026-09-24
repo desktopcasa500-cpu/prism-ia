@@ -87,9 +87,11 @@ export default function ChatRelease() {
   const [artifact, setArtifact] = useState(null);
   const [streamingText, setStreamingText] = useState('');
   const [editingSessionId, setEditingSessionId] = useState(null);
+  const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [retryPrompt, setRetryPrompt] = useState('');
   const [retryRegenerateId, setRetryRegenerateId] = useState(null);
+  const [retryEditId, setRetryEditId] = useState(null);
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [followingBottom, setFollowingBottom] = useState(true);
   const [showJumpToEnd, setShowJumpToEnd] = useState(false);
@@ -120,6 +122,7 @@ export default function ChatRelease() {
       setError('');
       setRetryPrompt('');
       setRetryRegenerateId(null);
+      setRetryEditId(null);
       setFollowingBottom(true);
       setShowJumpToEnd(false);
       setMobileOpen(false);
@@ -190,7 +193,7 @@ export default function ChatRelease() {
   }, []);
 
   const loadSession = useCallback(async (id) => {
-    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setRetryRegenerateId(null); setFollowingBottom(true); setShowJumpToEnd(false);
+    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setRetryRegenerateId(null); setRetryEditId(null); setEditingMessageId(null); setFollowingBottom(true); setShowJumpToEnd(false);
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
     catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
     finally { setLoading(false); }
@@ -225,6 +228,8 @@ export default function ChatRelease() {
         setRetryPrompt('');
         setError('');
         setRetryRegenerateId(null);
+        setRetryEditId(null);
+        setEditingMessageId(null);
         setFollowingBottom(true);
         setShowJumpToEnd(false);
       }
@@ -244,7 +249,9 @@ export default function ChatRelease() {
   }
 
   function editMessage(message) {
+    setEditingMessageId(String(message.id));
     setInput(String(message?.content || ''));
+    setError('');
     requestAnimationFrame(() => inputRef.current?.focus());
     setError('');
   }
@@ -323,8 +330,9 @@ export default function ChatRelease() {
     setModel(next.id); setModelOpen(false);
   }
 
-  async function send(contentOverride = null, { regenerateMessageId = null } = {}) {
+  async function send(contentOverride = null, { regenerateMessageId = null, editMessageId = null } = {}) {
     const content = String(contentOverride ?? input).trim();
+    const activeEditMessageId = editMessageId || editingMessageId || null;
     if ((!content && !attachments.length) || sending) return;
     setSending(true); setError(''); setEvents([]); setCommandOutput(''); setArtifact(null); setStreamingText(''); setTraceOpen(true);
     const controller = new AbortController(); controllerRef.current = controller;
@@ -337,9 +345,9 @@ export default function ChatRelease() {
         currentSession = created.session.id; setSessionId(currentSession); setSessions((items) => [created.session, ...items]);
       }
       const optimistic = { id: localId, role: 'user', content, model_id: model, effort, metadata: { attachments: selectedAttachments } };
-      if (!regenerateMessageId) { setMessages((items) => [...items, optimistic]); setInput(''); setAttachments([]); }
+      if (!regenerateMessageId && !activeEditMessageId) { setMessages((items) => [...items, optimistic]); setInput(''); setAttachments([]); }
       const result = await api.streamPost(`/chat/sessions/${encodeURIComponent(currentSession)}/messages/stream`, {
-        content, model, effort, clientRequestId: rid, regenerateMessageId, attachmentIds: selectedAttachments.map((file) => file.id).filter(Boolean), projectId: projectId || null,
+        content, model, effort, clientRequestId: rid, regenerateMessageId, editMessageId: activeEditMessageId, attachmentIds: selectedAttachments.map((file) => file.id).filter(Boolean), projectId: projectId || null,
       }, (event) => {
         if (event.type === 'provider_start') setStreamingText('');
         if (event.type === 'text_delta') setStreamingText((value) => `${value}${event.delta || ''}`);
@@ -355,6 +363,15 @@ export default function ChatRelease() {
       if (payload.duplicate) {
         const history = await api.get(`/chat/sessions/${encodeURIComponent(currentSession)}/messages?surface=home`);
         setMessages(history.messages || []);
+      } else if (payload.message && payload.editedMessageId) {
+        setMessages((items) => {
+          const index = items.findIndex((item) => item.id === payload.editedMessageId);
+          if (index < 0) return payload.userMessage ? [payload.userMessage, payload.message].filter(Boolean) : [payload.message];
+          return [...items.slice(0, index), payload.userMessage || items[index], payload.message].filter(Boolean);
+        });
+        setEditingMessageId(null);
+        setInput('');
+        setAttachments([]);
       } else if (payload.message && payload.regeneratedMessageId) {
         setMessages((items) => items.map((item) => item.id === payload.regeneratedMessageId ? payload.message : item));
       } else if (payload.message) {
@@ -369,6 +386,7 @@ export default function ChatRelease() {
         else if (!authFail(cause)) setError(cause.message || 'Não foi possível concluir a execução.');
         setRetryPrompt(content);
         setRetryRegenerateId(regenerateMessageId || null);
+        setRetryEditId(activeEditMessageId || null);
         if (!regenerateMessageId) setMessages((items) => items.filter((item) => item.id !== localId));
       }
       setStreamingText('');
@@ -419,7 +437,7 @@ export default function ChatRelease() {
         <div className="prism-agent-content">
           {!loading && !hasMessages && !error && <div className="prism-agent-empty"><div><h1>O que você quer criar?</h1><p>Converse, execute tarefas, use ferramentas, valide resultados e gere artefatos no mesmo fluxo.</p><div className="prism-agent-starters">{STARTERS.map(([label, prompt]) => <button className="prism-agent-starter" key={label} onClick={() => { setInput(prompt); inputRef.current?.focus(); }}><PrismIcon name={label === 'Código' ? 'code' : 'layers'} size={14}/>{label}</button>)}</div></div></div>}
           {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}
-          {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt, { regenerateMessageId: retryRegenerateId })}>Tentar novamente</button>}</div>}
+          {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt, { regenerateMessageId: retryRegenerateId, editMessageId: retryEditId })}>Tentar novamente</button>}</div>}
           {hasMessages && <div className="prism-agent-messages">
             {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div>{renderMessageActions(message)}</article>; })}
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="prism-agent-author">Prism IA</div><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
@@ -434,7 +452,8 @@ export default function ChatRelease() {
 
       <footer className="prism-agent-composer-wrap"><div className="prism-agent-composer">
         {attachments.length > 0 && <div className="prism-agent-attachments">{attachments.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}
-        <textarea ref={inputRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça à Prism para construir, executar ou revisar..." aria-label="Mensagem" />
+        {editingMessageId && <div className="prism-agent-editing-banner"><span>Editando mensagem</span><button type="button" onClick={() => { setEditingMessageId(null); setInput(''); setError(''); }} aria-label="Cancelar edição"><PrismIcon name="close" size={12} />Cancelar</button></div>}
+          <textarea ref={inputRef} rows={1} value={input} disabled={sending} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Peça à Prism para construir, executar ou revisar..." aria-label="Mensagem" />
         <div className="prism-agent-composer-tools"><FileAttachments value={attachments} onChange={setAttachments} disabled={sending} label="Adicionar arquivo"/><div className="prism-agent-thinking"><ThinkingSelector value={effort} onChange={setEffort} rank={rank} disabled={sending}/></div><span className="prism-agent-composer-spacer"/>{sending ? <button className="prism-agent-send" onClick={() => controllerRef.current?.abort()} aria-label="Parar"><PrismIcon name="stop" size={13}/></button> : <button className="prism-agent-send" disabled={!canSend||offline} onClick={send} aria-label="Enviar" title={offline ? 'Sem conexão' : 'Enviar'}><PrismIcon name="send" size={14}/></button>}</div>
       </div></footer>
     </main>

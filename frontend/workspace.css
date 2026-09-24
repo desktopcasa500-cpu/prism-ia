@@ -669,6 +669,12 @@
 }
 @keyframes prismWorkspaceCursor { 50% { opacity: 0; } }
 
+.prism-workspace .prism-agent-messages {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 /* Execution status stays compact until the user expands the trace. */
 .prism-workspace .prism-agent-working {
   min-height: 27px;

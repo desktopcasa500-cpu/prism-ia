@@ -1516,3 +1516,17 @@
 .prism-workspace .prism-agent-editing-banner button:focus-visible {
   color: var(--pw-text);
 }
+
+
+@media (max-width: 620px) {
+  .prism-workspace .prism-agent-message-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .prism-workspace .prism-agent-conversation-actions {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}

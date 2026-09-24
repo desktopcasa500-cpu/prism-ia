@@ -66,6 +66,8 @@ function systemPrompt(model, effort, tools, prompt) {
     'Resolva o objetivo ponta a ponta e valide o que fizer.',
     'Nunca invente uma execução, arquivo, busca, compilação ou resultado.',
     'Use ferramentas reais quando elas forem úteis. Quando o usuário pedir pesquisa, execução, alteração de projeto ou build, prefira ferramentas reais.',
+    'Para alterar arquivos do projeto, use prism_write_file. Para executar comandos use prism_exec. Para compilar ou empacotar use prism_build. Para validar alterações use prism_verify.',
+    'Depois de executar uma ação, confira o resultado antes de afirmar que ela funcionou.'
     `Modelo Prism: ${model}. Perfil: ${profile.description}. Esforço: ${effort}.`,
     tools.length ? `Ferramentas disponíveis: ${tools.map((tool) => tool.toolName || tool.modelName).join(', ')}.` : 'Nenhuma ferramenta externa está disponível.',
     needsTool(prompt) ? 'Este pedido provavelmente requer ferramentas reais; use a ferramenta adequada antes da resposta final.' : '',
@@ -223,7 +225,11 @@ if (tool.modelName === WEB) {
       return { text: String(result?.text || '').slice(0, 30_000), used: [{ kind: 'skill', tool: tool.skillId }] };
     }
     if (tool.kind === 'native' && String(tool.modelName).startsWith('prism_')) {
-      const result = await executeAgentTool(tool.modelName, args, execution.workspace);
+      if (tool.modelName === 'prism_exec') emit(execution, 'activity', { label: 'Executando comando', detail: String(args?.command || '').trim().slice(0, 180) });
+      if (tool.modelName === 'prism_verify') emit(execution, 'activity', { label: 'Revisando', detail: args?.command ? String(args.command).trim().slice(0, 180) : 'validando o projeto' });
+      if (tool.modelName === 'prism_build') emit(execution, 'activity', { label: 'Compilando', detail: String(args?.target || 'projeto').trim() });
+      const result = await executeAgentTool(tool.modelName, args, execution.workspace, execution);
+      if (tool.modelName === 'prism_write_file' && result?.path) emit(execution, 'activity', { label: result.created ? 'Criando arquivo' : 'Editando arquivo', detail: result.path });
       if (result?.downloadPath || result?.filename) emit(execution, 'artifact', { filename: result.filename, downloadPath: result.downloadPath || '' });
       if (result?.stdout || result?.stderr) emit(execution, 'command_output', { stream: result.stderr ? 'stderr' : 'stdout', text: String(result.stderr || result.stdout).slice(-4000) });
       emit(execution, 'tool_complete', { tool: tool.toolName, kind: tool.kind, ok: result?.ok !== false });
@@ -239,6 +245,7 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     if (execution?.signal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' });
     emit(execution, 'provider_round', { provider, round: round + 1 });
+    emit(execution, 'activity', { label: 'Pensando' });
     const body = {
       model,
       messages,
@@ -496,9 +503,8 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
             elapsedMs: Date.now() - started,
           });
 
-          emit(execution, 'finalizing', {
-            message: 'Revisando a resposta.',
-          });
+          emit(execution, 'finalizing', { message: 'Revisando a resposta.' });
+          emit(execution, 'activity', { label: 'Revisando' });
 
           return {
             status: 'ok',

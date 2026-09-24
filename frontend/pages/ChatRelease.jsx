@@ -103,6 +103,7 @@ export default function ChatRelease() {
   const inputRef = useRef(null);
   const searchRef = useRef(null);
   const mobileToggleRef = useRef(null);
+  const mobileDrawerWasOpenRef = useRef(false);
   const selected = useMemo(() => MODELS.find((item) => item.id === model) || MODELS[1], [model]);
   const filteredSessions = useMemo(() => { const q = search.trim().toLowerCase(); return q ? sessions.filter((item) => String(item.title || '').toLowerCase().includes(q)) : sessions; }, [search, sessions]);
   const groupedSessions = useMemo(() => sessionGroups(filteredSessions), [filteredSessions]);
@@ -154,8 +155,10 @@ export default function ChatRelease() {
   }, []);
   useEffect(() => {
     if (mobileOpen) {
+      mobileDrawerWasOpenRef.current = true;
       requestAnimationFrame(() => document.querySelector('.prism-agent-sidebar button')?.focus());
-    } else {
+    } else if (mobileDrawerWasOpenRef.current) {
+      mobileDrawerWasOpenRef.current = false;
       requestAnimationFrame(() => mobileToggleRef.current?.focus());
     }
   }, [mobileOpen]);

@@ -4,6 +4,7 @@ import { createMcpExecutionContext } from './mcp.js';
 import { skillToolDefinitions, executeSkill } from './skills.js';
 import { searchWeb, fetchWebPage, webSearchConfigured } from './webSearch.js';
 import { createAgentWorkspace, executeAgentTool, agentToolDefinitions } from './agentRuntime.js';
+import { createHash } from 'node:crypto';
 import { getGroqKeyCandidates, isGroqConfigured } from './groqRouter.js';
 
 const TIMEOUT = 120_000;
@@ -341,7 +342,7 @@ async function callProviderWithRouting(provider, input, execution) {
   );
 }
 
-function providers(model, effort) {
+function providers(model, effort, executionIdentity = '') {
   const profile = getModelProfile(model);
   const mappings = profile.providers || {};
   const list = [];
@@ -367,7 +368,13 @@ function providers(model, effort) {
     url: 'https://openrouter.ai/api/v1/chat/completions',
     headers: { 'HTTP-Referer': process.env.APP_URL || 'https://prism-ia.app', 'X-Title': 'Prism IA' },
   });
-  const priority = ['nvidia', 'groq', 'opencode', 'openrouter'];
+  const bucket = String(executionIdentity || '').split(':')[0];
+  const preferGroq = bucket
+    ? Number.parseInt(createHash('sha256').update(bucket).digest('hex').slice(0, 2), 16) % 2 === 0
+    : false;
+  const priority = preferGroq
+    ? ['groq', 'nvidia', 'opencode', 'openrouter']
+    : ['nvidia', 'groq', 'opencode', 'openrouter'];
   return list.sort((a, b) => priority.indexOf(a.name) - priority.indexOf(b.name));
 }
 
@@ -468,7 +475,7 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
       count: tools.length,
     });
 
-    const list = providers(model, normalizedEffort);
+    const list = providers(model, normalizedEffort, execution.id);
     if (!list.length) {
       return {
         status: 'unavailable',

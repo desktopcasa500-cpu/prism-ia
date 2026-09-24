@@ -132,5 +132,27 @@ app.use('/api/auth', authRoutes); app.use('/api/user', userRoutes); app.use('/ap
 app.use(express.static(distPath, { index: false }));
 app.get('*', (req, res, next) => { if (req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath, 'index.html'), (error) => { if (error) next(error); }); });
 app.use((req, res) => res.status(404).json({ error: 'Endpoint não encontrado.', code: 'NOT_FOUND', requestId: req.requestId }));
-app.use((err, req, res, _next) => { const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500; const message = status >= 500 ? 'Erro interno do servidor.' : (err?.message || 'Solicitação inválida.'); console.error('Prism API error:', { requestId: req.requestId, method: req.method, path: req.path, status, code: err?.code || 'SERVER_ERROR', message: err?.message || String(err) }); if (res.headersSent) return; res.status(status).json({ error: message, code: err?.code || 'SERVER_ERROR', requestId: req.requestId }); });
+function databaseFailure(error) {
+  return ['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT', 'ECONNRESET', '57P01', '53300', 'DATABASE_NOT_CONFIGURED'].includes(error?.code);
+}
+
+app.use((err, req, res, _next) => {
+  const dbDown = databaseFailure(err);
+  const status = dbDown ? 503 : (Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500);
+  const message = dbDown
+    ? 'Banco de dados temporariamente indisponível. Tente novamente em alguns segundos.'
+    : (status >= 500 ? 'Erro interno do servidor.' : (err?.message || 'Solicitação inválida.'));
+  const code = dbDown ? 'DATABASE_UNAVAILABLE' : (err?.code || 'SERVER_ERROR');
+  console.error('Prism API error:', {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.path,
+    status,
+    code,
+    originalCode: err?.code || null,
+    message: err?.message || String(err),
+  });
+  if (res.headersSent) return;
+  res.status(status).json({ error: message, code, requestId: req.requestId });
+});
 export default app;

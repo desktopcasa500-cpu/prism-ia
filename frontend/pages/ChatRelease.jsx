@@ -376,7 +376,11 @@ export default function ChatRelease() {
         if (event.type === 'provider_start') setStreamingText('');
         if (event.type === 'text_delta') setStreamingText((value) => `${value}${event.delta || ''}`);
         if (event.type === 'result') setStreamingText('');
-        if (event.type === 'activity' || event.type === 'error') setEvents((items) => [...items, event].slice(-18));
+        if (event.type === 'activity' || event.type === 'error') setEvents((items) => {
+          const previous = items[items.length - 1];
+          const same = previous?.type === event.type && previous?.label === event.label && previous?.detail === event.detail && previous?.message === event.message;
+          return same ? items : [...items, event].slice(-18);
+        });
         if (event.type === 'artifact' && event.filename) setArtifact(event);
         if (event.type === 'error') setError(event.message || 'A execução falhou.');
       }, { timeout: 300_000, signal: controller.signal });

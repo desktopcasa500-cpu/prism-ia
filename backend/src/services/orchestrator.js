@@ -72,15 +72,15 @@ function systemPrompt(model, effort, tools, prompt) {
   ].filter(Boolean).join('\n');
 }
 
-async function request(url, options, deadline = Date.now() + TIMEOUT) {
-  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
+async function request(url, options, deadline = Date.now() + TIMEOUT, externalSignal = null) {
+  const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now())); const onExternalAbort = () => controller.abort(); externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
   try {
     const response = await fetch(url, { ...options, signal: controller.signal }); const raw = await response.text(); let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
     if (!response.ok) { const error = new Error(String(data?.error?.message || data?.error || data?.message || raw || `HTTP ${response.status}`).slice(0, 2000)); error.status = response.status; throw error; }
     return data;
-  } catch (error) { if (error?.name === 'AbortError') throw Object.assign(new Error('Tempo limite do provedor excedido.'), { code: 'PROVIDER_TIMEOUT' }); throw error; }
-  finally { clearTimeout(timer); }
+  } catch (error) { if (error?.name === 'AbortError') { if (externalSignal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' }); throw Object.assign(new Error('Tempo limite do provedor excedido.'), { code: 'PROVIDER_TIMEOUT' }); } throw error; }
+  finally { clearTimeout(timer); externalSignal?.removeEventListener('abort', onExternalAbort); }
 }
 
 async function requestStream(url, options, onDelta, deadline = Date.now() + TIMEOUT, externalSignal = null) {
@@ -192,6 +192,7 @@ async function requestStream(url, options, onDelta, deadline = Date.now() + TIME
     };
   } catch (error) {
     if (error?.name === 'AbortError') {
+      if (externalSignal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' });
       throw Object.assign(new Error('Tempo limite do provedor excedido.'), { code: 'PROVIDER_TIMEOUT' });
     }
     throw error;
@@ -256,6 +257,8 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
       : await request(
           url,
           { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, body: JSON.stringify(body) },
+          Date.now() + TIMEOUT,
+          execution?.signal,
         );
 
     tokens += Number(data?.usage?.total_tokens || 0);
@@ -307,6 +310,7 @@ async function callProviderWithRouting(provider, input, execution) {
 
       return result;
     } catch (error) {
+      if (execution?.signal?.aborted || error?.code === 'REQUEST_ABORTED') throw error;
       lastError = error;
       emit(execution, 'groq_key_error', {
         provider: 'groq',
@@ -514,6 +518,7 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
           elapsedMs: Date.now() - started,
         });
       } catch (error) {
+        if (execution?.signal?.aborted || error?.code === 'REQUEST_ABORTED') throw error;
         errors.push({
           provider: provider.name,
           reason: error?.code || 'provider_error',

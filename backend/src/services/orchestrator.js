@@ -228,8 +228,12 @@ if (tool.modelName === WEB) {
       if (tool.modelName === 'prism_exec') emit(execution, 'activity', { label: 'Executando comando', detail: String(args?.command || '').trim().slice(0, 180) });
       if (tool.modelName === 'prism_verify') emit(execution, 'activity', { label: 'Revisando', detail: args?.command ? String(args.command).trim().slice(0, 180) : 'validando o projeto' });
       if (tool.modelName === 'prism_build') emit(execution, 'activity', { label: 'Compilando', detail: String(args?.target || 'projeto').trim() });
+      if (tool.modelName === 'prism_write_file') {
+        const path = String(args?.path || '').trim();
+        const exists = Boolean(path && execution.workspace?.files?.some((file) => file.path === path));
+        emit(execution, 'activity', { label: exists ? 'Editando arquivo' : 'Criando arquivo', detail: path });
+      }
       const result = await executeAgentTool(tool.modelName, args, execution.workspace, execution);
-      if (tool.modelName === 'prism_write_file' && result?.path) emit(execution, 'activity', { label: result.created ? 'Criando arquivo' : 'Editando arquivo', detail: result.path });
       if (result?.downloadPath || result?.filename) emit(execution, 'artifact', { filename: result.filename, downloadPath: result.downloadPath || '' });
       if (result?.stdout || result?.stderr) emit(execution, 'command_output', { stream: result.stderr ? 'stderr' : 'stdout', text: String(result.stderr || result.stdout).slice(-4000) });
       emit(execution, 'tool_complete', { tool: tool.toolName, kind: tool.kind, ok: result?.ok !== false });

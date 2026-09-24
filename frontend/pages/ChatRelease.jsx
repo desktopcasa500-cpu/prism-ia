@@ -92,6 +92,8 @@ export default function ChatRelease() {
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [followingBottom, setFollowingBottom] = useState(true);
   const [showJumpToEnd, setShowJumpToEnd] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [feedbackByMessage, setFeedbackByMessage] = useState({});
   const controllerRef = useRef(null);
   const endRef = useRef(null);
   const scrollRef = useRef(null);
@@ -225,6 +227,51 @@ export default function ChatRelease() {
     } catch (cause) {
       if (!authFail(cause)) setError(cause.message || 'Não foi possível excluir a conversa.');
     }
+  }
+
+  async function copyMessage(message) {
+    try {
+      await navigator.clipboard.writeText(String(message?.content || ''));
+      setCopiedMessageId(String(message.id));
+      window.setTimeout(() => setCopiedMessageId((current) => current === String(message.id) ? null : current), 1400);
+    } catch {
+      setError('Não foi possível copiar a mensagem.');
+    }
+  }
+
+  function editMessage(message) {
+    setInput(String(message?.content || ''));
+    requestAnimationFrame(() => inputRef.current?.focus());
+    setError('');
+  }
+
+  async function regenerateMessage(message) {
+    if (sending) return;
+    const index = messages.findIndex((item) => item.id === message.id);
+    const source = message.role === 'user' ? message : [...messages.slice(0, index)].reverse().find((item) => item.role === 'user');
+    if (source?.content) await send(source.content);
+  }
+
+  async function submitFeedback(message, value) {
+    try {
+      await api.post('/chat/messages/' + encodeURIComponent(message.id) + '/feedback', { value });
+      setFeedbackByMessage((items) => ({ ...items, [message.id]: value }));
+    } catch (cause) {
+      if (!authFail(cause)) setError(cause.message || 'Não foi possível registrar seu feedback.');
+    }
+  }
+
+  const renderMessageActions = (message) => {
+    const feedback = feedbackByMessage[message.id] || metadataOf(message)?.feedback?.value;
+    return <div className="prism-agent-message-actions">
+      <button type="button" onClick={() => copyMessage(message)} aria-label="Copiar mensagem" title="Copiar mensagem"><PrismIcon name="copy" size={12} />{copiedMessageId === String(message.id) ? 'Copiado' : 'Copiar'}</button>
+      {message.role === 'user' && <button type="button" onClick={() => editMessage(message)} aria-label="Editar mensagem" title="Editar mensagem"><PrismIcon name="edit" size={12} />Editar</button>}
+      {message.role === 'assistant' && <>
+        <button type="button" onClick={() => regenerateMessage(message)} aria-label="Regenerar resposta" title="Regenerar resposta"><PrismIcon name="refresh" size={12} />Regenerar</button>
+        <button type="button" className={feedback === 'positive' ? 'selected' : ''} aria-pressed={feedback === 'positive'} onClick={() => submitFeedback(message, 'positive')} aria-label="Resposta útil" title="Útil"><PrismIcon name="thumbUp" size={12} /></button>
+        <button type="button" className={feedback === 'negative' ? 'selected' : ''} aria-pressed={feedback === 'negative'} onClick={() => submitFeedback(message, 'negative')} aria-label="Resposta não útil" title="Não útil"><PrismIcon name="thumbDown" size={12} /></button>
+      </>}
+    </div>;
   }
 
   const renderSessionGroup = (group) => (
@@ -367,7 +414,7 @@ export default function ChatRelease() {
           {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}
           {error && <div className="prism-agent-error" role="alert"><span>{error}</span>{retryPrompt && !sending && <button type="button" onClick={() => send(retryPrompt)}>Tentar novamente</button>}</div>}
           {hasMessages && <div className="prism-agent-messages">
-            {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div></article>; })}
+            {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="prism-agent-author">{message.role === 'user' ? (user?.name || 'Você') : 'Prism IA'}</div>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}<div className="message-bubble">{message.role === 'assistant' ? <MarkdownMessage content={message.content} messageId={String(message.id)} /> : <p>{message.content}</p>}</div>{renderMessageActions(message)}</article>; })}
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="prism-agent-author">Prism IA</div><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
             {sending && <div className="prism-agent-working"><span className="prism-agent-working-dot"/><span className="prism-agent-working-label">{eventLabel(workingEvent || { type: 'start' })}</span><span className="prism-agent-working-mode">{workingEvent?.provider ? `· ${workingEvent.provider}` : ''}</span></div>}
             {sending && commandOutput && <pre className="prism-agent-command-output">{commandOutput}</pre>}

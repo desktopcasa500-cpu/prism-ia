@@ -566,3 +566,167 @@
   color: var(--pw-text);
 }
 .prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer textarea::placeholder { color: var(--pw-faint); }
+
+
+/* Markdown reading system */
+.prism-workspace .markdown-message {
+  max-width: 100%;
+  color: inherit;
+}
+.prism-workspace .markdown-message p {
+  margin: 0 0 1.05em;
+}
+.prism-workspace .markdown-message p:last-child {
+  margin-bottom: 0;
+}
+.prism-workspace .markdown-message h2,
+.prism-workspace .markdown-message h3,
+.prism-workspace .markdown-message h4 {
+  color: var(--pw-text);
+  font-family: var(--pw-serif);
+  font-weight: 600;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+}
+.prism-workspace .markdown-message h2 { margin: 1.5em 0 .55em; font-size: 1.28em; }
+.prism-workspace .markdown-message h3 { margin: 1.35em 0 .5em; font-size: 1.15em; }
+.prism-workspace .markdown-message h4 { margin: 1.15em 0 .45em; font-size: 1.04em; }
+.prism-workspace .markdown-message strong { font-weight: 700; }
+.prism-workspace .markdown-message em { font-style: italic; }
+.prism-workspace .markdown-message del { color: var(--pw-muted); }
+.prism-workspace .markdown-message a {
+  color: var(--pw-accent-strong);
+  text-underline-offset: 3px;
+}
+.prism-workspace .markdown-message a:hover { color: var(--pw-accent); }
+.prism-workspace .markdown-message code:not(pre code) {
+  padding: .14em .38em;
+  border: 1px solid var(--pw-line);
+  border-radius: 5px;
+  background: var(--pw-surface-soft);
+  font: .86em/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.prism-workspace .markdown-message ul,
+.prism-workspace .markdown-message ol {
+  margin: .25em 0 1.05em;
+  padding-left: 1.45em;
+}
+.prism-workspace .markdown-message li {
+  margin: .28em 0;
+  padding-left: .12em;
+}
+.prism-workspace .markdown-message blockquote {
+  margin: 1.15em 0;
+  padding: .15em 0 .15em 1.05em;
+  border-left: 2px solid var(--pw-accent);
+  color: var(--pw-text-soft);
+}
+.prism-workspace .markdown-message blockquote p { margin-bottom: .5em; }
+.prism-workspace .markdown-message hr {
+  margin: 1.65em 0;
+  border: 0;
+  border-top: 1px solid var(--pw-line);
+}
+.prism-workspace .prism-markdown-table-wrap {
+  width: 100%;
+  margin: 1.1em 0 1.35em;
+  overflow-x: auto;
+  border: 1px solid var(--pw-line);
+  border-radius: 9px;
+  background: var(--pw-surface);
+}
+.prism-workspace .prism-markdown-table-wrap table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-family: var(--pw-sans);
+  font-size: .84em;
+  line-height: 1.5;
+}
+.prism-workspace .prism-markdown-table-wrap th,
+.prism-workspace .prism-markdown-table-wrap td {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--pw-line);
+  text-align: left;
+  vertical-align: top;
+}
+.prism-workspace .prism-markdown-table-wrap th {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text-soft);
+  font-weight: 650;
+}
+.prism-workspace .prism-markdown-table-wrap tr:last-child td { border-bottom: 0; }
+.prism-workspace .prism-markdown-code {
+  margin: 1.15em 0 1.4em;
+  overflow: hidden;
+  border: 1px solid #34312d;
+  border-radius: 11px;
+  background: #1d1b19;
+  color: #eee9df;
+  box-shadow: var(--pw-shadow-soft);
+}
+.prism-workspace .prism-markdown-code__bar {
+  min-height: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid #34312d;
+  background: #26231f;
+  font-family: var(--pw-sans);
+}
+.prism-workspace .prism-markdown-code__bar > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.prism-workspace .prism-markdown-code__bar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  font-weight: 650;
+}
+.prism-workspace .prism-markdown-code__bar small {
+  color: #9e988f;
+  font-size: 8px;
+}
+.prism-workspace .prism-markdown-code__actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.prism-workspace .prism-markdown-code__actions button {
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #4a463f;
+  border-radius: 6px;
+  background: transparent;
+  color: #ddd7cf;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-markdown-code__actions button:hover {
+  background: #322f2b;
+  border-color: #5a544c;
+}
+.prism-workspace .prism-markdown-code pre {
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: 14px 15px 16px;
+  background: #1b1917;
+}
+.prism-workspace .prism-markdown-code pre code {
+  display: block;
+  white-space: pre;
+  font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prism-workspace,
+  .prism-workspace * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

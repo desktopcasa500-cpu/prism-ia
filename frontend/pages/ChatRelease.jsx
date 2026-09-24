@@ -190,7 +190,7 @@ export default function ChatRelease() {
   }, []);
 
   const loadSession = useCallback(async (id) => {
-    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setFollowingBottom(true); setShowJumpToEnd(false);
+    setSessionId(id); setLoading(true); setMobileOpen(false); setAttachments([]); setEvents([]); setCommandOutput(''); setArtifact(null); setError(''); setRetryPrompt(''); setRetryRegenerateId(null); setFollowingBottom(true); setShowJumpToEnd(false);
     try { const result = await api.get(`/chat/sessions/${encodeURIComponent(id)}/messages?surface=home`); setMessages(result.messages || []); }
     catch (cause) { if (!authFail(cause)) setError(cause.message || 'Não foi possível carregar a conversa.'); }
     finally { setLoading(false); }
@@ -224,6 +224,7 @@ export default function ChatRelease() {
         setArtifact(null);
         setRetryPrompt('');
         setError('');
+        setRetryRegenerateId(null);
         setFollowingBottom(true);
         setShowJumpToEnd(false);
       }
@@ -414,7 +415,7 @@ export default function ChatRelease() {
         </div>
       </header>
 
-      <section ref={scrollRef} className="prism-agent-main-scroll" onScroll={handleScroll}>
+      <section className="prism-agent-main-scroll" onScroll={handleScroll}>
         <div className="prism-agent-content">
           {!loading && !hasMessages && !error && <div className="prism-agent-empty"><div><h1>O que você quer criar?</h1><p>Converse, execute tarefas, use ferramentas, valide resultados e gere artefatos no mesmo fluxo.</p><div className="prism-agent-starters">{STARTERS.map(([label, prompt]) => <button className="prism-agent-starter" key={label} onClick={() => { setInput(prompt); inputRef.current?.focus(); }}><PrismIcon name={label === 'Código' ? 'code' : 'layers'} size={14}/>{label}</button>)}</div></div></div>}
           {offline && <div className="prism-agent-offline" role="status">Sem conexão com a internet. As mensagens não enviadas permanecem nesta conversa.</div>}

@@ -54,44 +54,42 @@ async function ensureDatabase() {
   }
 }
 
-const server = await ensureDatabase()
-  .then(() => app.listen(port, host, () => console.log(`Prism IA listening on ${host}:${port}`)))
-  .catch((error) => {
-    console.error('Falha ao preparar banco:', error);
-    process.exitCode = 1;
-    return null;
-  });
+const server = app.listen(port, host, () => console.log(`Prism IA listening on ${host}:${port}`));
 
 let resetJobTimer = null;
 let newsJobTimer = null;
 let shuttingDown = false;
-if (server) {
-  const runResetJob = async () => {
-    try {
-      const resetCount = await resetExpiredWeeklyLocks();
-      if (resetCount > 0) console.log(`Reset semanal: ${resetCount} conta(s) desbloqueada(s).`);
-    } catch (error) {
-      console.error('Falha no reset semanal:', error);
-    }
-  };
-  const runNewsJob = async () => {
-    try {
-      if (!(await shouldRefreshNews())) return;
-      const result = await refreshNewsFromWeb();
-      if (result.status === 'ok') console.log(`Notícias atualizadas: ${result.count} item(ns).`);
-      else if (result.status === 'error') console.error('Falha ao atualizar notícias:', result.error);
-    } catch (error) {
-      console.error('Falha no job de notícias:', error);
-    }
-  };
-  await runResetJob();
-  await runNewsJob();
-  resetJobTimer = setInterval(runResetJob, 60_000);
-  resetJobTimer.unref?.();
-  // Verifica a cada hora se já passaram os 2 dias do último refresh; o próprio serviço decide se atualiza.
-  newsJobTimer = setInterval(runNewsJob, 60 * 60 * 1000);
-  newsJobTimer.unref?.();
-}
+const runResetJob = async () => {
+  try {
+    const resetCount = await resetExpiredWeeklyLocks();
+    if (resetCount > 0) console.log(`Reset semanal: ${resetCount} conta(s) desbloqueada(s).`);
+  } catch (error) {
+    console.error('Falha no reset semanal:', error);
+  }
+};
+const runNewsJob = async () => {
+  try {
+    if (!(await shouldRefreshNews())) return;
+    const result = await refreshNewsFromWeb();
+    if (result.status === 'ok') console.log(`Notícias atualizadas: ${result.count} item(ns).`);
+    else if (result.status === 'error') console.error('Falha ao atualizar notícias:', result.error);
+  } catch (error) {
+    console.error('Falha no job de notícias:', error);
+  }
+};
+
+ensureDatabase()
+  .then(async () => {
+    await runResetJob();
+    await runNewsJob();
+    resetJobTimer = setInterval(runResetJob, 60_000);
+    resetJobTimer.unref?.();
+    newsJobTimer = setInterval(runNewsJob, 60 * 60 * 1000);
+    newsJobTimer.unref?.();
+  })
+  .catch((error) => {
+    console.error('Banco permanece indisponível após as tentativas de inicialização:', error);
+  });
 
 async function shutdown(signal) {
   if (shuttingDown) return;

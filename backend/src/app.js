@@ -114,8 +114,18 @@ app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ ok: true, database: 'connected', auth: Boolean(process.env.JWT_SECRET), ...health, mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), web: true, stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
-  } catch {
-    res.status(503).json({ ok: false, database: 'unreachable', auth: Boolean(process.env.JWT_SECRET), ...health, mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
+  } catch (error) {
+    res.status(200).json({
+      ok: false,
+      status: 'degraded',
+      database: 'unreachable',
+      database_error: error?.code || 'DATABASE_UNAVAILABLE',
+      auth: Boolean(process.env.JWT_SECRET),
+      ...health,
+      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
+      web: true,
+      stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true'),
+    });
   }
 });
 app.use('/api/auth', authRoutes); app.use('/api/user', userRoutes); app.use('/api/chat', chatRoutes); app.use('/api/chat/parallel', parallelRoutes); app.use('/api/skills', skillsRoutes); app.use('/api/models', modelsRoutes); app.use('/api/projects', projectsRoutes); app.use('/api/projects', projectDownloadRoutes); app.use('/api/files', filesRoutes); app.use('/api/uploads', uploadsRoutes); app.use('/api/ai', aiRoutes); app.use('/api/mcp', mcpRoutes); app.use('/api/billing', billingRoutes); app.use('/api/traffic', trafficRoutes); app.use('/api/builds', buildRoutes); app.use('/api/news', newsRoutes);

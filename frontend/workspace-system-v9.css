@@ -504,6 +504,7 @@
 }
 
 @media (max-width: 980px) {
+  .prism-workspace .prism-agent-mobile-toggle { display: grid; }
   .prism-workspace.prism-agent-chat { grid-template-columns: 1fr; }
   .prism-workspace.prism-agent-chat.sidebar-collapsed { grid-template-columns: 1fr; }
   .prism-workspace .prism-agent-sidebar {

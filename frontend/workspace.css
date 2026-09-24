@@ -1487,3 +1487,32 @@
   0%, 100% { transform: translateX(0); opacity: .45; }
   50% { transform: translateX(10px); opacity: 1; }
 }
+
+
+.prism-workspace .prism-agent-editing-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 5px 7px;
+  color: var(--pw-muted);
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-editing-banner span {
+  color: var(--pw-text-soft);
+  font-weight: 600;
+}
+.prism-workspace .prism-agent-editing-banner button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--pw-faint);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-editing-banner button:hover,
+.prism-workspace .prism-agent-editing-banner button:focus-visible {
+  color: var(--pw-text);
+}

@@ -936,3 +936,237 @@
 
 .prism-workspace .prism-agent-message.user .message-bubble p { margin: 0; }
 .prism-workspace .prism-codex-v2__main .message.user .user-copy { line-height: 1.72; }
+
+
+/* Chat navigation, accessibility and generation states */
+.prism-workspace .prism-agent-section-title--conversations {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.prism-workspace .prism-agent-section-title--conversations kbd {
+  border: 1px solid var(--pw-line);
+  border-radius: 5px;
+  padding: 2px 5px;
+  background: var(--pw-surface);
+  color: var(--pw-faint);
+  font: 500 8px/1 var(--pw-sans);
+}
+.prism-workspace .prism-agent-conversation-group {
+  display: grid;
+  gap: 2px;
+}
+.prism-workspace .prism-agent-conversation-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 34px;
+  border-radius: var(--pw-radius-sm);
+  transition: background-color var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-conversation-row:hover,
+.prism-workspace .prism-agent-conversation-row.active {
+  background: rgba(255,255,255,.32);
+}
+.prism-workspace .prism-agent-conversation-open {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  border: 0;
+  border-radius: var(--pw-radius-sm);
+  background: transparent;
+  color: var(--pw-text-soft);
+  text-align: left;
+  cursor: pointer;
+  font-size: 10px;
+}
+.prism-workspace .prism-agent-conversation-open:hover,
+.prism-workspace .prism-agent-conversation-open[aria-current="page"] {
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-conversation-open > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prism-workspace .prism-agent-conversation-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 5px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(2px);
+  transition: opacity var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace .prism-agent-conversation-row:hover .prism-agent-conversation-actions,
+.prism-workspace .prism-agent-conversation-row:focus-within .prism-agent-conversation-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+.prism-workspace .prism-agent-conversation-actions button {
+  min-height: 24px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0 5px;
+  background: transparent;
+  color: var(--pw-faint);
+  cursor: pointer;
+  font-size: 8px;
+}
+.prism-workspace .prism-agent-conversation-actions button:hover {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-conversation-edit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+}
+.prism-workspace .prism-agent-conversation-edit input {
+  min-width: 0;
+  flex: 1;
+  height: 27px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 6px;
+  padding: 0 7px;
+  background: var(--pw-surface);
+  color: var(--pw-text);
+  outline: 0;
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-conversation-edit input:focus {
+  border-color: var(--pw-accent);
+  box-shadow: 0 0 0 3px var(--pw-focus);
+}
+.prism-workspace .prism-agent-conversation-edit button {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--pw-line);
+  border-radius: 6px;
+  background: var(--pw-surface);
+  color: var(--pw-muted);
+  cursor: pointer;
+}
+.prism-workspace .prism-agent-conversation-edit button:hover {
+  color: var(--pw-text);
+  background: var(--pw-surface-soft);
+}
+.prism-workspace .prism-agent-sidebar-empty {
+  padding: 12px 10px;
+  color: var(--pw-faint);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.prism-workspace .prism-agent-main-scroll {
+  position: relative;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.prism-workspace .prism-agent-composer textarea {
+  field-sizing: content;
+  min-height: 61px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.prism-workspace .prism-agent-jump-end {
+  position: sticky;
+  z-index: 8;
+  bottom: 16px;
+  margin: 8px 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 31px;
+  padding: 0 10px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 999px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  box-shadow: var(--pw-shadow-soft);
+  cursor: pointer;
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-jump-end:hover {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+}
+.prism-workspace .prism-agent-error button {
+  flex: none;
+  min-height: 28px;
+  border: 1px solid var(--pw-line-strong);
+  border-radius: 7px;
+  padding: 0 9px;
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  cursor: pointer;
+  font-size: 9px;
+}
+.prism-workspace .prism-agent-error button:hover {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace .prism-agent-offline {
+  margin: 6px 0 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  background: var(--pw-surface-soft);
+  color: var(--pw-text-soft);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.prism-workspace .prism-agent-streaming .message-bubble::after {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.16em;
+  background: currentColor;
+  opacity: .48;
+  animation: prismWorkspaceCursor 1s steps(2,end) infinite;
+}
+@keyframes prismWorkspaceCursor {
+  50% { opacity: 0; }
+}
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-open > span,
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-actions {
+  display: none;
+}
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-open {
+  justify-content: center;
+  padding-inline: 0;
+}
+.prism-workspace.sidebar-collapsed .prism-agent-conversation-row {
+  min-height: 34px;
+  justify-content: center;
+}
+@media (max-width: 620px) {
+  .prism-workspace .prism-agent-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .prism-workspace .prism-agent-error button {
+    align-self: flex-start;
+  }
+}

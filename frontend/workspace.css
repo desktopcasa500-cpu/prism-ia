@@ -708,56 +708,32 @@
   white-space: pre-wrap;
 }
 .prism-workspace .prism-agent-trace {
-  margin-top: 10px;
-  border: 1px solid var(--pw-line);
-  border-radius: 9px;
-  background: var(--pw-surface);
-  overflow: hidden;
+  margin-top: 8px;
+  padding: 2px 0;
 }
-.prism-workspace .prism-agent-trace-toggle {
-  width: 100%;
-  min-height: 37px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border: 0;
-  background: transparent;
-  color: var(--pw-muted);
-  cursor: pointer;
-  text-align: left;
-}
-.prism-workspace .prism-agent-trace-toggle strong {
-  color: var(--pw-text-soft);
-  font-size: 9px;
-  font-weight: 600;
-}
-.prism-workspace .prism-agent-trace-count { margin-left: auto; color: var(--pw-faint); font-size: 8px; }
 .prism-workspace .prism-agent-trace-list {
-  max-height: 240px;
-  overflow: auto;
-  padding: 3px 10px 8px;
-  border-top: 1px solid var(--pw-line);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0;
 }
 .prism-workspace .prism-agent-trace-item {
-  min-height: 28px;
+  min-height: 22px;
   display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
+  grid-template-columns: 6px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   color: var(--pw-muted);
-  font-size: 8px;
+  font-size: 9px;
+  line-height: 1.45;
 }
 .prism-workspace .prism-agent-trace-item.error { color: var(--pw-error); }
-.prism-workspace .prism-agent-trace-item.ok { color: var(--pw-text-soft); }
 .prism-workspace .prism-agent-trace-dot {
   width: 5px;
   height: 5px;
   border: 1px solid currentColor;
   border-radius: 50%;
 }
-.prism-workspace .prism-agent-trace-time { color: var(--pw-faint); font-variant-numeric: tabular-nums; }
-
 .prism-workspace .prism-agent-artifact {
   margin-top: 11px;
   display: flex;

@@ -731,3 +731,204 @@
   .prism-workspace,
   .prism-workspace * { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+
+/* Codex editor surface — warm, quiet, still unmistakably an engineering workspace. */
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar {
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__brand,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar button,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar span,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar small,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main {
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__switch,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar nav button,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__projects button,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__history button {
+  border-color: transparent;
+  color: var(--pw-muted);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__switch button.active,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__sidebar nav button:hover,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__projects button:hover,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__projects button.active,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__history button:hover {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__new {
+  border: 1px solid var(--pw-line-strong);
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  box-shadow: none;
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__project-head,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__history > span {
+  color: var(--pw-faint);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__project-head button {
+  color: var(--pw-muted);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__profile {
+  border-top-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__profile .avatar {
+  background: var(--pw-surface-strong);
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main header {
+  background: color-mix(in srgb, var(--pw-bg) 94%, transparent);
+  border-bottom-color: var(--pw-line);
+  backdrop-filter: blur(12px);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main header .title {
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main header select,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .model > button,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .mobile-menu {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .model-menu {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  box-shadow: var(--pw-shadow);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .model-menu button {
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .model-menu button:hover,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .model-menu button.active {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .body {
+  background: var(--pw-bg);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .conversation {
+  background: var(--pw-bg);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .welcome {
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .welcome h1 {
+  color: var(--pw-text);
+  font-size: clamp(38px, 4.8vw, 56px);
+  font-weight: 400;
+  letter-spacing: -.05em;
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .welcome p {
+  color: var(--pw-muted);
+  line-height: 1.8;
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .suggestions button {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  transition: background-color var(--pw-fast) var(--pw-ease), border-color var(--pw-fast) var(--pw-ease), transform var(--pw-fast) var(--pw-ease);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .suggestions button:hover {
+  background: var(--pw-surface-soft);
+  border-color: var(--pw-line-strong);
+  transform: translateY(-1px);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages {
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages .message small {
+  color: var(--pw-faint);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages .message.assistant .content {
+  color: var(--pw-text);
+  font-family: var(--pw-serif);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .messages .message.user .user-copy {
+  background: var(--pw-surface-soft);
+  border-color: var(--pw-line);
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .execution,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .artifact {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+  box-shadow: none;
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .execution header {
+  background: var(--pw-surface);
+  border-bottom-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .execution-row {
+  border-bottom-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .terminal,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .editor {
+  background: #1d1b19;
+  border-color: #34312d;
+  color: #e6e0d7;
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .files {
+  background: var(--pw-sidebar);
+  border-left-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .files-head,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .editor-head {
+  border-bottom-color: var(--pw-line);
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .file-tree {
+  border-bottom-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .file-tree button {
+  color: var(--pw-muted);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .file-tree button:hover,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .file-tree button.active {
+  background: var(--pw-surface-soft);
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main footer {
+  background: var(--pw-surface);
+  border-top-color: var(--pw-line);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer {
+  border-color: var(--pw-line-strong);
+  background: var(--pw-surface);
+  box-shadow: var(--pw-shadow-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer:focus-within {
+  border-color: var(--pw-accent);
+  box-shadow: 0 0 0 3px var(--pw-focus), var(--pw-shadow-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .tools button,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .tools .files-toggle,
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .tools .send {
+  border-color: var(--pw-line);
+  background: var(--pw-surface);
+  color: var(--pw-text-soft);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .tools .send:not(:disabled) {
+  background: var(--pw-accent-strong);
+  border-color: var(--pw-accent-strong);
+  color: var(--pw-bg);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer textarea {
+  color: var(--pw-text);
+}
+.prism-workspace.prism-codex-v2 .prism-codex-v2__main .composer textarea::placeholder {
+  color: var(--pw-faint);
+}
+.prism-workspace.prism-codex-v2[data-theme="dark"] .prism-codex-v2__main .terminal,
+.prism-workspace.prism-codex-v2[data-theme="dark"] .prism-codex-v2__main .editor {
+  background: #141311;
+}
+@media (max-width: 900px) {
+  .prism-workspace.prism-codex-v2 .prism-codex-v2__main .files {
+    border-top-color: var(--pw-line);
+  }
+}

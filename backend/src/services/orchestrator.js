@@ -59,9 +59,11 @@ async function request(url, options, deadline = Date.now() + TIMEOUT) {
   finally { clearTimeout(timer); }
 }
 
-async function requestStream(url, options, onDelta, deadline = Date.now() + TIMEOUT) {
+async function requestStream(url, options, onDelta, deadline = Date.now() + TIMEOUT, externalSignal = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
+  const onExternalAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
 
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
@@ -171,6 +173,7 @@ async function requestStream(url, options, onDelta, deadline = Date.now() + TIME
     throw error;
   } finally {
     clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
   }
 }
 
@@ -223,6 +226,8 @@ async function callOpenAICompatible({ provider, key, model, prompt, effort, tool
           url,
           { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, ...headers }, body: JSON.stringify(body) },
           (delta) => emit(execution, 'text_delta', { provider, delta }),
+          Date.now() + TIMEOUT,
+          execution?.signal,
         )
       : await request(
           url,
@@ -338,6 +343,7 @@ async function runCoreOrchestration(prompt, effort = 'medium', profile = null, c
     effort: normalizedEffort,
     tools: [],
     streamText: options.streamText !== false,
+    signal: options.signal || null,
     id: String(userId || 'anonymous') + ':' + String(Date.now()),
   };
 

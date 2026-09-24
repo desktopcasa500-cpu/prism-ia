@@ -67,7 +67,7 @@ function systemPrompt(model, effort, tools, prompt) {
     'Nunca invente uma execução, arquivo, busca, compilação ou resultado.',
     'Use ferramentas reais quando elas forem úteis. Quando o usuário pedir pesquisa, execução, alteração de projeto ou build, prefira ferramentas reais.',
     'Para alterar arquivos do projeto, use prism_write_file. Para executar comandos use prism_exec. Para compilar ou empacotar use prism_build. Para validar alterações use prism_verify.',
-    'Depois de executar uma ação, confira o resultado antes de afirmar que ela funcionou.'
+    'Depois de executar uma ação, confira o resultado antes de afirmar que ela funcionou.',
     `Modelo Prism: ${model}. Perfil: ${profile.description}. Esforço: ${effort}.`,
     tools.length ? `Ferramentas disponíveis: ${tools.map((tool) => tool.toolName || tool.modelName).join(', ')}.` : 'Nenhuma ferramenta externa está disponível.',
     needsTool(prompt) ? 'Este pedido provavelmente requer ferramentas reais; use a ferramenta adequada antes da resposta final.' : '',

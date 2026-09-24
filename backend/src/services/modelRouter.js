@@ -7,7 +7,7 @@ export const MODEL_PROFILES = {
     tier: 'fast',
     description: 'Rápido e econômico.',
     providers: {
-      nvidia: 'openai/gpt-oss-20b',
+      nvidia: 'nvidia/nemotron-3.5-lightning-30b-a3b',
     },
   },
   'prism-mini-1.0': {
@@ -15,7 +15,7 @@ export const MODEL_PROFILES = {
     tier: 'general',
     description: 'Uso geral, pensamento e correção.',
     providers: {
-      nvidia: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+      nvidia: 'nvidia/nemotron-3-ultra-550b-a55b',
       groq: 'openai/gpt-oss-20b',
     },
   },
@@ -24,7 +24,7 @@ export const MODEL_PROFILES = {
     tier: 'reasoning',
     description: 'Análise e revisão profunda.',
     providers: {
-      nvidia: 'meta/llama-3.1-70b-instruct',
+      nvidia: 'nvidia/nemotron-3.5-lightning-30b-a3b',
       groq: 'openai/gpt-oss-20b',
     },
   },
@@ -33,7 +33,7 @@ export const MODEL_PROFILES = {
     tier: 'code',
     description: 'Código, documentação e arquitetura.',
     providers: {
-      nvidia: 'qwen/qwen2.5-coder-32b-instruct',
+      nvidia: 'moonshotai/kimi-k3',
       groq: 'openai/gpt-oss-120b',
     },
   },

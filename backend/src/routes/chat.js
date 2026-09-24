@@ -55,7 +55,13 @@ async function handle(req,res,stream){
   try {
     const input=await prepare(req);if(input.requestId){const duplicate=await pool.query(`SELECT id,role,content,effort,tokens_used,provider,model_id,thinking_summary,metadata,created_at FROM messages WHERE user_id=$1 AND role='assistant' AND metadata->>'client_request_id'=$2 ORDER BY created_at DESC LIMIT 1`,[req.userId,input.requestId]);if(duplicate.rows[0]){if(stream)send({type:'result',data:{message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true}});else return res.json({message:duplicate.rows[0],usage:await getUsage(req.userId),duplicate:true});return;}}
   const result=await process({req,input,onProgress:send});if(stream)send({type:'result',data:result});else res.status(201).json(result);
-}catch(error){if(stream)send({type:'error',message:error?.message||'Execução falhou.',code:error?.code||'CHAT_EXECUTION_FAILED',status:error?.status||500});else res.status(error?.status||500).json({error:error?.message||'Execução falhou.',code:error?.code||'CHAT_EXECUTION_FAILED',payload:error});}
+}catch(error){
+    const status=error?.status||500;
+    const code=error?.code||'CHAT_EXECUTION_FAILED';
+    const message=error?.message||'Execução falhou.';
+    if(stream)send({type:'error',message,code,status});
+    else res.status(status).json({error:message,code});
+}
   finally {
     if (heartbeat) clearInterval(heartbeat);
     req.off('aborted', abortRequest);

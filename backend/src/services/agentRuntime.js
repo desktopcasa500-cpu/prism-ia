@@ -41,10 +41,11 @@ async function writeFiles(root,files){
 async function upsertProjectFile(workspace, filePath, content){
   const relative=cleanPath(filePath);const value=String(content||'');if(Buffer.byteLength(value,'utf8')>MAX_FILE_BYTES)throw Object.assign(new Error('Arquivo grande demais.'),{code:'PROJECT_FILE_TOO_LARGE'});
   const target=path.join(workspace.root,relative);if(!target.startsWith(workspace.root+path.sep))throw Object.assign(new Error('Caminho fora do workspace.'),{code:'INVALID_PROJECT_PATH'});
+  const existed=workspace.files.some((file)=>file.path===relative);
   await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,value,'utf8');
   await pool.query(`INSERT INTO project_files(project_id,user_id,path,content,kind,updated_at) VALUES($1,$2,$3,$4,'file',now()) ON CONFLICT(project_id,path) DO UPDATE SET content=EXCLUDED.content,kind='file',updated_at=now()`,[workspace.projectId,workspace.userId,relative,value]);
   workspace.files = [...workspace.files.filter((file)=>file.path!==relative),{path:relative,content:value,kind:'file'}].sort((a,b)=>a.path.localeCompare(b.path));
-  return {path:relative,bytes:Buffer.byteLength(value,'utf8')};
+  return {path:relative,bytes:Buffer.byteLength(value,'utf8'),created:!existed};
 }
 
 async function readProjectFile(workspace,filePath){
@@ -56,42 +57,43 @@ async function listProjectFiles(workspace){return workspace.files.map((file)=>({
 
 export async function createAgentWorkspace({projectId,userId}={}){if(!projectId||!userId)return null;const loaded=await loadProject(projectId,userId);const root=await fs.mkdtemp(path.join(os.tmpdir(),`prism-agent-${crypto.randomUUID()}-`));await writeFiles(root,loaded.files);return{root,projectId,userId,project:loaded.project,files:loaded.files,readFile:(filePath)=>readProjectFile({root,projectId,userId,files:loaded.files},filePath),async cleanup(){await fs.rm(root,{recursive:true,force:true}).catch(()=>{});}};}
 
-export async function runWorkspaceCommand({workspace,command,cwd='.',timeoutMs=DEFAULT_TIMEOUT,onOutput}={}){
+export async function runWorkspaceCommand({workspace,command,cwd='.',timeoutMs=DEFAULT_TIMEOUT,onOutput,signal}={}){
   if(!workspace?.root)throw Object.assign(new Error('Nenhum workspace de projeto está selecionado.'),{code:'WORKSPACE_REQUIRED'});
+  if(signal?.aborted)throw Object.assign(new Error('Execução cancelada.'),{code:'REQUEST_ABORTED'});
   const safeCommand=validateCommand(command);const parts=splitCommand(safeCommand);const executable=parts.shift();const requestedCwd=cleanPath(cwd||'.');const workDir=path.resolve(workspace.root,requestedCwd);if(!workDir.startsWith(workspace.root))throw Object.assign(new Error('Diretório fora do workspace.'),{code:'INVALID_WORKSPACE_CWD'});await fs.access(workDir);const limit=Math.min(Math.max(Number(timeoutMs)||DEFAULT_TIMEOUT,5000),MAX_TIMEOUT);
-  return new Promise((resolve,reject)=>{const child=spawn(executable,parts,{cwd:workDir,windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});let stdout='';let stderr='';let settled=false;const emit=(stream,chunk)=>{const text=String(chunk||'');if(stream==='stdout')stdout=`${stdout}${text}`.slice(-MAX_OUTPUT);else stderr=`${stderr}${text}`.slice(-MAX_OUTPUT);onOutput?.({stream,text:text.slice(-4000)});};const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(timer);fn(value);};const timer=setTimeout(()=>{child.kill('SIGKILL');finish(reject,Object.assign(new Error('O comando excedeu o tempo máximo.'),{code:'COMMAND_TIMEOUT'}));},limit);child.stdout.on('data',(chunk)=>emit('stdout',chunk));child.stderr.on('data',(chunk)=>emit('stderr',chunk));child.on('error',(error)=>finish(reject,error));child.on('close',(code,signal)=>{if(code!==0)return finish(reject,Object.assign(new Error(String(stderr||stdout||`Processo finalizado com código ${code}`).slice(-MAX_OUTPUT)),{code:'COMMAND_FAILED',exitCode:code,signal}));finish(resolve,{ok:true,command:safeCommand,cwd:requestedCwd,exitCode:0,stdout,stderr});});});
+  return new Promise((resolve,reject)=>{const child=spawn(executable,parts,{cwd:workDir,windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});let stdout='';let stderr='';let settled=false;const emit=(stream,chunk)=>{const text=String(chunk||'');if(stream==='stdout')stdout=`${stdout}${text}`.slice(-MAX_OUTPUT);else stderr=`${stderr}${text}`.slice(-MAX_OUTPUT);onOutput?.({stream,text:text.slice(-4000)});};let timer=null;const abort=()=>{child.kill('SIGKILL');finish(reject,Object.assign(new Error('Execução cancelada.'),{code:'REQUEST_ABORTED'}));};const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);fn(value);};timer=setTimeout(()=>{child.kill('SIGKILL');finish(reject,Object.assign(new Error('O comando excedeu o tempo máximo.'),{code:'COMMAND_TIMEOUT'}));},limit);signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();child.stdout.on('data',(chunk)=>emit('stdout',chunk));child.stderr.on('data',(chunk)=>emit('stderr',chunk));child.on('error',(error)=>finish(reject,error));child.on('close',(code,signal)=>{if(code!==0)return finish(reject,Object.assign(new Error(String(stderr||stdout||`Processo finalizado com código ${code}`).slice(-MAX_OUTPUT)),{code:'COMMAND_FAILED',exitCode:code,signal}));finish(resolve,{ok:true,command:safeCommand,cwd:requestedCwd,exitCode:0,stdout,stderr});});});
 }
 
-async function verifyJava(workspace){const javaFiles=workspace.files.filter((file)=>/\.java$/i.test(file.path));if(!javaFiles.length)return null;const result=await runWorkspaceCommand({workspace,command:`javac -d .prism-classes ${javaFiles.map((file)=>`"${file.path}"`).join(' ')}`,timeoutMs:240000});return{kind:'java',ok:true,files:javaFiles.length,output:result};}
-async function verifyJs(workspace){const jsFiles=workspace.files.filter((file)=>/\.(?:js|mjs|cjs)$/i.test(file.path));if(!jsFiles.length)return null;for(const file of jsFiles)await runWorkspaceCommand({workspace,command:`node --check "${file.path}"`,timeoutMs:60000});return{kind:'javascript',ok:true,files:jsFiles.length};}
+async function verifyJava(workspace,signal){const javaFiles=workspace.files.filter((file)=>/\.java$/i.test(file.path));if(!javaFiles.length)return null;const result=await runWorkspaceCommand({workspace,command:`javac -d .prism-classes ${javaFiles.map((file)=>`"${file.path}"`).join(' ')}`,timeoutMs:240000,signal});return{kind:'java',ok:true,files:javaFiles.length,output:result};}
+async function verifyJs(workspace,signal){const jsFiles=workspace.files.filter((file)=>/\.(?:js|mjs|cjs)$/i.test(file.path));if(!jsFiles.length)return null;for(const file of jsFiles)await runWorkspaceCommand({workspace,command:`node --check "${file.path}"`,timeoutMs:60000,signal});return{kind:'javascript',ok:true,files:jsFiles.length};}
 
-export async function verifyWorkspace({workspace,command}={}){
-  if(command)return runWorkspaceCommand({workspace,command,timeoutMs:180000});
-  const checks=[];const js=await verifyJs(workspace);if(js)checks.push(js);const java=await verifyJava(workspace);if(java)checks.push(java);return{ok:checks.every((check)=>check.ok),checks};
+export async function verifyWorkspace({workspace,command,signal}={}){
+  if(command)return runWorkspaceCommand({workspace,command,timeoutMs:180000,signal});
+  const checks=[];const js=await verifyJs(workspace,signal);if(js)checks.push(js);const java=await verifyJava(workspace,signal);if(java)checks.push(java);return{ok:checks.every((check)=>check.ok),checks};
 }
 
-async function buildJavaScriptWorkspace(workspace){
+async function buildJavaScriptWorkspace(workspace,signal){
   const packageFile=workspace.files.find((file)=>file.path==='package.json');
   if(!packageFile){
-    const details=await verifyWorkspace({workspace});
+    const details=await verifyWorkspace({workspace,signal});
     return {ok:details.ok,type:'verification',target:'js',details};
   }
   let packageJson={};
   try{packageJson=JSON.parse(String(packageFile.content||''));}catch(error){throw Object.assign(new Error('package.json inválido: '+error.message),{code:'PACKAGE_JSON_INVALID'});}
-  if(!packageJson?.scripts?.build)return{ok:true,type:'verification',target:'js',details:await verifyWorkspace({workspace})};
+  if(!packageJson?.scripts?.build)return{ok:true,type:'verification',target:'js',details:await verifyWorkspace({workspace,signal})};
   const hasNodeModules=await fs.access(path.join(workspace.root,'node_modules')).then(()=>true).catch(()=>false);
   if(!hasNodeModules){
     const installer=packageJson?.packageLockVersion||packageJson?.lockfileVersion?'npm ci --ignore-scripts --no-audit --no-fund':'npm install --ignore-scripts --no-audit --no-fund';
-    await runWorkspaceCommand({workspace,command:installer,timeoutMs:MAX_TIMEOUT});
+    await runWorkspaceCommand({workspace,command:installer,timeoutMs:MAX_TIMEOUT,signal});
   }
-  const build=await runWorkspaceCommand({workspace,command:'npm run build',timeoutMs:MAX_TIMEOUT});
-  const verification=await verifyWorkspace({workspace});
+  const build=await runWorkspaceCommand({workspace,command:'npm run build',timeoutMs:MAX_TIMEOUT,signal});
+  const verification=await verifyWorkspace({workspace,signal});
   return{ok:true,type:'build',target:'js',details:{build,verification}};
 }
 
-export async function buildWorkspace({workspace,target}){
+export async function buildWorkspace({workspace,target,signal}){
   if(!workspace?.files?.length)throw Object.assign(new Error('Nenhum arquivo disponível para build.'),{code:'WORKSPACE_REQUIRED'});const allowed=new Set(['jar','win32-x64','zip','js']);if(!allowed.has(target))throw Object.assign(new Error('Destino de build não suportado.'),{code:'TARGET_UNSUPPORTED'});
-  if(target==='js')return{ok:true,type:'verification',target,details:await verifyWorkspace({workspace})};
+  if(target==='js')return buildJavaScriptWorkspace(workspace,signal);
   if(target==='zip')return zipWorkspace(workspace);
   const build=await buildProject({projectName:workspace.project.name,files:workspace.files,target});const expiresAt=Date.now()+DOWNLOAD_TTL;await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))",[build.buildId,workspace.userId,workspace.projectId,target,build.filename,build.outputPath,expiresAt]);return{ok:true,type:'build',buildId:build.buildId,filename:build.filename,size:build.size,expiresAt:new Date(expiresAt).toISOString(),downloadPath:`/api/builds/${build.buildId}/download?token=${encodeURIComponent(signDownload(build.buildId,workspace.userId,expiresAt))}`,details:build.details};
 }
@@ -105,20 +107,20 @@ export function agentToolDefinitions(){return[
   {modelName:'prism_verify',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'verify_project',kind:'native',description:'Executa verificações apropriadas ao projeto, como node --check, javac, testes ou lint.',inputSchema:{type:'object',properties:{command:{type:'string'}}}},
 ];}
 
-export async function executeAgentTool(tool,args,workspace){
+export async function executeAgentTool(tool,args,workspace,execution=null){
   if(tool==='prism_read_file')return readProjectFile(workspace,args.path);
   if(tool==='prism_write_file')return upsertProjectFile(workspace,args.path,args.content);
   if(tool==='prism_list_files')return listProjectFiles(workspace);
   if(tool==='prism_verify'){
-    try{return {...await verifyWorkspace({workspace,command:args.command}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    try{return {...await verifyWorkspace({workspace,command:args.command,signal:execution?.signal}),workspaceSync:await syncWorkspaceToProject(workspace)}}
     catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
   }
   if(tool==='prism_exec'){
-    try{return {...await runWorkspaceCommand({workspace,command:args.command,cwd:args.cwd||'.',timeoutMs:args.timeoutMs}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    try{return {...await runWorkspaceCommand({workspace,command:args.command,cwd:args.cwd||'.',timeoutMs:args.timeoutMs,signal:execution?.signal,onOutput:(chunk)=>execution?.onProgress?.({type:'command_output',timestamp:Date.now(),stream:chunk.stream,text:String(chunk.text||'').slice(-4000)})}),workspaceSync:await syncWorkspaceToProject(workspace)}}
     catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
   }
   if(tool==='prism_build'){
-    try{return {...await buildWorkspace({workspace,target:String(args.target||'')}),workspaceSync:await syncWorkspaceToProject(workspace)}}
+    try{return {...await buildWorkspace({workspace,target:String(args.target||''),signal:execution?.signal}),workspaceSync:await syncWorkspaceToProject(workspace)}}
     catch(error){await syncWorkspaceToProject(workspace).catch(()=>{});throw error;}
   }
   throw Object.assign(new Error('Ferramenta do runtime não encontrada.'),{code:'AGENT_TOOL_NOT_FOUND'});

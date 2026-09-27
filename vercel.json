@@ -14,8 +14,14 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
+      "source": "/api/:path*",
+      "destination": "/api/index.js"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs22.x",
+      "maxDuration": 60
+    }
+  }
 }

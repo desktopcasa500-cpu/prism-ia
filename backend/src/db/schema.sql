@@ -177,6 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_mcp_servers_user ON mcp_servers(user_id);
 CREATE INDEX IF NOT EXISTS idx_usage_user_created ON usage(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_builds_user_project ON builds(user_id, project_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_github_id ON users(github_id) WHERE github_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_stripe_customer ON users(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_stripe_subscription ON users(stripe_subscription_id) WHERE stripe_subscription_id IS NOT NULL;

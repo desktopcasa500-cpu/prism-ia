@@ -10,6 +10,8 @@ function downloadSecretValue() {
   return String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
 }
 const SKIP_DIRS = new Set(['node_modules','.git','.prism-classes']);
+const MAX_FILE_BYTES = 2_000_000;
+const MAX_ARCHIVE_BYTES = 100_000_000;
 
 function sign(buildId, userId, expiresAt) {
   const payload = `${buildId}.${userId}.${expiresAt}`;
@@ -19,14 +21,18 @@ function sign(buildId, userId, expiresAt) {
   return Buffer.from(`${payload}.${signature}`).toString('base64url');
 }
 function safeName(value) { return String(value || 'prism-project').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'prism-project'; }
-async function collectFiles(root, current = root, out = []) {
+async function collectFiles(root, current = root, out = [], state = { totalBytes: 0 }) {
   const entries = await fs.readdir(current, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name.startsWith('.prism-build-') || SKIP_DIRS.has(entry.name)) continue;
     const absolute = path.join(current, entry.name);
-    if (entry.isDirectory()) await collectFiles(root, absolute, out);
+    if (entry.isDirectory()) await collectFiles(root, absolute, out, state);
     else if (entry.isFile()) {
       const relative = path.relative(root, absolute).split(path.sep).join('/');
+      const stat = await fs.stat(absolute);
+      if (stat.size > MAX_FILE_BYTES) throw Object.assign(new Error(`O arquivo ${relative} é grande demais para ZIP.`), { code: 'PROJECT_FILE_TOO_LARGE' });
+      state.totalBytes += stat.size;
+      if (state.totalBytes > MAX_ARCHIVE_BYTES) throw Object.assign(new Error('O projeto excede o limite total de 100 MB para ZIP.'), { code: 'ARCHIVE_TOO_LARGE' });
       const data = await fs.readFile(absolute);
       out.push([relative, data]);
     }

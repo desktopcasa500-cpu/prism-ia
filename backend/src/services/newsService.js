@@ -11,6 +11,26 @@ const QUERIES = [
   'NVIDIA AI robotics September 2026',
 ];
 
+
+function publishedDateFromAge(age) {
+  const raw = String(age || '').trim();
+  if (!raw) return null;
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) return direct.toISOString().slice(0, 10);
+  const match = raw.toLowerCase().match(/(?:about\\s+)?(\\d+)\\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months)\\s+ago/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const date = new Date();
+  const unit = match[2];
+  if (unit.startsWith('minute')) date.setMinutes(date.getMinutes() - amount);
+  else if (unit.startsWith('hour')) date.setHours(date.getHours() - amount);
+  else if (unit.startsWith('day')) date.setDate(date.getDate() - amount);
+  else if (unit.startsWith('week')) date.setDate(date.getDate() - amount * 7);
+  else if (unit.startsWith('month')) date.setMonth(date.getMonth() - amount);
+  return date.toISOString().slice(0, 10);
+}
+
 function hostnameOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
@@ -48,7 +68,7 @@ async function fetchFreshNewsFromWeb() {
           source: item.source || hostnameOf(item.url),
           source_url: item.url,
           image: item.thumbnail || null,
-          published_at: null,
+          published_at: publishedDateFromAge(item.age),
         });
       }
     } catch (error) {
@@ -78,8 +98,8 @@ export async function refreshNewsFromWeb() {
       for (const item of items) {
         await client.query(
           `INSERT INTO news_items (category, title, description, source, source_url, image, published_at, position)
-           VALUES ($1, $2, $3, $4, $5, $6, now(), $7)`,
-          [item.category, item.title, item.description, item.source, item.source_url, item.image, position],
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [item.category, item.title, item.description, item.source, item.source_url, item.image, item.published_at || null, position],
         );
         position += 1;
       }

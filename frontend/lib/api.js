@@ -1,4 +1,4 @@
-const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const configuredApiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
 const apiRoot = configuredApiUrl ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`) : '/api';
 let token = localStorage.getItem('prism_token');
 const generationControllers = new Set();

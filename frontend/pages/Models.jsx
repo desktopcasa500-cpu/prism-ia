@@ -4,10 +4,10 @@ import { modelItems } from '../content/prismTexts.js';
 import PrismIcon from '../components/PrismIcon.jsx';
 
 const MODELS = [
-  { id: 'nano', route: '/modelos/nano', name: 'Prism Nano 1.0A', providers: ['NVIDIA · GPT-OSS 20B'], required: 0 },
-  { id: 'mini', route: '/modelos/mini', name: 'Prism Mini 1.0A', providers: ['NVIDIA · Llama 3.3 Nemotron Super', 'Groq · GPT-OSS 20B'], required: 0 },
-  { id: 'edge', route: '/modelos/edge', name: 'Prism Edge 1.0A', providers: ['NVIDIA · Llama 3.1', 'Groq · GPT-OSS 20B (revisão)'], required: 2 },
-  { id: 'tex', route: '/modelos/tex', name: 'Prism Tex 1.5A', providers: ['NVIDIA · Qwen 2.5 Code', 'Groq · Qwen 3 32B'], required: 2 },
+  { id: 'nano', route: '/modelos/nano', name: 'Prism Nano 1.0A', providers: ['NVIDIA · Nemotron Lightning 30B'], required: 0 },
+  { id: 'mini', route: '/modelos/mini', name: 'Prism Mini 1.0A', providers: ['NVIDIA · Nemotron Ultra 550B', 'Groq · GPT-OSS 20B'], required: 0 },
+  { id: 'edge', route: '/modelos/edge', name: 'Prism Edge 1.0A', providers: ['NVIDIA · Nemotron Lightning 30B', 'Groq · GPT-OSS 20B'], required: 2 },
+  { id: 'tex', route: '/modelos/tex', name: 'Prism Tex 1.5A', providers: ['NVIDIA · Kimi K3', 'Groq · GPT-OSS 120B'], required: 2 },
   { id: 'taff', route: '/modelos/taff-2-0', name: 'Prism Taff 2.0', providers: ['NVIDIA · Kimi K3', 'Groq · GPT-OSS 120B', 'OpenCode Zen · Big Pickle'], required: 3 },
 ];
 

@@ -28,6 +28,36 @@ const STARTERS = [
   ['Analisar', 'Encontre padrões, riscos e próximos passos.'],
 ];
 
+const VALID_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
+function readStoredModel() {
+  try {
+    const value = localStorage.getItem('prism.home.model');
+    return MODELS.some((item) => item.id === value) ? value : 'prism-mini-1.0';
+  } catch {
+    return 'prism-mini-1.0';
+  }
+}
+function readStoredEffort() {
+  try {
+    const value = localStorage.getItem('prism-default-effort');
+    return VALID_EFFORTS.has(value) ? value : 'medium';
+  } catch {
+    return 'medium';
+  }
+}
+function readStorage(key, fallback = '') {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
 function rankOf(plan) { return PLAN_RANK[plan] ?? 0; }
 function requestId() { try { return crypto.randomUUID(); } catch { return `req-${Date.now()}-${Math.random()}`; } }
 function metadataOf(message) { if (!message?.metadata) return {}; if (typeof message.metadata === 'object') return message.metadata; try { return JSON.parse(message.metadata); } catch { return {}; } }

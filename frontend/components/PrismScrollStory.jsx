@@ -47,28 +47,46 @@ export default function PrismScrollStory() {
   const [distance, setDistance] = useState(0);
 
   useEffect(() => {
+    const section = sectionRef.current;
+    const track = trackRef.current;
+    if (!section || !track) return undefined;
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    let frame = 0;
+
     const measure = () => {
-      const section = sectionRef.current;
-      const track = trackRef.current;
-      if (!section || !track) return;
-      setDistance(Math.max(0, track.scrollWidth - section.clientWidth));
+      const nextDistance = Math.max(0, track.scrollWidth - section.clientWidth);
+      setDistance(nextDistance);
+      section.style.setProperty('--story-distance', \`${nextDistance}px\`);
     };
 
     const update = () => {
-      const section = sectionRef.current;
-      if (!section) return;
+      frame = 0;
       const rect = section.getBoundingClientRect();
       const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
-      setProgress(Math.min(1, Math.max(0, -rect.top / scrollable)));
+      const nextProgress = Math.min(1, Math.max(0, -rect.top / scrollable));
+      setProgress(nextProgress);
+      section.style.setProperty('--story-progress', nextProgress.toFixed(4));
+      if (!reducedMotion) {
+        const eased = nextProgress * nextProgress * (3 - 2 * nextProgress);
+        const drift = (nextProgress - 0.5) * -26;
+        track.style.transform = \`translate3d(\${-distance}px,\${drift}px,0) scale(\${1 + eased * 0.012} )\`.replace(') )', '))');
+      }
+    };
+
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(update);
     };
 
     measure();
-    update();
+    schedule();
     window.addEventListener('resize', measure);
-    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('scroll', schedule, { passive: true });
     return () => {
       window.removeEventListener('resize', measure);
-      window.removeEventListener('scroll', update);
+      window.removeEventListener('scroll', schedule);
+      if (frame) cancelAnimationFrame(frame);
     };
   }, []);
 

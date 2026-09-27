@@ -12,7 +12,7 @@ function safePath(root, absolute) {
   return relative;
 }
 
-async function collect(root, current = root, out = [], state = { truncated: false }) {
+async function collect(root, current = root, out = [], state = { incomplete: false, truncated: false }) {
   const entries = await fs.readdir(current, { withFileTypes: true });
   for (const entry of entries) {
     if (SKIP.has(entry.name) || entry.name.startsWith('.prism-build-')) continue;
@@ -23,19 +23,30 @@ async function collect(root, current = root, out = [], state = { truncated: fals
       const relative = safePath(root, absolute);
       if (!relative) continue;
       const stat = await fs.stat(absolute);
-      if (stat.size > MAX_FILE_BYTES) continue;
-      if (out.length >= MAX_FILES) { state.truncated = true; break; }
+      if (stat.size > MAX_FILE_BYTES) {
+        state.incomplete = true;
+        state.oversized = state.oversized || [];
+        state.oversized.push({ path: relative, bytes: stat.size });
+        continue;
+      }
+      if (out.length >= MAX_FILES) { state.truncated = true; state.incomplete = true; break; }
       out.push({ path: relative, content: await fs.readFile(absolute, 'utf8') });
     }
     if (state.truncated) break;
   }
-  return { files: out, truncated: state.truncated };
+  return { files: out, incomplete: state.incomplete, truncated: state.truncated, oversized: state.oversized || [] };
 }
 
 export async function syncWorkspaceToProject(workspace) {
   if (!workspace?.root || !workspace?.projectId || !workspace?.userId) return { synced: 0, removed: 0 };
   const collected = await collect(workspace.root);
   if (collected.truncated) throw Object.assign(new Error('O workspace excedeu o limite de 500 arquivos; a sincronização foi interrompida para evitar perda de arquivos.'), { code: 'TOO_MANY_PROJECT_FILES', status: 422 });
+  if (collected.incomplete) {
+    const detail = collected.oversized?.length
+      ? ` Arquivos acima de 2 MB: ${collected.oversized.slice(0, 5).map((item) => item.path).join(', ')}${collected.oversized.length > 5 ? '…' : ''}.`
+      : '';
+    throw Object.assign(new Error(`A sincronização foi interrompida porque a coleta do workspace ficou incompleta.${detail}`), { code: 'WORKSPACE_SYNC_INCOMPLETE', status: 422 });
+  }
   const files = collected.files;
   const client = await pool.connect();
   try {

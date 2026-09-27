@@ -126,7 +126,8 @@ async function buildExe(root, files, outputPath, projectName, signal = null) {
   await fs.mkdir(packageRoot, { recursive: true });
   await writeProject(packageRoot, files);
   let entry = nodeEntry;
-  let packageJson = { name: safeName(projectName), version: '1.0.0', main: entry || 'launcher.js', bin: entry || 'launcher.js' };
+  const packagedNodeEntry = entry ? path.posix.join('project', entry.replace(/\\/g, '/')) : 'launcher.js';
+  let packageJson = { name: safeName(projectName), version: '1.0.0', main: packagedNodeEntry, bin: packagedNodeEntry };
   if (html) {
     await fs.writeFile(path.join(root, 'launcher.js'), browserLauncher(), 'utf8');
     packageJson = {

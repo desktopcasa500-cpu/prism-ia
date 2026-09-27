@@ -83,7 +83,7 @@ export default function Landing() {
           ))}
         </section>
 
-        <PrismNews />
+        <div id="sinal"><PrismNews /></div>
 
         <section className="home-system">
           <div className="system-label">05 / O SISTEMA</div>

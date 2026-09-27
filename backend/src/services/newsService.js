@@ -127,7 +127,9 @@ export async function getStoredNews() {
     source: row.source,
     sourceUrl: row.source_url,
     image: row.image,
-    date: row.published_at ? new Date(row.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase().replace('.', '') : '',
+    date: row.published_at
+      ? new Date(`${String(row.published_at).slice(0, 10)}T12:00:00Z`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).toUpperCase().replace('.', '')
+      : '',
   }));
 }
 

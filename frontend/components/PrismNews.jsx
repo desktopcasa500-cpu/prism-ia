@@ -16,7 +16,7 @@ function normalizeRemoteNews(items) {
       sourceUrl: String(item.sourceUrl || '').trim(),
       image: typeof item.image === 'string' ? item.image.trim() : '',
     }))
-    .filter((item) => item.title && item.description && item.source && /^https?:\\/\\//i.test(item.sourceUrl));
+    .filter((item) => item.title && item.description && item.source && /^https?:\/\//i.test(item.sourceUrl));
 }
 
 export default function PrismNews() {

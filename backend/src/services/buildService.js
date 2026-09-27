@@ -8,18 +8,27 @@ const ROOT = path.resolve(process.cwd());
 const PKG_BIN = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'pkg.cmd' : 'pkg');
 const MAX_FILE_BYTES = 2_000_000;
 const MAX_FILES = 500;
+const MAX_TOTAL_BYTES = 100_000_000;
 
 function safeName(value, fallback = 'prism-app') {
   return String(value || fallback).replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || fallback;
 }
 
-function run(command, args, cwd, timeoutMs = 240_000) {
+function run(command, args, cwd, timeoutMs = 240_000, signal = null) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value); };
+    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(value); };
+    const abort = () => {
+      child.kill('SIGKILL');
+      const error = new Error('A compilação foi cancelada.');
+      error.code = 'REQUEST_ABORTED';
+      finish(reject, error);
+    };
+    if (signal?.aborted) return abort();
+    signal?.addEventListener('abort', abort, { once: true });
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
       const error = new Error('A compilação excedeu o tempo máximo.');
@@ -42,11 +51,15 @@ function run(command, args, cwd, timeoutMs = 240_000) {
 async function writeProject(root, files) {
   if (!Array.isArray(files) || !files.length) throw Object.assign(new Error('O projeto não possui arquivos.'), { code: 'NO_PROJECT_FILES' });
   if (files.length > MAX_FILES) throw Object.assign(new Error('O projeto excede o limite de arquivos para compilação.'), { code: 'TOO_MANY_PROJECT_FILES' });
+  let totalBytes = 0;
   for (const file of files) {
     const relative = String(file.path || '').replace(/^[/\\]+/, '');
     if (!relative || relative.includes('..')) throw Object.assign(new Error('Caminho de arquivo inválido.'), { code: 'INVALID_PROJECT_PATH' });
     const content = String(file.content || '');
-    if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) throw Object.assign(new Error(`O arquivo ${relative} é grande demais para compilação.`), { code: 'PROJECT_FILE_TOO_LARGE' });
+    const bytes = Buffer.byteLength(content, 'utf8');
+    if (bytes > MAX_FILE_BYTES) throw Object.assign(new Error(`O arquivo ${relative} é grande demais para compilação.`), { code: 'PROJECT_FILE_TOO_LARGE' });
+    totalBytes += bytes;
+    if (totalBytes > MAX_TOTAL_BYTES) throw Object.assign(new Error('O projeto excede o limite total de 100 MB para compilação.'), { code: 'PROJECT_TOO_LARGE' });
     const target = path.join(root, relative);
     if (!target.startsWith(root + path.sep)) throw Object.assign(new Error('Caminho de arquivo inválido.'), { code: 'INVALID_PROJECT_PATH' });
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -66,7 +79,7 @@ function javaMainClass(files) {
   return null;
 }
 
-async function buildJar(root, files, outputPath) {
+async function buildJar(root, files, outputPath, signal = null) {
   const javaFiles = files.filter((file) => /\.java$/i.test(file.path));
   if (!javaFiles.length) throw Object.assign(new Error('Para criar um JAR, o projeto precisa conter arquivos .java.'), { code: 'JAVA_SOURCE_REQUIRED' });
 
@@ -74,13 +87,13 @@ async function buildJar(root, files, outputPath) {
   const jar = process.env.JAR_PATH || 'jar';
   const classesDir = path.join(root, '.prism-classes');
   await fs.mkdir(classesDir, { recursive: true });
-  await run(javac, ['-d', classesDir, ...javaFiles.map((file) => file.path)], root, 240_000);
+  await run(javac, ['-d', classesDir, ...javaFiles.map((file) => file.path)], root, 240_000, signal);
 
   const mainClass = javaMainClass(javaFiles);
   const manifest = mainClass ? `Manifest-Version: 1.0\nMain-Class: ${mainClass}\n\n` : 'Manifest-Version: 1.0\n\n';
   const manifestPath = path.join(root, '.prism-manifest.mf');
   await fs.writeFile(manifestPath, manifest, 'utf8');
-  await run(jar, ['--create', '--file', outputPath, '--manifest', manifestPath, '-C', classesDir, '.'], root, 120_000);
+  await run(jar, ['--create', '--file', outputPath, '--manifest', manifestPath, '-C', classesDir, '.'], root, 120_000, signal);
   const stat = await fs.stat(outputPath);
   if (!stat.size) throw Object.assign(new Error('O JAR foi produzido vazio.'), { code: 'EMPTY_BUILD' });
   return { outputPath, mainClass, size: stat.size };
@@ -90,7 +103,7 @@ function browserLauncher() {
   return `const http=require('node:http');\nconst fs=require('node:fs');\nconst path=require('node:path');\nconst root=path.join(__dirname,'project');\nconst mime={'.html':'text/html;charset=utf-8','.css':'text/css;charset=utf-8','.js':'text/javascript;charset=utf-8','.json':'application/json;charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif'};\nconst server=http.createServer((req,res)=>{let requestPath=decodeURIComponent((req.url||'/').split('?')[0]);if(requestPath==='/'||requestPath==='')requestPath='/index.html';const filePath=path.normalize(path.join(root,requestPath.replace(/^[/\\\\]+/,'')));if(!filePath.startsWith(root))return res.writeHead(403).end('Forbidden');fs.readFile(filePath,(error,data)=>{if(error)return res.writeHead(404).end('Not found');res.writeHead(200,{'Content-Type':mime[path.extname(filePath).toLowerCase()]||'application/octet-stream'});res.end(data);});});server.listen(4173,'127.0.0.1',()=>{const {exec}=require('node:child_process');exec('start http://127.0.0.1:4173');});\n`;
 }
 
-async function buildExe(root, files, outputPath, projectName) {
+async function buildExe(root, files, outputPath, projectName, signal = null) {
   if (!PKG_BIN) throw Object.assign(new Error('O empacotador do Windows não está disponível neste ambiente.'), { code: 'PKG_NOT_AVAILABLE' });
   const packageFile = files.find((file) => file.path.toLowerCase() === 'package.json');
   let pkg = {};
@@ -117,13 +130,13 @@ async function buildExe(root, files, outputPath, projectName) {
   }
   await fs.writeFile(path.join(root, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf8');
   const args = ['.', '--targets', 'node22-win-x64', '--output', outputPath];
-  await run(PKG_BIN, args, root, 300_000);
+  await run(PKG_BIN, args, root, 300_000, signal);
   const stat = await fs.stat(outputPath);
   if (!stat.size) throw Object.assign(new Error('O executável foi produzido vazio.'), { code: 'EMPTY_BUILD' });
   return { outputPath, size: stat.size, entry };
 }
 
-export async function buildProject({ projectName, files, target }) {
+export async function buildProject({ projectName, files, target, signal = null }) {
   const buildId = crypto.randomUUID();
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `prism-build-${buildId}-`));
   try {
@@ -132,8 +145,8 @@ export async function buildProject({ projectName, files, target }) {
     const outputName = `${safeName(projectName)}.${extension}`;
     const outputPath = path.join(tempDir, outputName);
     const result = target === 'jar'
-      ? await buildJar(tempDir, files, outputPath)
-      : await buildExe(tempDir, files, outputPath, projectName);
+      ? await buildJar(tempDir, files, outputPath, signal)
+      : await buildExe(tempDir, files, outputPath, projectName, signal);
     return { buildId, tempDir, outputPath, filename: outputName, size: result.size, details: result };
   } catch (error) {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});

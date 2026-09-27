@@ -235,6 +235,7 @@ router.get('/github/callback', async (req, res) => {
 
     const statePayload = jwt.verify(state, process.env.JWT_SECRET);
     if (statePayload?.purpose !== 'github_oauth') return res.redirect(`${returnTo}?github=error&reason=invalid_state`);
+    const requestedReturnTo = safeReturnPath(statePayload?.returnTo);
 
     const redirectUri = githubRedirectUri(req);
     const tokenData = await exchangeGithubCode(code, redirectUri);
@@ -298,7 +299,7 @@ router.get('/github/callback', async (req, res) => {
     );
     const appToken = issueToken(fresh.rows[0]);
     setGithubSessionCookie(res, appToken);
-    return res.redirect(`${returnTo}?github=success`);
+    return res.redirect(`${requestedReturnTo}?github=success`);
   } catch (error) {
     console.error('GitHub auth error:', { code: error?.code, message: error?.message });
     return res.redirect(`${returnTo}?github=error&reason=oauth_failed`);

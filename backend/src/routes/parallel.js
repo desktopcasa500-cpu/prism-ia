@@ -36,7 +36,7 @@ router.post('/', async (req, res, next) => {
     const user = await pool.query('SELECT plan FROM users WHERE id=$1', [req.userId]);
     if (!user.rows.length) return res.status(401).json({ error: 'Conta não encontrada.' });
     const rank = normalizePlanRank(user.rows[0].plan);
-    if (effort === 'ultracode' && !PLAN_FEATURES[rank]?.ultracode) {
+    if (rawEffort === 'ultracode' && !PLAN_FEATURES[rank]?.ultracode) {
       return res.status(403).json({ error: 'O modo Ultracode está disponível apenas no plano Empresarial.', code: 'PLAN_UPGRADE_REQUIRED', requiredPlan: 'Empresarial' });
     }
     const unavailable = requestedModels.find((entry) => {
@@ -74,7 +74,7 @@ router.post('/', async (req, res, next) => {
     const result = await runParallelOrchestration({
       prompt: content,
       context: effectiveContext,
-      effort,
+      effort: rawEffort,
       userId: req.userId,
       requestedModels,
       mcpServerIds,

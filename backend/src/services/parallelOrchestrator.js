@@ -69,7 +69,7 @@ async function executeTool(tool, args, mcp) {
   catch (error) { return { text: safeText(error?.message || 'Falha na ferramenta MCP'), isError: true }; }
 }
 
-async function callProvider(provider, model, effort, input, tools, mcp, userId) {
+async function callProvider(provider, model, effort, requestedEffort, input, tools, mcp, userId) {
   const keys = provider === 'groq'
     ? getGroqKeyCandidates(userId || 'anonymous')
     : [{ slot: provider, key: ENV[provider]?.() }];
@@ -91,7 +91,7 @@ async function callProvider(provider, model, effort, input, tools, mcp, userId) 
           ...(declared.length ? { tools: declared, tool_choice: 'auto' } : {}),
         };
     if (provider === 'groq' && effort !== 'low') body.reasoning_effort = effort === 'ultracode' || effort === 'max' ? 'high' : effort;
-    if (provider === 'nvidia' && effort === 'ultracode') body.reasoning_effort = 'max';
+    if (provider === 'nvidia' && (requestedEffort === 'ultracode' || requestedEffort === 'max')) body.reasoning_effort = 'max';
         const data = await request(ENDPOINTS[provider], {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyEntry.key}`, ...(provider === 'opencode' ? { 'X-Title': 'Prism IA' } : {}) },
@@ -137,7 +137,8 @@ export async function runParallelOrchestration({
   requestedModels = [],
   mcpServerIds = [],
 }) {
-  const normalizedEffort = normalizeEffort(effort);
+  const requestedEffort = String(effort || 'medium').trim().toLowerCase();
+  const normalizedEffort = normalizeEffort(requestedEffort);
   const selected = requestedModels
     .filter((entry) => entry && PROVIDERS.has(String(entry.provider)) && String(entry.model || '').length <= 120)
     .map((entry) => ({ provider: String(entry.provider), model: String(entry.model) }));
@@ -153,7 +154,7 @@ export async function runParallelOrchestration({
   const started = Date.now();
   try {
     const settled = await Promise.allSettled(unique.map(async (entry) => {
-      const result = await callProvider(entry.provider, entry.model, normalizedEffort, input, mcp.tools, mcp, userId);
+      const result = await callProvider(entry.provider, entry.model, normalizedEffort, requestedEffort, input, mcp.tools, mcp, userId);
       return {
         provider: entry.provider,
         model: entry.model,

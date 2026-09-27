@@ -45,8 +45,13 @@
 .taff-page .taff-parallax-column--left{border-right:1px solid var(--line)}
 .taff-page .taff-parallax-column--right{border-left:1px solid var(--line)}
 .taff-page .taff-parallax-column--center{
-  background:var(--paper);
+  position:relative;
+  top:auto;
+  height:auto;
+  min-height:100%;
   min-width:0;
+  overflow:visible;
+  background:var(--paper);
 }
 .taff-page .taff-parallax-image{
   position:absolute;

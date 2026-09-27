@@ -81,14 +81,14 @@ export default function ChatRelease() {
   const [input, setInput] = useState('');
   const [model, setModel] = useState(readStoredModel);
   const [effort, setEffort] = useState(readStoredEffort);
-  const [projectId, setProjectId] = useState(() => localStorage.getItem('prism.chat.project') || '');
+  const [projectId, setProjectId] = useState(() => readStorage('prism.chat.project'));
   const [attachments, setAttachments] = useState([]);
   const [modelOpen, setModelOpen] = useState(false);
   const [plansOpen, setPlansOpen] = useState(false);
   const [requestedModel, setRequestedModel] = useState('');
   const [search, setSearch] = useState('');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('prism-compact-sidebar') === 'true');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStorage('prism-compact-sidebar') === 'true');
   const { theme, mode: themeMode, cycleMode } = useWorkspaceTheme();
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -152,7 +152,7 @@ export default function ChatRelease() {
   useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
   useEffect(() => { localStorage.setItem('prism.home.model', model); }, [model]);
   useEffect(() => { localStorage.setItem('prism-default-effort', effort); }, [effort]);
-  useEffect(() => { localStorage.setItem('prism.chat.project', projectId); }, [projectId]);
+  useEffect(() => { writeStorage('prism.chat.project', projectId); }, [projectId]);
   useEffect(() => { localStorage.setItem('prism-compact-sidebar', String(sidebarCollapsed)); }, [sidebarCollapsed]);
   useEffect(() => {
     if (!followingBottom) return undefined;

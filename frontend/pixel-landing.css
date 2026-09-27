@@ -18,7 +18,9 @@
   .home-system{min-height:0}
 }
 @media(max-width:620px){
-  .pixel-brand-image{width:27px;height:27px}
+  .pixel-logo-image{width:27px;height:27px}
   .home-link{min-height:220px}
   .home-bottom{min-height:460px}
 }
+
+#sinal{scroll-margin-top:86px}

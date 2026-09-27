@@ -3,6 +3,22 @@ import { aiNews } from '../data/aiNews';
 import { api } from '../lib/api.js';
 import './prism-news.css';
 
+function normalizeRemoteNews(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      category: String(item.category || 'IA').trim(),
+      date: String(item.date || '').trim(),
+      title: String(item.title || '').trim(),
+      description: String(item.description || '').trim(),
+      source: String(item.source || '').trim(),
+      sourceUrl: String(item.sourceUrl || '').trim(),
+      image: typeof item.image === 'string' ? item.image.trim() : '',
+    }))
+    .filter((item) => item.title && item.description && item.source && /^https?:\\/\\//i.test(item.sourceUrl));
+}
+
 export default function PrismNews() {
   // aiNews (arquivo estático) é usado só como fallback visual até a primeira
   // busca automática rodar no backend, ou se a API falhar por algum motivo.
@@ -17,7 +33,8 @@ export default function PrismNews() {
         if (!alive) return;
         const updatedAt = result?.updatedAt ? new Date(result.updatedAt).getTime() : 0;
         const freshEnough = updatedAt > 0 && (Date.now() - updatedAt) < (7 * 24 * 60 * 60 * 1000);
-        if (freshEnough && Array.isArray(result?.items) && result.items.length) setNews(result.items);
+        const remoteItems = normalizeRemoteNews(result?.items);
+        if (freshEnough && remoteItems.length) setNews(remoteItems);
         if (freshEnough && result?.updatedLabel) setUpdatedLabel(result.updatedLabel);
         if (!freshEnough) setUpdatedLabel('BASE EDITORIAL / SET 2026');
       } catch {

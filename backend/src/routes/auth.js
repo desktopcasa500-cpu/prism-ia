@@ -233,7 +233,7 @@ router.get('/github/callback', async (req, res) => {
     const code = String(req.query?.code || '');
     if (!state || !code) return res.redirect(`${returnTo}?github=error&reason=missing_code`);
 
-    const statePayload = jwt.verify(state, process.env.JWT_SECRET);
+    const statePayload = jwt.verify(state, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (statePayload?.purpose !== 'github_oauth') return res.redirect(`${returnTo}?github=error&reason=invalid_state`);
     const requestedReturnTo = safeReturnPath(statePayload?.returnTo);
 
@@ -310,10 +310,10 @@ router.post('/github/session', async (req, res) => {
   const token = cookieValue(req.headers.cookie, 'prism_github_auth');
   if (!token || !process.env.JWT_SECRET) return res.status(401).json({ error: 'Sessão GitHub não encontrada.', code: 'GITHUB_SESSION_MISSING' });
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    const sessionPayload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const result = await pool.query(
       'SELECT id, email, name, plan, created_at FROM users WHERE id = $1',
-      [(jwt.decode(token) || {}).sub],
+      [sessionPayload?.sub],
     );
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'Usuário do GitHub não encontrado.', code: 'GITHUB_USER_NOT_FOUND' });

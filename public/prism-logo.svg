@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img">
+  <defs>
+    <linearGradient id="prism-star" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7a3d"/>
+      <stop offset=".24" stop-color="#fff"/>
+      <stop offset=".76" stop-color="#fff"/>
+      <stop offset="1" stop-color="#ff7a3d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="207" fill="#1d1d1b"/>
+  <path fill="url(#prism-star)" d="M256 111 287 225 401 256 287 287 256 401 225 287 111 256 225 225Z"/>
+</svg>

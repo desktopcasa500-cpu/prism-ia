@@ -155,8 +155,12 @@ export default function ChatRelease() {
   useEffect(() => { localStorage.setItem('prism.chat.project', projectId); }, [projectId]);
   useEffect(() => { localStorage.setItem('prism-compact-sidebar', String(sidebarCollapsed)); }, [sidebarCollapsed]);
   useEffect(() => {
-    if (!followingBottom) return;
-    endRef.current?.scrollIntoView({ behavior: messages.length > 1 ? 'smooth' : 'auto', block: 'end' });
+    if (!followingBottom) return undefined;
+    let frame = 0;
+    frame = requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: sending || streamingText ? 'auto' : messages.length > 1 ? 'smooth' : 'auto', block: 'end' });
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages, streamingText, sending, commandOutput, followingBottom]);
   useEffect(() => { const timer = setTimeout(() => inputRef.current?.focus(), 80); return () => clearTimeout(timer); }, [sessionId]);
   useEffect(() => {

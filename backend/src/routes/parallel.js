@@ -11,6 +11,8 @@ const ALLOWED_PROVIDERS = new Set(['nvidia', 'groq', 'opencode']);
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
 const MAX_MESSAGE_LENGTH = 20_000;
 const MAX_MODELS = 3;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
 router.post('/', async (req, res, next) => {
   const sessionId = String(req.body?.sessionId || '').trim();
@@ -24,6 +26,7 @@ router.post('/', async (req, res, next) => {
   const mcpServerIds = Array.isArray(req.body?.mcpServerIds) ? req.body.mcpServerIds.map(String).slice(0, 32) : [];
 
   if (!sessionId || !content) return res.status(400).json({ error: 'Sessão e mensagem são obrigatórias.' });
+  if (!isUuid(sessionId)) return res.status(400).json({ error: 'Identificador de sessão inválido.', code: 'INVALID_SESSION_ID' });
   if (content.length > MAX_MESSAGE_LENGTH) return res.status(413).json({ error: 'Mensagem muito longa.' });
   if (!ALLOWED_EFFORTS.has(rawEffort)) return res.status(400).json({ error: 'Nível de pensamento inválido.', code: 'INVALID_EFFORT' });
   if (!requestedModels.length) return res.status(400).json({ error: 'Selecione pelo menos um modelo.' });

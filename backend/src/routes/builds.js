@@ -10,22 +10,28 @@ import { zipWorkspace } from '../services/artifactService.js';
 import { releaseUsage, recordTokens, reserveUsage } from '../services/usage.js';
 
 const router = Router();
-const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+function downloadSecretValue() {
+  return String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+}
 const buildCache = new Map();
 const BUILD_TTL_MS = 60 * 60 * 1000;
 
 function signDownload(buildId, userId, expiresAt) {
   const payload = `${buildId}.${userId}.${expiresAt}`;
-  const sig = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
+  const secret = downloadSecretValue();
+  if (!secret) throw Object.assign(new Error('Segredo de download de build não configurado.'), { code: 'BUILD_DOWNLOAD_SECRET_MISSING', status: 503 });
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   return Buffer.from(`${payload}.${sig}`).toString('base64url');
 }
 function verifyDownload(token, buildId) {
   try {
+    const secret = downloadSecretValue();
+    if (!secret) return null;
     const value = Buffer.from(String(token || ''), 'base64url').toString('utf8');
     const [id, userId, expiresAt, sig] = value.split('.');
     if (id !== buildId || !userId || !sig || Number(expiresAt) <= Date.now()) return null;
     const payload = `${id}.${userId}.${expiresAt}`;
-    const expected = crypto.createHmac('sha256', downloadSecret).update(payload).digest('hex');
+    const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
     const left = Buffer.from(sig); const right = Buffer.from(expected);
     if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
     return userId;

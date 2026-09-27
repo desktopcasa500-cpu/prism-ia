@@ -6,12 +6,16 @@ import { zipSync } from 'fflate';
 import { pool } from '../db/pool.js';
 
 const TTL = 60 * 60 * 1000;
-const SECRET = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
+function downloadSecretValue() {
+  return String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+}
 const SKIP_DIRS = new Set(['node_modules','.git','.prism-classes']);
 
 function sign(buildId, userId, expiresAt) {
   const payload = `${buildId}.${userId}.${expiresAt}`;
-  const signature = crypto.createHmac('sha256', SECRET).update(payload).digest('hex');
+  const secret = downloadSecretValue();
+  if (!secret) throw Object.assign(new Error('Segredo de download de build não configurado.'), { code: 'BUILD_DOWNLOAD_SECRET_MISSING', status: 503 });
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
   return Buffer.from(`${payload}.${signature}`).toString('base64url');
 }
 function safeName(value) { return String(value || 'prism-project').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'prism-project'; }

@@ -10,7 +10,7 @@ import { zipWorkspace } from '../services/artifactService.js';
 import { releaseUsage, recordTokens, reserveUsage } from '../services/usage.js';
 
 const router = Router();
-const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
+const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
 const buildCache = new Map();
 const BUILD_TTL_MS = 60 * 60 * 1000;
 

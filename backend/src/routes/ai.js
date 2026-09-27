@@ -11,6 +11,8 @@ const MAX_FILE_CONTENT = 2_000_000;
 const PLAN_NAMES = ['Grátis', 'Base', 'Medium', 'Pro', 'Empresarial'];
 const ALLOWED_EFFORTS = new Set(['low', 'medium', 'high', 'max', 'ultracode']);
 const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente novamente mais tarde.';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
 function parseArtifacts(text) {
   const artifacts = [];
@@ -34,9 +36,10 @@ async function authorizeGeneration(userId, model, thinking) {
   if (thinking === 'ultracode' && !PLAN_FEATURES[account.rank]?.ultracode) return { ok: false, status: 403, code: 'PLAN_UPGRADE_REQUIRED', error: 'O modo Ultracode está disponível apenas no plano Empresarial.', model, requiredPlan: 'Empresarial' };
   return { ok: true, ...account };
 }
-async function validateSession(sessionId, userId) { if (!sessionId) return null; const result = await pool.query('SELECT id,title,surface FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]); if (!result.rows.length) throw Object.assign(new Error('Sessão não encontrada.'), { status: 404, code: 'SESSION_NOT_FOUND' }); return result.rows[0]; }
+async function validateSession(sessionId, userId) { if (!sessionId) return null; if (!isUuid(sessionId)) throw Object.assign(new Error('Identificador de sessão inválido.'), { status: 400, code: 'INVALID_SESSION_ID' }); const result = await pool.query('SELECT id,title,surface FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]); if (!result.rows.length) throw Object.assign(new Error('Sessão não encontrada.'), { status: 404, code: 'SESSION_NOT_FOUND' }); return result.rows[0]; }
 async function loadProjectContext(projectId, userId) {
   if (!projectId) return { project: null, files: [] };
+  if (!isUuid(projectId)) throw Object.assign(new Error('Identificador de projeto inválido.'), { status: 400, code: 'INVALID_PROJECT_ID' });
   const project = await pool.query('SELECT id,name FROM projects WHERE id=$1 AND user_id=$2', [projectId, userId]);
   if (!project.rows.length) throw Object.assign(new Error('Projeto não encontrado'), { status: 404, code: 'PROJECT_NOT_FOUND' });
   const files = await pool.query('SELECT id,path,content,kind,updated_at FROM project_files WHERE project_id=$1 AND user_id=$2 ORDER BY path', [projectId, userId]);
@@ -44,6 +47,7 @@ async function loadProjectContext(projectId, userId) {
 }
 async function loadAttachments(ids, userId) {
   const safe = Array.isArray(ids) ? [...new Set(ids.map(String).filter(Boolean))].slice(0, 20) : [];
+  if (safe.some((id) => !isUuid(id))) throw Object.assign(new Error('Identificador de anexo inválido.'), { status: 400, code: 'INVALID_ATTACHMENT_ID' });
   if (!safe.length) return { ids: [], attachments: [], context: '' };
   const result = await pool.query('SELECT id,name,mime_type,size_bytes,content FROM uploads WHERE id=ANY($2::uuid[]) AND user_id=$1 ORDER BY created_at ASC', [userId, safe]);
   const attachments = result.rows.map((row) => ({ id: row.id, name: row.name, mime_type: row.mime_type, size_bytes: Number(row.size_bytes || 0) }));

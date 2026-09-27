@@ -31,8 +31,8 @@
 }
 .prism-scroll-story__side{
   position:sticky;
-  top:58px;
-  height:calc(100vh - 58px);
+  top:66px;
+  height:calc(100vh - 66px);
   min-height:520px;
   overflow:hidden;
   background:#22211e;
@@ -286,13 +286,13 @@
   .prism-scroll-story__center-image{
     display:block;
     position:sticky;
-    top:58px;
-    height:calc(100vh - 58px);
+    top:66px;
+    height:calc(100vh - 66px);
     min-height:460px;
     opacity:.12;
-    margin-bottom:calc(-100vh + 58px);
+    margin-bottom:calc(-100vh + 66px);
   }
-  .prism-scroll-story__hero{min-height:calc(100vh - 58px);padding:72px 24px 56px}
+  .prism-scroll-story__hero{min-height:calc(100vh - 66px);padding:72px 24px 56px}
   .prism-scroll-story__hero-title{font-size:clamp(54px,12vw,96px)}
   .prism-scroll-story__chapter{
     grid-template-columns:62px minmax(0,1fr);

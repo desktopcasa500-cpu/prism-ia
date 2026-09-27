@@ -1,56 +1,56 @@
 export const aiNews = [
   {
     category: 'MODELOS / ANTHROPIC',
-    date: '24 JUL 2026',
-    title: 'Claude Opus 5 chega perto do Fable 5 pela metade do preço',
-    description: 'A Anthropic apresentou o Opus 5 como seu novo modelo de uso diário. A empresa diz que ele se aproxima da inteligência de fronteira do Fable 5 a metade do preço e lidera avaliações de coding e knowledge work, embora ainda fique atrás do Mythos 5 em tarefas de cibersegurança.',
+    date: '24 SET 2026',
+    title: 'Claude Opus 5.5 reduz custo e amplia foco em segurança',
+    description: 'A Anthropic apresentou o Claude Opus 5.5 em 22 de setembro, destacando desempenho para trabalho profissional com menor custo operacional e novas salvaguardas para usos sensíveis.',
     source: 'Anthropic',
-    sourceUrl: 'https://www.anthropic.com/news/claude-opus-5',
-    image: 'https://postimg.futunn.com/news-editor-imgs/20260725/public/17849125208795992365262-17849125208789344915108.png'
+    sourceUrl: 'https://www.anthropic.com/news',
+    image: '/news/ai-models.svg'
+  },
+  {
+    category: 'PESQUISA / ANTHROPIC',
+    date: '23 SET 2026',
+    title: 'Claude é usado em pesquisa de novas famílias de proteínas',
+    description: 'A Anthropic descreveu um trabalho de laboratório em que Claude ajudou pesquisadores a analisar dados de DNA, formular hipóteses e identificar um novo sistema enzimático com repetições semelhantes às de CRISPR.',
+    source: 'Anthropic',
+    sourceUrl: 'https://www.anthropic.com/news/claude-discovers-novel-enzyme-system',
+    image: '/news/ai-agents.svg'
+  },
+  {
+    category: 'PRODUTO / GOOGLE',
+    date: '24 SET 2026',
+    title: 'Gemini 3.8 Live ganha presença visual em tempo real',
+    description: 'O Google anunciou o Gemini 3.8 Live com Live Avatar, combinando diálogo ao vivo com vídeo de baixa latência para criar interações mais naturais e visuais.',
+    source: 'Google',
+    sourceUrl: 'https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-8-live-with-live-avatar/',
+    image: '/news/ai-models.svg'
+  },
+  {
+    category: 'MODELOS / OPENAI',
+    date: '22 SET 2026',
+    title: 'GPT-6 Sol e Luna ampliam a família GPT-6',
+    description: 'A OpenAI apresentou GPT-6 Sol e GPT-6 Luna como modelos voltados a diferentes escalas de trabalho, com foco em capacidade, eficiência de custo, coding e uso por agentes.',
+    source: 'OpenAI',
+    sourceUrl: 'https://openai.com/index/introducing-gpt-6-sol-and-luna/',
+    image: '/news/ai-models.svg'
   },
   {
     category: 'INFRAESTRUTURA / OPENAI',
-    date: '01 JUN 2026',
-    title: 'OpenAI inicia as obras de The Barn, campus de data center de 1 GW em Michigan',
-    description: 'A OpenAI anunciou o início das obras de The Barn, em Saline, Michigan. O campus de 1 GW faz parte do Stargate e foi projetado com resfriamento em circuito fechado e compromissos de infraestrutura e empregos locais.',
+    date: '22 SET 2026',
+    title: 'Novo sistema de cache de prompts acelera agentes de longa duração',
+    description: 'A OpenAI apresentou melhorias de cache para GPT-6, com maior reaproveitamento de prefixos, diagnóstico de cache misses e suporte para variar o esforço de raciocínio sem invalidar o contexto reutilizável.',
     source: 'OpenAI',
-    sourceUrl: 'https://openai.com/pt-BR/index/stargate-michigan-data-center/',
-    image: 'https://cdn.baxtel.com/data-center/openai-stargate-benton-mi-the-barn/photos/OpenAI-Stargate-Benton-MI-The-Barn-Rendering-of-OpenAI-Stargate-Project-The-Barn-in-Benton-Michigan.png'
+    sourceUrl: 'https://openai.com/index/better-prompt-caching-for-gpt-6/',
+    image: '/news/ai-infrastructure.svg'
   },
   {
-    category: 'CHIPS / INFERÊNCIA',
-    date: '25 AGO 2026',
-    title: 'Jalapeño mostra resultados medidos de velocidade e eficiência na inferência',
-    description: 'A OpenAI divulgou os primeiros resultados medidos do seu chip de inferência Jalapeño. Nos testes publicados, o sistema apresentou mais trabalho de IA por watt e menor latência em diferentes famílias de modelos.',
-    source: 'OpenAI',
-    sourceUrl: 'https://openai.com/index/jalapeno-first-results/',
-    image: 'https://etimg.etb2bimg.com/thumb/msid-131981869%2Cwidth-1200%2Cheight-900%2Cresizemode-4/.jpg'
-  },
-  {
-    category: 'MODELOS / OPEN SOURCE',
-    date: '14 AGO 2026',
-    title: 'GLM-5.3 se aproxima do Mythos 5 em um teste de defesa cibernética',
-    description: 'A Z.ai afirmou que o GLM-5.3 marcou 84,5% no CyberGym, contra 83,8% atribuídos ao Mythos 5 nesse teste. Em ExploitBench, porém, o resultado foi inferior, mostrando por que uma única métrica não conta toda a história.',
-    source: 'Reuters',
-    sourceUrl: 'https://www.reuters.com/technology/chinas-zai-says-new-model-nears-anthropics-mythos-5-cyber-defence-tests-2026-08-14/',
-    image: 'https://i.mscdn.ai/images/a47f3f3a-a1fa-41ca-8de3-e415452b4611_1767897508929.png'
-  },
-  {
-    category: 'PRODUTO / ANTHROPIC',
-    date: '25 AGO 2026',
-    title: 'Memória do Claude passa a funcionar de forma mais ampla, com controle do usuário',
-    description: 'A Anthropic publicou uma atualização sobre a memória do Claude e destacou que o usuário decide o que entra nesse contexto. A mudança faz parte da evolução do produto em direção a conversas mais contínuas.',
-    source: 'Anthropic',
-    sourceUrl: 'https://claude.com/blog-category/announcements',
-    image: 'https://beactive.it/img_news/Anthropic-presenta-Claude%2C-lAI-che-puo-controllare-un-pc.jpg'
-  },
-  {
-    category: 'INFRAESTRUTURA / ANTHROPIC',
-    date: '06 AGO 2026',
-    title: 'Anthropic confirma plano para uma equipe própria de chips',
-    description: 'A Anthropic confirmou que está montando uma equipe de silício personalizado para projetar chips destinados a executar seus modelos. A iniciativa acompanha a corrida do setor para reduzir dependência de hardware de terceiros.',
-    source: 'Ars Technica',
-    sourceUrl: 'https://arstechnica.com/ai/2026/08/anthropic-confirms-plans-to-build-an-in-house-silicon-team/',
-    image: 'https://asset.redpandaai.co/x-signal/claude-opus-5-leak-vs/evidence-2076976628094095448-m8zton.jpg'
+    category: 'ROBÓTICA / NVIDIA',
+    date: '22 SET 2026',
+    title: 'NVIDIA atualiza Isaac ROS para desenvolvimento de robôs agentes',
+    description: 'O Isaac ROS 5.0 amplia o conjunto de software aberto para robôs capazes de perceber, raciocinar e agir em ambientes dinâmicos, conectando modelos físicos a fluxos de desenvolvimento mais práticos.',
+    source: 'NVIDIA',
+    sourceUrl: 'https://nvidianews.nvidia.com/news/isaac-ros-5-0-advances-agentic-open-source-robotics-development',
+    image: '/news/ai-agents.svg'
   }
 ];

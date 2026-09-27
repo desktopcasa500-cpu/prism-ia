@@ -17,7 +17,7 @@ function publishedDateFromAge(age) {
   if (!raw) return null;
   const direct = new Date(raw);
   if (!Number.isNaN(direct.getTime())) return direct.toISOString().slice(0, 10);
-  const match = raw.toLowerCase().match(/(?:about\\s+)?(\\d+)\\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months)\\s+ago/);
+  const match = raw.toLowerCase().match(/(?:about\s+)?(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks|month|months)\s+ago/);
   if (!match) return null;
   const amount = Number(match[1]);
   if (!Number.isFinite(amount)) return null;

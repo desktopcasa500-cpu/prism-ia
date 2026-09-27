@@ -51,6 +51,8 @@ export default function Landing() {
       </header>
 
       <main>
+        <PrismScrollStory />
+
         <section className="pixel-hero new-hero">
           <div className="pixel-hero-main">
             <div className="pixel-kicker">PRISM IA / 2026 / SOFTWARE ENGINEERING</div>
@@ -69,8 +71,6 @@ export default function Landing() {
             <div className="hero-note"><b>MULTIPLE ENGINES.</b><br />ONE WORKSPACE.<br /><small>Uma interface para o trabalho inteiro.</small></div>
           </aside>
         </section>
-
-        <PrismScrollStory />
 
         <section className="home-intro home-intro-expanded">
           <span>01 / A IDEIA</span>

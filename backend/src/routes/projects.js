@@ -4,6 +4,8 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 router.use(requireAuth);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const validId = (value) => typeof value === 'string' && UUID.test(value);
 
 router.get('/', async (req, res, next) => {
   try {
@@ -28,6 +30,7 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Identificador inválido.', code: 'INVALID_PROJECT_ID' });
     const project = await pool.query(
       'SELECT id,name,created_at,updated_at FROM projects WHERE id=$1 AND user_id=$2',
       [req.params.id, req.userId],
@@ -43,6 +46,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Identificador inválido.', code: 'INVALID_PROJECT_ID' });
     const name = String(req.body?.name || '').trim().slice(0, 120);
     if (!name) return res.status(400).json({ error: 'Nome inválido' });
     const result = await pool.query(
@@ -56,6 +60,7 @@ router.patch('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    if (!validId(req.params.id)) return res.status(400).json({ error: 'Identificador inválido.', code: 'INVALID_PROJECT_ID' });
     const result = await pool.query('DELETE FROM projects WHERE id=$1 AND user_id=$2 RETURNING id', [req.params.id, req.userId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Projeto não encontrado' });
     res.status(204).end();

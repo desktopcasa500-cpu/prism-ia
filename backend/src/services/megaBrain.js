@@ -5,7 +5,7 @@ const MAX_INPUT = 24_000;
 const MAX_ADVISORY = 14_000;
 
 const keys = {
-  nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
+  nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NVIDIA_API_KEY || process.env.NIM_API_KEY,
   groq: () => isGroqConfigured(),
   opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
 };
@@ -142,11 +142,13 @@ export async function runMegaBrain({ prompt, context = '', userId = null, projec
     String(context || '').slice(-MAX_INPUT),
   ].join('\n');
 
-  emit(onProgress, 'megabrain_start', {
-    message: 'MegaBrain ativado: consultando NVIDIA Kimi K3, Groq GPT-OSS 120B e OpenCode Zen Big Pickle.',
-  });
-
   const enabled = ADVISORS.filter((advisor) => Boolean(advisor.key()));
+
+  emit(onProgress, 'megabrain_start', {
+    message: enabled.length
+      ? `MegaBrain ativado: consultando ${enabled.map((advisor) => `${advisor.provider} ${advisor.model}`).join(', ')}.`
+      : 'MegaBrain indisponível: nenhum conselheiro está configurado.',
+  });
   if (!enabled.length) {
     return {
       status: 'unavailable',

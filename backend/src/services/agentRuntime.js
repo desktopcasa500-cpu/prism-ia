@@ -14,7 +14,7 @@ const MAX_OUTPUT = 24_000;
 const DEFAULT_TIMEOUT = 120_000;
 const MAX_TIMEOUT = 300_000;
 const DOWNLOAD_TTL = 60 * 60 * 1000;
-const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || 'change-this-build-secret');
+const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
 const SAFE_EXECUTABLES = new Set(['node','nodejs','npm','npx','pnpm','yarn','bun','java','javac','jar','mvn','gradle','gradlew','python','python3','pip','pip3','ruby','go','rustc','cargo','tsc','eslint','prettier','git','zip','unzip']);
 const BLOCKED = [/rm\s+-rf/i,/rmdir\b/i,/del\s+\/s\b/i,/format\b/i,/mkfs\b/i,/shutdown\b/i,/reboot\b/i,/diskpart\b/i,/chmod\s+777\b/i,/curl\s+[^\s]+\s*\|\s*(sh|bash)\b/i,/wget\s+[^\s]+\s*\|\s*(sh|bash)\b/i];
 

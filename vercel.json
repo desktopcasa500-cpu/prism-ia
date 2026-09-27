@@ -12,9 +12,19 @@
   ],
   "buildCommand": "npm run check && npm run build",
   "rewrites": [
-    {
-      "source": "/((?!api(?:/|$)|assets(?:/|$)|news(?:/|$)|prism-logo\\.svg$|index\\.html$).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/register", "destination": "/index.html" },
+    { "source": "/chat", "destination": "/index.html" },
+    { "source": "/codex", "destination": "/index.html" },
+    { "source": "/studio", "destination": "/index.html" },
+    { "source": "/configuracoes", "destination": "/index.html" },
+    { "source": "/workspace", "destination": "/index.html" },
+    { "source": "/prism-taff", "destination": "/index.html" },
+    { "source": "/modelos", "destination": "/index.html" },
+    { "source": "/modelos/:id", "destination": "/index.html" },
+    { "source": "/informacoes", "destination": "/index.html" },
+    { "source": "/informacoes/:id", "destination": "/index.html" },
+    { "source": "/termos", "destination": "/index.html" },
+    { "source": "/termos/:topic", "destination": "/index.html" }
   ]
 }

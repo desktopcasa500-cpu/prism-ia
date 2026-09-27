@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import GoogleSignIn from '../components/GoogleSignIn.jsx';
+import GitHubSignIn from '../components/GitHubSignIn.jsx';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -12,6 +13,37 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const githubStatus = params.get('github');
+    if (!githubStatus) return;
+
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    if (githubStatus !== 'success') {
+      setError('Não foi possível entrar com o GitHub. Tente novamente.');
+      return;
+    }
+
+    let active = true;
+    setBusy(true);
+    api.post('/auth/github/session')
+      .then((result) => {
+        if (!active) return;
+        if (!result.token || !result.user) throw new Error('A resposta do GitHub está incompleta.');
+        login(result.token, result.user);
+        navigate('/chat', { replace: true });
+      })
+      .catch((err) => {
+        if (active) setError(err.message || 'Não foi possível finalizar o login com o GitHub.');
+      })
+      .finally(() => {
+        if (active) setBusy(false);
+      });
+
+    return () => { active = false; };
+  }, [login, navigate]);
 
   async function submit(event) {
     event.preventDefault();
@@ -56,7 +88,10 @@ export default function Login() {
               <p>Continue exatamente de onde parou.</p>
             </div>
 
-            <GoogleSignIn onSuccess={() => navigate('/chat', { replace: true })} />
+            <div className="auth-social-stack">
+              <GoogleSignIn onSuccess={() => navigate('/chat', { replace: true })} />
+              <GitHubSignIn disabled={busy} />
+            </div>
             <div className="auth-card__divider"><span>ou</span></div>
 
             <form className="auth-card__form" onSubmit={submit}>

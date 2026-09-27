@@ -118,3 +118,260 @@
   .taff-page .taff-intro h1{transform:none!important;will-change:auto}
 }
 
+
+/* TAFF 2.0 — final visual polish */
+.taff-page{
+  --taff-cream:#f4f1e8;
+  --taff-deep:#10100f;
+  --taff-soft:#8b877d;
+  background:
+    radial-gradient(circle at 50% -10%,rgba(255,255,255,.55),transparent 34%),
+    var(--taff-cream);
+}
+.taff-page .site-header{
+  background:rgba(244,241,232,.82);
+  backdrop-filter:blur(18px) saturate(120%);
+  box-shadow:0 1px 0 rgba(21,21,21,.04);
+}
+.taff-page .site-brand{letter-spacing:.01em}
+.taff-page .site-header nav a{transition:background .22s ease,color .22s ease}
+.taff-page .taff-parallax-layout{
+  isolation:isolate;
+}
+.taff-page .taff-scroll-progress{
+  position:fixed;
+  z-index:35;
+  top:59px;
+  left:0;
+  width:100%;
+  height:2px;
+  background:rgba(21,21,21,.08);
+  pointer-events:none;
+}
+.taff-page .taff-scroll-progress span{
+  display:block;
+  width:calc(var(--taff-scroll-progress,0) * 100%);
+  height:100%;
+  background:linear-gradient(90deg,var(--hot),var(--red));
+  transform-origin:left center;
+  transition:width .08s linear;
+}
+.taff-page .taff-scroll-index{
+  position:fixed;
+  z-index:34;
+  right:18px;
+  top:78px;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  align-items:flex-end;
+  pointer-events:none;
+  color:rgba(21,21,21,.55);
+  font:700 8px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.taff-page .taff-scroll-index b{
+  font-weight:500;
+  color:rgba(21,21,21,.34);
+}
+.taff-page .taff-intro{
+  min-height:calc(100dvh - 60px);
+  padding-top:clamp(56px,8vw,112px);
+  padding-bottom:clamp(64px,8vw,110px);
+  background:
+    linear-gradient(90deg,rgba(255,255,255,.26),transparent 24%,transparent 76%,rgba(0,0,0,.025)),
+    transparent;
+}
+.taff-page .taff-intro h1{
+  font-size:clamp(68px,9.8vw,156px);
+  line-height:.79;
+  letter-spacing:-.095em;
+  text-wrap:balance;
+}
+.taff-page .taff-intro h1 em{
+  color:transparent;
+  -webkit-text-stroke:1.2px var(--ink);
+  text-shadow:none;
+}
+.taff-page .taff-intro .lead{
+  max-width:640px;
+  color:#4d4b45;
+  font-size:clamp(15px,1.25vw,18px);
+  line-height:1.65;
+}
+.taff-page .taff-seal{
+  letter-spacing:.16em;
+  font-weight:700;
+}
+.taff-page .taff-seal-dot{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--hot);
+  box-shadow:0 0 0 4px rgba(255,76,18,.08);
+}
+.taff-page .taff-hero-code{
+  margin:22px 0 0;
+  color:#77736a;
+  font:700 8px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;
+  letter-spacing:.12em;
+}
+.taff-page .taff-hero-code span{color:var(--hot);padding:0 5px}
+.taff-page .taff-cta-primary,
+.taff-page .taff-cta-secondary{
+  min-height:48px;
+  border-radius:1px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition:transform .22s ease,background .22s ease,border-color .22s ease,box-shadow .22s ease;
+}
+.taff-page .taff-cta-primary:hover{
+  transform:translateY(-2px);
+  box-shadow:5px 5px 0 var(--hot);
+}
+.taff-page .taff-cta-secondary:hover{
+  transform:translateY(-2px);
+  box-shadow:5px 5px 0 rgba(21,21,21,.12);
+}
+.taff-page .taff-proof{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.18);
+}
+.taff-page .taff-proof article{
+  min-height:176px;
+  padding:22px 24px 25px;
+  border-right:1px solid var(--line);
+  display:grid;
+  grid-template-columns:32px 1fr;
+  grid-template-rows:auto 1fr;
+  column-gap:12px;
+  row-gap:14px;
+  transition:background .25s ease,transform .25s ease;
+}
+.taff-page .taff-proof article:last-child{border-right:0}
+.taff-page .taff-proof article:hover{
+  background:#ece8de;
+}
+.taff-page .taff-proof span{
+  font:700 9px ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:#99958b;
+}
+.taff-page .taff-proof strong{
+  font-size:15px;
+  letter-spacing:-.02em;
+}
+.taff-page .taff-proof p{
+  grid-column:2;
+  align-self:end;
+  margin:0;
+  max-width:280px;
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.55;
+}
+.taff-page .taff-about{
+  padding-top:clamp(68px,8vw,118px);
+  padding-bottom:clamp(74px,9vw,130px);
+}
+.taff-page .taff-about p{
+  max-width:980px;
+  font-size:clamp(21px,2.4vw,34px);
+  line-height:1.35;
+  letter-spacing:-.03em;
+}
+.taff-page .taff-cases article{
+  padding:32px 0;
+  transition:padding .25s ease,background .25s ease;
+}
+.taff-page .taff-cases article:hover{
+  padding-left:12px;
+  padding-right:12px;
+  background:rgba(255,255,255,.22);
+}
+.taff-page .taff-cases h2{
+  font-size:clamp(25px,3.2vw,46px);
+  letter-spacing:-.055em;
+}
+.taff-page .taff-cases p{
+  font-size:13px;
+  line-height:1.7;
+}
+.taff-page .taff-closing{
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 80% 20%,rgba(255,76,18,.16),transparent 25%),
+    var(--ink);
+}
+.taff-page .taff-closing:after{
+  content:"TAFF";
+  position:absolute;
+  right:-2vw;
+  bottom:-8vw;
+  color:rgba(255,255,255,.035);
+  font:900 clamp(180px,30vw,520px)/.72 Arial,Helvetica,sans-serif;
+  letter-spacing:-.1em;
+  pointer-events:none;
+}
+.taff-page .taff-closing h2,
+.taff-page .taff-closing p,
+.taff-page .taff-closing span{position:relative;z-index:1}
+.taff-page .taff-closing h2{max-width:760px}
+.taff-page .taff-closing p{font-size:15px}
+.taff-page .taff-final-cta{
+  min-height:220px;
+  align-items:center;
+  background:#ebe8df;
+}
+.taff-page .taff-final-cta a{
+  position:relative;
+  text-decoration:none;
+  padding-bottom:4px;
+}
+.taff-page .taff-final-cta a:after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  height:1px;
+  background:currentColor;
+  transform:scaleX(.45);
+  transform-origin:left;
+  transition:transform .22s ease;
+}
+.taff-page .taff-final-cta a:hover:after{transform:scaleX(1)}
+.taff-page [data-taff-reveal]{
+  opacity:0;
+  transform:translateY(26px);
+  transition:opacity .8s cubic-bezier(.2,.75,.2,1),transform .8s cubic-bezier(.2,.75,.2,1);
+}
+.taff-page [data-taff-reveal].is-visible{
+  opacity:1;
+  transform:none;
+}
+@media(max-width:900px){
+  .taff-page .taff-scroll-index{display:none}
+  .taff-page .taff-proof{grid-template-columns:1fr}
+  .taff-page .taff-proof article{border-right:0;border-bottom:1px solid var(--line)}
+  .taff-page .taff-proof article:last-child{border-bottom:0}
+  .taff-page .taff-intro h1{font-size:clamp(62px,15vw,104px)}
+}
+@media(max-width:560px){
+  .taff-page .taff-scroll-progress{top:59px}
+  .taff-page .taff-intro{min-height:calc(100svh - 60px);padding-top:52px}
+  .taff-page .taff-intro h1{font-size:19vw}
+  .taff-page .taff-hero-code{max-width:240px;line-height:1.6}
+  .taff-page .taff-proof article{min-height:146px;padding:20px}
+  .taff-page .taff-about p{font-size:21px}
+}
+@media(prefers-reduced-motion:reduce){
+  .taff-page [data-taff-reveal]{opacity:1;transform:none;transition:none}
+  .taff-page .taff-cta-primary,
+  .taff-page .taff-cta-secondary{transition:none}
+}

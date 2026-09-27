@@ -27,7 +27,22 @@ async function resolvePlan(req) {
 export async function trafficGate(req, res, next) {
   if (!isGenerationRequest(req)) return next();
   const plan = await resolvePlan(req);
-  const result = await acquireTrafficSlot(plan);
+  const queueAbort = new AbortController();
+  const onAbort = () => queueAbort.abort();
+  req.once('aborted', onAbort);
+  const onClose = () => { if (!res.writableEnded) queueAbort.abort(); };
+  res.once('close', onClose);
+  let result;
+  try {
+    result = await acquireTrafficSlot(plan, queueAbort.signal);
+  } catch (error) {
+    req.off('aborted', onAbort);
+    res.off('close', onClose);
+    if (error?.code === 'TRAFFIC_REQUEST_ABORTED') return;
+    throw error;
+  }
+  req.off('aborted', onAbort);
+  res.off('close', onClose);
   if (!result.ok) {
     const retryAfter = Math.max(30, Number(result.traffic?.etaMinutes || 1) * 60);
     res.setHeader('Retry-After', String(retryAfter));

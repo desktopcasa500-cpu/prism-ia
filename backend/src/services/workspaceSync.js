@@ -12,28 +12,31 @@ function safePath(root, absolute) {
   return relative;
 }
 
-async function collect(root, current = root, out = []) {
+async function collect(root, current = root, out = [], state = { truncated: false }) {
   const entries = await fs.readdir(current, { withFileTypes: true });
   for (const entry of entries) {
     if (SKIP.has(entry.name) || entry.name.startsWith('.prism-build-')) continue;
     const absolute = path.join(current, entry.name);
-    if (entry.isDirectory()) await collect(root, absolute, out);
-    else if (entry.isFile()) {
+    if (entry.isDirectory()) {
+      await collect(root, absolute, out, state);
+    } else if (entry.isFile()) {
       const relative = safePath(root, absolute);
       if (!relative) continue;
       const stat = await fs.stat(absolute);
       if (stat.size > MAX_FILE_BYTES) continue;
+      if (out.length >= MAX_FILES) { state.truncated = true; break; }
       out.push({ path: relative, content: await fs.readFile(absolute, 'utf8') });
-      if (out.length >= MAX_FILES) break;
     }
-    if (out.length >= MAX_FILES) break;
+    if (state.truncated) break;
   }
-  return out;
+  return { files: out, truncated: state.truncated };
 }
 
 export async function syncWorkspaceToProject(workspace) {
   if (!workspace?.root || !workspace?.projectId || !workspace?.userId) return { synced: 0, removed: 0 };
-  const files = await collect(workspace.root);
+  const collected = await collect(workspace.root);
+  if (collected.truncated) throw Object.assign(new Error('O workspace excedeu o limite de 500 arquivos; a sincronização foi interrompida para evitar perda de arquivos.'), { code: 'TOO_MANY_PROJECT_FILES', status: 422 });
+  const files = collected.files;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

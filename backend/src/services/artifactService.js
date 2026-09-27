@@ -54,8 +54,9 @@ export async function zipWorkspace(workspace) {
     const stat = await fs.stat(outputPath);
     if (!stat.size) throw Object.assign(new Error('O ZIP foi produzido vazio.'), { code: 'EMPTY_ARCHIVE' });
     const expiresAt = Date.now() + TTL;
+    const token = sign(buildId, workspace.userId, expiresAt);
     await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,'zip',$4,'completed',$5,to_timestamp($6/1000.0))", [buildId, workspace.userId, workspace.projectId, filename, outputPath, expiresAt]);
-    return { ok: true, buildId, filename, size: stat.size, files: files.length, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${buildId}/download?token=${encodeURIComponent(sign(buildId, workspace.userId, expiresAt))}` };
+    return { ok: true, buildId, filename, size: stat.size, files: files.length, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${buildId}/download?token=${encodeURIComponent(token)}` };
   } catch (error) {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
     throw error;

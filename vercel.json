@@ -13,7 +13,7 @@
   "buildCommand": "npm run build",
   "rewrites": [
     {
-      "source": "/((?!api(?:/|$)).*)",
+      "source": "/((?!api(?:/|$)|assets(?:/|$)|index\\.html$).*)",
       "destination": "/index.html"
     }
   ]

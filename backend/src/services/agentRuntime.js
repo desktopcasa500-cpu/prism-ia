@@ -14,7 +14,9 @@ const MAX_OUTPUT = 24_000;
 const DEFAULT_TIMEOUT = 120_000;
 const MAX_TIMEOUT = 300_000;
 const DOWNLOAD_TTL = 60 * 60 * 1000;
-const downloadSecret = String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+function downloadSecretValue() {
+  return String(process.env.PRISM_BUILD_DOWNLOAD_SECRET || process.env.JWT_SECRET || '').trim();
+}
 const SAFE_EXECUTABLES = new Set(['node','nodejs','npm','npx','pnpm','yarn','bun','java','javac','jar','mvn','gradle','gradlew','python','python3','pip','pip3','ruby','go','rustc','cargo','tsc','eslint','prettier','git','zip','unzip']);
 const BLOCKED = [/rm\s+-rf/i,/rmdir\b/i,/del\s+\/s\b/i,/format\b/i,/mkfs\b/i,/shutdown\b/i,/reboot\b/i,/diskpart\b/i,/chmod\s+777\b/i,/curl\s+[^\s]+\s*\|\s*(sh|bash)\b/i,/wget\s+[^\s]+\s*\|\s*(sh|bash)\b/i];
 
@@ -23,7 +25,7 @@ function cleanPath(value){const relative=String(value||'').replace(/^[/\\]+/,'')
 function executableOf(command){const first=String(command||'').trim().match(/^["']?([^\s"']+)["']?/);return first?.[1]?.split(/[\\/]/).pop()?.toLowerCase()||'';}
 function validateCommand(command){const value=String(command||'').trim();if(!value)throw Object.assign(new Error('Comando vazio.'),{code:'COMMAND_REQUIRED'});if(value.length>2000)throw Object.assign(new Error('Comando muito longo.'),{code:'COMMAND_TOO_LONG'});if(BLOCKED.some((pattern)=>pattern.test(value)))throw Object.assign(new Error('Comando bloqueado pela política de segurança.'),{code:'COMMAND_BLOCKED'});if(process.env.PRISM_ALLOW_SHELL_COMMANDS==='true')return value;const executable=executableOf(value);if(!SAFE_EXECUTABLES.has(executable))throw Object.assign(new Error(`Executável não permitido: ${executable||'desconhecido'}.`),{code:'COMMAND_NOT_ALLOWED'});if(/[;&|`<>]/.test(value))throw Object.assign(new Error('Operadores de shell estão desabilitados neste modo seguro.'),{code:'SHELL_OPERATOR_BLOCKED'});return value;}
 function splitCommand(command){const parts=[];let token='';let quote='';for(const char of String(command)){if(quote){if(char===quote)quote='';else token+=char;continue;}if(char==='"'||char==="'"){quote=char;continue;}if(/\s/.test(char)){if(token){parts.push(token);token='';}}else token+=char;}if(quote)throw Object.assign(new Error('Aspas não fechadas no comando.'),{code:'COMMAND_PARSE_ERROR'});if(token)parts.push(token);return parts;}
-function signDownload(buildId,userId,expiresAt){const payload=`${buildId}.${userId}.${expiresAt}`;const sig=crypto.createHmac('sha256',downloadSecret).update(payload).digest('hex');return Buffer.from(`${payload}.${sig}`).toString('base64url');}
+function signDownload(buildId,userId,expiresAt){const payload=`${buildId}.${userId}.${expiresAt}`;const secret=downloadSecretValue();if(!secret)throw Object.assign(new Error('Segredo de download de build não configurado.'),{code:'BUILD_DOWNLOAD_SECRET_MISSING',status:503});const sig=crypto.createHmac('sha256',secret).update(payload).digest('hex');return Buffer.from(`${payload}.${sig}`).toString('base64url');}
 
 async function loadProject(projectId,userId){
   const project=await pool.query('SELECT id,name FROM projects WHERE id=$1 AND user_id=$2',[projectId,userId]);

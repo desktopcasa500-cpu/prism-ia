@@ -166,8 +166,18 @@
   letter-spacing:.1em;
 }
 .prism-scroll-story__scroll-cue b{
+  display:inline-block;
   font-size:14px;
   font-weight:400;
+  animation:prism-scroll-cue 1.45s ease-in-out infinite;
+  will-change:transform;
+}
+@keyframes prism-scroll-cue{
+  0%,100%{transform:translateY(-2px);opacity:.55}
+  50%{transform:translateY(5px);opacity:1}
+}
+@media(prefers-reduced-motion:reduce){
+  .prism-scroll-story__scroll-cue b{animation:none}
 }
 .prism-scroll-story__chapters{
   position:relative;

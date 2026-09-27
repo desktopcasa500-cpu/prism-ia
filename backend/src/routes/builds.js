@@ -15,6 +15,9 @@ function downloadSecretValue() {
 }
 const buildCache = new Map();
 const BUILD_TTL_MS = 60 * 60 * 1000;
+const MAX_FILES = 500;
+const MAX_FILE_BYTES = 2_000_000;
+const MAX_TOTAL_BYTES = 100_000_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
@@ -76,6 +79,7 @@ router.use(requireAuth);
 router.post('/', async (req, res) => {
   let build = null;
   let reservation = null;
+  let zipRoot = null;
   const target = targetOf(req.body?.target);
   const projectId = String(req.body?.projectId || '').trim();
   if (!projectId) return res.status(400).json({ error: 'Projeto não informado.', code: 'PROJECT_REQUIRED' });
@@ -86,31 +90,40 @@ router.post('/', async (req, res) => {
     if (!reservation.ok) return res.status(reservation.status || 429).json({ error: 'O limite de uso desta janela foi atingido.', code: reservation.code, usage: reservation.usage });
     const { project, files } = await loadProject(projectId, req.userId);
     if (target === 'zip') {
-      const root = await fs.mkdtemp(path.join(os.tmpdir(), `prism-project-${crypto.randomUUID()}-`));
+      if (files.length > MAX_FILES) throw Object.assign(new Error('O projeto excede o limite de arquivos para ZIP.'), { code: 'TOO_MANY_PROJECT_FILES' });
+      let totalBytes = 0;
+      zipRoot = await fs.mkdtemp(path.join(os.tmpdir(), `prism-project-${crypto.randomUUID()}-`));
       for (const file of files) {
         const absolute = path.join(root, file.path);
         if (!absolute.startsWith(root + path.sep)) throw Object.assign(new Error('Caminho de arquivo inválido.'), { code: 'INVALID_PROJECT_PATH' });
+        const content = String(file.content || '');
+        const bytes = Buffer.byteLength(content, 'utf8');
+        if (bytes > MAX_FILE_BYTES) throw Object.assign(new Error(`O arquivo ${file.path} é grande demais para ZIP.`), { code: 'PROJECT_FILE_TOO_LARGE' });
+        totalBytes += bytes;
+        if (totalBytes > MAX_TOTAL_BYTES) throw Object.assign(new Error('O projeto excede o limite total de 100 MB para ZIP.'), { code: 'ARCHIVE_TOO_LARGE' });
         await fs.mkdir(path.dirname(absolute), { recursive: true });
-        await fs.writeFile(absolute, String(file.content || ''), 'utf8');
+        await fs.writeFile(absolute, content, 'utf8');
       }
-      const workspace = { root, projectId, userId: req.userId, project, files, cleanup: async () => {} };
+      const workspace = { root: zipRoot, projectId, userId: req.userId, project, files, cleanup: async () => {} };
       const result = await zipWorkspace(workspace);
       await recordTokens(reservation.reservationId, 'build', 0);
       reservation = null;
-      await fs.rm(root, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(zipRoot, { recursive: true, force: true }).catch(() => {});
+      zipRoot = null;
       return res.json(result);
     }
     build = await buildProject({ projectName: project.name, files, target });
     const expiresAt = Date.now() + BUILD_TTL_MS;
+    const token = signDownload(build.buildId, req.userId, expiresAt);
     buildCache.set(build.buildId, { userId: req.userId, projectId, tempDir: build.tempDir, outputPath: build.outputPath, filename: build.filename, expiresAt });
     await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))", [build.buildId, req.userId, projectId, target, build.filename, build.outputPath, expiresAt]);
-    const token = signDownload(build.buildId, req.userId, expiresAt);
     await recordTokens(reservation.reservationId, 'build', 0);
     reservation = null;
     return res.json({ ok: true, buildId: build.buildId, target, filename: build.filename, size: build.size, expiresAt: new Date(expiresAt).toISOString(), downloadPath: `/api/builds/${build.buildId}/download?token=${encodeURIComponent(token)}`, details: build.details });
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
     if (build?.tempDir) await fs.rm(build.tempDir, { recursive: true, force: true }).catch(() => {});
+    if (zipRoot) await fs.rm(zipRoot, { recursive: true, force: true }).catch(() => {});
     const code = error?.code || 'BUILD_FAILED';
     const status = Number.isInteger(error?.status) ? error.status : code === 'BUILD_TIMEOUT' ? 504 : 422;
     try { await pool.query("INSERT INTO builds(user_id,project_id,platform,filename,status,error_message) VALUES($1,$2,$3,$4,'failed',$5)", [req.userId, projectId, target, target === 'jar' ? 'prism-app.jar' : target === 'zip' ? 'prism-app.zip' : 'prism-app.exe', String(error?.message || code).slice(0, 1000)]); } catch {}

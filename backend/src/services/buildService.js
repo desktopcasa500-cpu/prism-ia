@@ -20,7 +20,8 @@ function run(command, args, cwd, timeoutMs = 240_000, signal = null) {
     let stdout = '';
     let stderr = '';
     let settled = false;
-    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(value); };
+    let timer = null;
+    const finish = (fn, value) => { if (settled) return; settled = true; if (timer) clearTimeout(timer); signal?.removeEventListener('abort', abort); fn(value); };
     const abort = () => {
       child.kill('SIGKILL');
       const error = new Error('A compilação foi cancelada.');
@@ -29,7 +30,7 @@ function run(command, args, cwd, timeoutMs = 240_000, signal = null) {
     };
     if (signal?.aborted) return abort();
     signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       child.kill('SIGKILL');
       const error = new Error('A compilação excedeu o tempo máximo.');
       error.code = 'BUILD_TIMEOUT';

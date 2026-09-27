@@ -54,6 +54,7 @@ function TaffParallax({ children }) {
       const sideOffset = Math.min(180, localScroll * 0.17);
       const centerOffset = Math.min(96, localScroll * 0.07);
       const titleProgress = Math.min(1, localScroll / Math.max(window.innerHeight * 1.15, 1));
+      const pageProgress = Math.min(1, localScroll / Math.max(root.offsetHeight - window.innerHeight, 1));
       const titleOffset = reducedMotion ? 0 : titleProgress * -18;
       const titleScale = reducedMotion ? 1 : 1 - titleProgress * 0.025;
 
@@ -62,6 +63,7 @@ function TaffParallax({ children }) {
       root.style.setProperty('--taff-parallax-right', reducedMotion ? '0px' : `${sideOffset * -1}px`);
       root.style.setProperty('--taff-title-y', `${titleOffset}px`);
       root.style.setProperty('--taff-title-scale', titleScale.toFixed(4));
+      root.style.setProperty('--taff-scroll-progress', pageProgress.toFixed(4));
 
       if (leftImage) leftImage.style.transform = 'translate3d(0,var(--taff-parallax-left),0) scale(1.04)';
       if (centerImage) centerImage.style.transform = 'translate3d(0,var(--taff-parallax-center),0) scale(1.02)';
@@ -85,7 +87,23 @@ function TaffParallax({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const targets = root.querySelectorAll('[data-taff-reveal]');
+    if (!targets.length || !('IntersectionObserver' in window)) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) entry.target.classList.add('is-visible');
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+
   return <div ref={rootRef} className="taff-parallax-layout">
+    <div className="taff-scroll-progress" aria-hidden="true"><span /></div>
+    <div className="taff-scroll-index" aria-hidden="true"><span>TAFF 2.0</span><b>PRISM IA</b></div>
     <aside className="taff-parallax-column taff-parallax-column--left" aria-hidden="true">
       <div className="taff-parallax-image" style={{ backgroundImage: `url("${TAFF_PARALLAX_IMAGES[0]}")` }} />
     </aside>
@@ -112,8 +130,8 @@ export default function TaffPresentation() {
 
     <TaffParallax>
       <main>
-        <section className="page-intro taff-intro">
-          <div className="eyebrow taff-seal">● RELEASE — PRISM TAFF 2.0</div>
+        <section className="page-intro taff-intro" data-taff-reveal>
+          <div className="eyebrow taff-seal"><span className="taff-seal-dot" /> RELEASE — PRISM TAFF 2.0</div><div className="taff-hero-code">NVIDIA / GROQ / OPENCODE ZEN <span>·</span> ULTRACODE</div>
           <h1>Pensamento<br/>em <em>velocidade</em><br/>de produção.</h1>
           <p className="lead">{TAFF?.summary}</p>
           <div className="taff-cta-row">
@@ -122,24 +140,30 @@ export default function TaffPresentation() {
           </div>
         </section>
 
-        <section className="reading taff-about">
+        <section className="taff-proof" data-taff-reveal>
+          <article><span>01</span><strong>Contexto</strong><p>Pedido, arquivos e histórico entram no mesmo trabalho.</p></article>
+          <article><span>02</span><strong>Execução</strong><p>O modelo trabalha sobre a tarefa, não só sobre a conversa.</p></article>
+          <article><span>03</span><strong>Revisão</strong><p>Resultado, alterações e artefatos continuam visíveis.</p></article>
+        </section>
+
+        <section className="reading taff-about" data-taff-reveal>
           <p>{TAFF?.body}</p>
         </section>
 
-        <section className="feature-list taff-cases">
+        <section className="feature-list taff-cases" data-taff-reveal>
           {USE_CASES.map((item) => <article key={item.n}>
             <span>{item.n}</span>
             <div><h2>{item.title}</h2><p>{item.body}</p></div>
           </article>)}
         </section>
 
-        <section className="ultra taff-closing">
+        <section className="ultra taff-closing" data-taff-reveal>
           <span>DO PEDIDO AO PRODUTO</span>
           <h2>O modelo de<br/>ponta a ponta.</h2>
           <p>Prism Taff 2.0 é o modelo flagship da linha Prism: mais capacidade de processamento, mais camadas de verificação, resultado pronto para revisar e evoluir.</p>
         </section>
 
-        <section className="closing-note taff-final-cta">
+        <section className="closing-note taff-final-cta" data-taff-reveal>
           <span>PRÓXIMO PASSO</span>
           <p>Disponível para quem já usa Prism IA e para quem está começando agora.</p>
           <Link to={ctaTo}>{ctaLabel} →</Link>

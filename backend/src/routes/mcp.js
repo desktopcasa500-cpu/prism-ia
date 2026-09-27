@@ -45,7 +45,7 @@ async function probeWithQuota(userId, server) {
   const reservation = await reserveUsage(userId, 'mcp');
   if (!reservation.ok) throw Object.assign(new Error('O limite de uso desta janela foi atingido.'), { status: reservation.status || 429, code: reservation.code, usage: reservation.usage });
   try {
-    const result = await probeWithQuota(req.userId, server);
+    const result = await probeMcpServer(server);
     await recordTokens(reservation.reservationId, 'mcp', 0);
     return result;
   } catch (error) {

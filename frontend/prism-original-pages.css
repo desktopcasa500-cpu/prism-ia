@@ -15,3 +15,157 @@
   .model-provider-window{grid-column:2/-1;grid-row:2;margin-top:4px}
   .model-library-row>b{grid-column:3;grid-row:1;align-self:center}
 }
+
+/* Models catalog refinement */
+.site-brand{display:inline-flex;align-items:center;gap:9px}
+.site-brand img{width:24px;height:24px;display:block;object-fit:contain}
+.model-catalog-status{
+  margin-top:28px;
+  display:grid;
+  grid-template-columns:auto auto;
+  gap:6px 14px;
+  width:min(760px,100%);
+  padding:14px 16px;
+  border:1px solid #d5d1c8;
+  background:#eeece5;
+}
+.model-catalog-status span,.model-catalog-status strong{
+  font:700 9px/1 'DM Mono',monospace;
+  letter-spacing:.08em;
+}
+.model-catalog-status span{color:#8a867d}
+.model-catalog-status strong{justify-self:end}
+.model-catalog-status small{grid-column:1/-1;color:#757169;font-size:10px;line-height:1.5}
+.external-models{
+  margin:8vw 0 0;
+  padding:42px 0 10vw;
+  border-top:2px solid #161616;
+}
+.external-models__head{
+  display:grid;
+  grid-template-columns:1.2fr .8fr;
+  gap:60px;
+  align-items:end;
+}
+.external-models__head h2{
+  margin:18px 0 0;
+  font:800 clamp(50px,7vw,96px)/.84 Inter,sans-serif;
+  letter-spacing:-.075em;
+  text-transform:uppercase;
+}
+.external-models__head h2 em{color:#ff5a1f;font-style:normal}
+.external-models__head p{
+  margin:0;
+  max-width:430px;
+  color:#6d6961;
+  font-size:13px;
+  line-height:1.7;
+}
+.external-models__controls{
+  margin-top:42px;
+  padding:12px 0;
+  display:grid;
+  gap:14px;
+  border-top:1px solid #bdb9b0;
+  border-bottom:1px solid #bdb9b0;
+}
+.external-models__controls label{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  height:42px;
+  padding:0 12px;
+  background:#fffdfa;
+  border:1px solid #c9c5bc;
+}
+.external-models__controls input{
+  flex:1;
+  min-width:0;
+  border:0;
+  outline:0;
+  background:transparent;
+  color:#161616;
+  font:12px Inter,sans-serif;
+}
+.external-models__filters{display:flex;flex-wrap:wrap;gap:6px}
+.external-models__filters button{
+  border:1px solid #c5c1b8;
+  background:#efede6;
+  color:#46423d;
+  padding:8px 10px;
+  font:700 9px/1 'DM Mono',monospace;
+  cursor:pointer;
+}
+.external-models__filters button:hover,.external-models__filters button.active{
+  background:#161616;
+  color:#fff;
+  border-color:#161616;
+}
+.external-models__grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  border-left:1px solid #161616;
+  border-top:1px solid #161616;
+}
+.external-model-card{
+  min-height:245px;
+  padding:20px;
+  border-right:1px solid #161616;
+  border-bottom:1px solid #161616;
+  color:#161616;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:18px;
+  text-decoration:none;
+  background:#f5f4ef;
+  transition:background .18s ease,transform .18s ease;
+}
+.external-model-card:hover{
+  background:#ff5a1f;
+  transform:translateY(-3px);
+}
+.external-model-card__top{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.external-model-card__mark{
+  width:32px;height:32px;display:grid;place-items:center;
+  border:1px solid #161616;background:#161616;color:#fff;
+  font:800 12px/1 Inter,sans-serif;
+}
+.external-model-card__provider{font:700 9px/1 'DM Mono',monospace;letter-spacing:.08em}
+.external-model-card h3{
+  margin:0 0 7px;
+  font:800 clamp(22px,2vw,30px)/.95 Inter,sans-serif;
+  letter-spacing:-.045em;
+}
+.external-model-card code{font:9px/1.2 'DM Mono',monospace;color:#767169}
+.external-model-card p{
+  margin:0;
+  color:#69655e;
+  font-size:11px;
+  line-height:1.55;
+  max-width:330px;
+}
+.external-model-card:hover p,.external-model-card:hover code{color:#1d1d1a}
+.external-model-card__meta{
+  display:flex;justify-content:space-between;gap:10px;align-items:end;
+  font:700 8px/1.25 'DM Mono',monospace;
+  text-transform:uppercase;
+}
+.external-model-card__meta span{color:#767169}
+.external-model-card__meta b{font-weight:700}
+.external-models__empty{
+  padding:30px 0;
+  color:#706d65;
+  font-size:12px;
+}
+@media(max-width:900px){
+  .external-models__head{grid-template-columns:1fr;gap:20px}
+  .external-models__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  .model-catalog-status{grid-template-columns:1fr}
+  .model-catalog-status strong{justify-self:start}
+  .external-models{padding-bottom:70px}
+  .external-models__grid{grid-template-columns:1fr}
+  .external-model-card{min-height:215px}
+}

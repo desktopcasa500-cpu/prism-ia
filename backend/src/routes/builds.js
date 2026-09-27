@@ -15,6 +15,8 @@ function downloadSecretValue() {
 }
 const buildCache = new Map();
 const BUILD_TTL_MS = 60 * 60 * 1000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
 function signDownload(buildId, userId, expiresAt) {
   const payload = `${buildId}.${userId}.${expiresAt}`;
@@ -77,6 +79,7 @@ router.post('/', async (req, res) => {
   const target = targetOf(req.body?.target);
   const projectId = String(req.body?.projectId || '').trim();
   if (!projectId) return res.status(400).json({ error: 'Projeto não informado.', code: 'PROJECT_REQUIRED' });
+  if (!isUuid(projectId)) return res.status(400).json({ error: 'Identificador de projeto inválido.', code: 'INVALID_PROJECT_ID' });
   if (!target) return res.status(400).json({ error: 'Destino de compilação não suportado. Use "jar", "zip" ou "win32-x64".', code: 'TARGET_UNSUPPORTED' });
   try {
     reservation = await reserveUsage(req.userId, `build:${target}`);

@@ -30,7 +30,7 @@ import { pool } from './db/pool.js';
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const distPath = path.resolve(__dirname, '../../dist');
+const distPath = path.resolve(__dirname, '../../public');
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || process.env.APP_URL || '')
   .split(',').map((value) => value.trim().replace(/\/$/, '')).filter(Boolean);
 

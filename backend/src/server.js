@@ -45,7 +45,7 @@ async function ensureDatabase() {
         continue;
       }
       if (error?.code === 'ENOTFOUND') {
-        console.error(`Não foi possível resolver o host PostgreSQL "${host}". Em Render, verifique se DATABASE_URL usa a Internal Database URL da instância Postgres correta e se o serviço e o banco estão no mesmo workspace/região.`);
+        console.error(`Não foi possível resolver o host PostgreSQL "${host}". Verifique se DATABASE_URL aponta para a connection string correta do PostgreSQL e se o serviço consegue alcançar o banco.`);
       }
       throw error;
     }

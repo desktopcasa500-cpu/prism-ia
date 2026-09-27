@@ -55,9 +55,19 @@ function sessionGroups(items) {
 }
 
 function eventLabel(event) {
-  if (event?.type === 'activity') return event.detail ? `${event.label} · ${event.detail}` : (event.label || 'Executando');
-  if (event?.type === 'error') return event.message || 'Falha';
-  return event?.message || event?.type || 'Executando';
+  const type = String(event?.type || '').toLowerCase();
+  if (type === 'error' || type === 'provider_error' || type === 'mcp_error') return event?.message || 'Falha na execução';
+  if (type === 'activity') {
+    const label = String(event?.label || '').toLowerCase();
+    if (label.includes('editando')) return 'Editando arquivo';
+    if (label.includes('criando')) return 'Criando arquivo';
+    if (label.includes('executando')) return 'Executando comando';
+    if (label.includes('revisando') || label.includes('finalizando')) return 'Revisando';
+    return 'Pensando';
+  }
+  if (type === 'command_output' || type === 'tool_start') return 'Executando comando';
+  if (type === 'finalizing' || type === 'tool_complete' || type === 'provider_complete' || type === 'done') return 'Revisando';
+  return 'Pensando';
 }
 
 export default function ChatRelease() {
@@ -477,7 +487,7 @@ export default function ChatRelease() {
           {hasMessages && <div className="prism-agent-messages">
             {messages.map((message) => { const meta = metadataOf(message); const files = Array.isArray(meta.attachments) ? meta.attachments : []; return <article key={message.id} className={`prism-agent-message ${message.role}`}><div className="message-bubble">{message.role === 'user' ? <><p>{message.content}</p>{files.length > 0 && <div className="prism-agent-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}</> : <MarkdownMessage content={message.content} messageId={String(message.id)} />}</div>{message.role === 'assistant' && files.length > 0 && <div className="prism-agent-attachments prism-agent-assistant-attachments">{files.map((file) => <span className="prism-agent-chip" key={file.id || file.name}>{file.name}</span>)}</div>}{renderMessageActions(message)}</article>; })}
             {sending && streamingText && <article className="prism-agent-message assistant prism-agent-streaming"><div className="message-bubble"><MarkdownMessage content={streamingText} messageId="streaming-response" /></div></article>}
-            {sending && <div className="prism-agent-working" role="status" aria-live="polite"><span className="prism-agent-working-dot"/><span className="prism-agent-working-label">{eventLabel(workingEvent || { type: 'start' })}</span><span className="prism-agent-working-mode">{workingEvent?.provider ? `· ${workingEvent.provider}` : ''}</span></div>}
+            {sending && <div className="prism-agent-working" role="status" aria-live="polite"><span className="prism-agent-working-dot"/><span className="prism-agent-working-label">{eventLabel(workingEvent || { type: 'start' })}</span></div>}
             {sending && commandOutput && <pre className="prism-agent-command-output">{commandOutput}</pre>}
             {events.length > 0 && <section className="prism-agent-trace" aria-label="Atividade da Prism"><div className="prism-agent-trace-list">{events.map((event, index) => <div key={`${event.timestamp}-${index}`} className={`prism-agent-trace-item ${event.type === 'error' ? 'error' : ''}`}><span className="prism-agent-trace-dot"/><span>{eventLabel(event)}</span></div>)}</div></section>}
             {artifact?.downloadPath && <div className="prism-agent-artifact"><div className="prism-agent-artifact-copy"><strong>{artifact.filename}</strong><span>Artefato gerado pela execução</span></div><a href={artifact.downloadPath} target="_blank" rel="noreferrer">Abrir</a></div>}

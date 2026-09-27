@@ -124,13 +124,14 @@ export default function PrismScrollStory() {
         </div>
 
         <section className="prism-scroll-story__hero" data-scroll-reveal>
+          <div className="prism-scroll-story__hero-mark"><img src="/prism-logo.svg" alt="Prism IA" /></div>
           <div className="prism-scroll-story__hero-meta">
-            <span>PRISM / COMO FUNCIONA</span>
-            <span>ROLE PARA ENTRAR</span>
+            <span>PRISM IA / INTRODUÇÃO</span>
+            <span>PRIMEIRO MOVIMENTO</span>
           </div>
           <h2 className="prism-scroll-story__hero-title">Da intenção<br /><em>ao resultado.</em></h2>
           <p>Uma camada de engenharia que transforma uma conversa em trabalho: contexto, roteamento, execução e revisão no mesmo fluxo.</p>
-          <span className="prism-scroll-story__scroll-cue">SCROLL <b>↓</b></span>
+          <span className="prism-scroll-story__scroll-cue">ROLE PARA COMEÇAR <b>↓</b></span>
         </section>
 
         <div className="prism-scroll-story__chapters">

@@ -78,7 +78,7 @@ async function persistGenerationMessages(sessionId, userId, prompt, result, thin
   await pool.query('UPDATE sessions SET title=$1,updated_at=now() WHERE id=$2 AND user_id=$3', [title,sessionId,userId]);
   return saved.rows[0] || null;
 }
-async function executeGeneration({ model, thinking, prompt, context, projectId, userId, mcpServerIds = [], attachmentIds = [], onPhase, onTrace, onArtifact, onProgress, signal }) {
+async function executeGeneration({ model, thinking, requestedThinking = thinking, prompt, context, projectId, userId, mcpServerIds = [], attachmentIds = [], onPhase, onTrace, onArtifact, onProgress, signal }) {
   const workspace = await loadProjectContext(projectId,userId);
   const attachmentData = await loadAttachments(attachmentIds,userId);
   onPhase?.({ phase:'analyzing', label:'Analisando o projeto', detail:`${workspace.files.filter((file)=>file.kind!=='folder').length} arquivos no workspace` });
@@ -89,7 +89,7 @@ async function executeGeneration({ model, thinking, prompt, context, projectId, 
   onPhase?.({ phase:'planning', label:'Planejando', detail:'Definindo a implementação antes de editar' });
   onTrace?.({ action:'plan', detail:'Definindo quais arquivos precisam ser criados ou alterados' });
   const safeMcpIds = Array.isArray(mcpServerIds) ? mcpServerIds.map(String).filter(Boolean).slice(0,32) : [];
-  const result = await runOrchestration(agentPrompt,thinking,{ ...getModelProfile(model), id:model },context,userId,{ mcpServerIds:safeMcpIds,onProgress,signal });
+  const result = await runOrchestration(agentPrompt,requestedThinking,{ ...getModelProfile(model), id:model },context,userId,{ mcpServerIds:safeMcpIds,onProgress,signal });
   if (result?.status === 'unavailable') return result;
   const artifacts = parseArtifacts(result.text);
   for (const artifact of artifacts) onTrace?.({ action:'edit', path:artifact.path, detail:`${workspace.files.some((file)=>file.path===artifact.path) ? 'Editando' : 'Criando'} ${artifact.path}` });
@@ -117,12 +117,13 @@ async function runGeneration(req,res,stream=false){
     const input=readGenerationInput(req); if(!input.prompt)return res.status(400).json({error:'Prompt vazio',code:'EMPTY_PROMPT'}); if(input.prompt.length>50_000)return res.status(413).json({error:'Pedido muito longo',code:'PROMPT_TOO_LONG'}); if(!ALLOWED_EFFORTS.has(input.rawThinking))return res.status(400).json({error:'Nível de pensamento inválido.',code:'INVALID_EFFORT'});
     const authorization=await authorizeGeneration(req.userId,input.model,input.thinking); if(!authorization.ok)return res.status(authorization.status).json(authorization); await validateSession(input.sessionId,req.userId);
     reservation=await reserveUsage(req.userId,input.model); if(!reservation.ok)return res.status(reservation.status||429).json({error:'O limite de uso desta janela foi atingido.',code:reservation.code,usage:reservation.usage});
-    if(!stream){ const result=await executeGeneration({...input,userId:req.userId}); if(result?.status==='unavailable'){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;return res.status(503).json({status:'unavailable',message:UNAVAILABLE_MESSAGE})} await recordTokens(reservation.reservationId,result.providers?.[0]||null,result.tokens||0); const saved=await persistGenerationMessages(input.sessionId,req.userId,input.prompt,result,input.thinking,input.model,result.attachments||[]); reservation=null; return res.json({...result,message:saved}); }
+    if(!stream){ const result=await executeGeneration({...input,requestedThinking:input.rawThinking,userId:req.userId}); if(result?.status==='unavailable'){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;return res.status(503).json({status:'unavailable',message:UNAVAILABLE_MESSAGE})} await recordTokens(reservation.reservationId,result.providers?.[0]||null,result.tokens||0); const saved=await persistGenerationMessages(input.sessionId,req.userId,input.prompt,result,input.thinking,input.model,result.attachments||[]); reservation=null; return res.json({...result,message:saved}); }
     res.status(200); res.setHeader('Content-Type','text/event-stream; charset=utf-8'); res.setHeader('Cache-Control','no-cache, no-transform'); res.setHeader('Connection','keep-alive'); res.setHeader('X-Accel-Buffering','no'); res.flushHeaders?.();
     const close=()=>{closed=true;if(heartbeat)clearInterval(heartbeat);if(reservation?.reservationId)releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;}; req.on('aborted',close); res.on('close',()=>{if(!res.writableEnded)close()}); heartbeat=setInterval(()=>{if(!closed&&!res.writableEnded)res.write(`: heartbeat ${Date.now()}\n\n`)},1500); const send=(payload)=>{if(!closed&&!res.writableEnded)res.write(`data: ${JSON.stringify(payload)}\n\n`)}; const startedAt=Date.now();
     try{ send({type:'phase',phase:'received',label:'Pedido recebido',detail:'Preparando o agente'}); const result=await executeGeneration({
   ...input,
   userId:req.userId,
+  requestedThinking:input.rawThinking,
   signal:generationAbort.signal,
   onProgress:(event)=>send({type:'progress',...event,elapsedMs:Date.now()-startedAt}),
   onPhase:(phase)=>send({type:'phase',...phase,elapsedMs:Date.now()-startedAt}),

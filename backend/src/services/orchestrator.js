@@ -334,7 +334,7 @@ async function callProviderWithRouting(provider, input, execution) {
   }
 
   throw Object.assign(
-    new Error('Groq indisponível: as duas chaves do Groq falharam.'),
+    new Error('Groq indisponível: todas as chaves configuradas falharam.'),
     {
       code: 'GROQ_KEYS_FAILED',
       cause: lastError,

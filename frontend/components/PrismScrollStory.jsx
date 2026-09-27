@@ -1,144 +1,163 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import './prism-scroll-story.css';
 
-const stories = [
+const PARALLAX_IMAGES = [
+  'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_012400_faffafdc-20ef-435d-9bc5-6fdf1edf49cc.png',
+  'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_012400_ee56e65c-07e3-4d8d-9121-a7c34396767c.png',
+  'https://d8j0ntlcm91z4.cloudfront.net/user_3IgyPK9KRpa0YtpAdolGkHQafSY/hf_20260907_012400_7087decc-7b4f-4504-bd4b-edd312316c87.png',
+];
+
+const chapters = [
   {
-    kind: 'black',
-    index: '01',
-    eyebrow: 'O MÉTODO',
-    title: 'Mais de um motor. Uma direção.',
-    text: 'A Prism distribui cada etapa do trabalho entre motores especializados e reúne o resultado em um único fluxo.',
-    mark: 'PRISM / SYSTEM'
-  },
-  {
-    index: '02',
-    eyebrow: 'ENTRADA',
+    number: '01',
+    label: 'ENTRADA',
     title: 'Você define o trabalho.',
-    text: 'A intenção, o contexto e os arquivos entram juntos. A plataforma reduz a distância entre uma ideia e aquilo que precisa ser construído.',
-    mark: 'INPUT'
+    text: 'A intenção, o contexto e os arquivos entram juntos. A Prism reduz a distância entre uma ideia e aquilo que precisa ser construído.',
   },
   {
-    index: '03',
-    eyebrow: 'ROTEAMENTO',
+    number: '02',
+    label: 'ROTEAMENTO',
     title: 'O trabalho encontra o motor certo.',
     text: 'Tarefas diferentes recebem estratégias diferentes. Código, análise, revisão e síntese não precisam seguir o mesmo caminho.',
-    mark: 'ROUTE'
   },
   {
-    index: '04',
-    eyebrow: 'EXECUÇÃO',
+    number: '03',
+    label: 'EXECUÇÃO',
     title: 'A resposta vira trabalho real.',
-    text: 'Arquivos, alterações e resultados aparecem no mesmo fluxo. O Codex trabalha sobre o projeto, não apenas sobre uma caixa de texto.',
-    mark: 'BUILD'
+    text: 'Arquivos, alterações, comandos e resultados aparecem no mesmo fluxo. O Codex trabalha sobre o projeto, não apenas sobre uma caixa de texto.',
   },
   {
-    index: '05',
-    eyebrow: 'RESULTADO',
+    number: '04',
+    label: 'REVISÃO',
     title: 'Você continua no controle.',
     text: 'Revise, aceite, rejeite, baixe ou continue. O resultado permanece visível e editável até o último passo.',
-    mark: 'SHIP'
-  }
+  },
 ];
 
 export default function PrismScrollStory() {
   const sectionRef = useRef(null);
-  const trackRef = useRef(null);
-  const [progress, setProgress] = useState(0);
-  const [distance, setDistance] = useState(0);
 
   useEffect(() => {
-    const section = sectionRef.current;
-    const track = trackRef.current;
-    if (!section || !track) return undefined;
+    const root = sectionRef.current;
+    if (!root) return undefined;
 
+    const leftImage = root.querySelector('.prism-scroll-story__image--left');
+    const centerImage = root.querySelector('.prism-scroll-story__image--center');
+    const rightImage = root.querySelector('.prism-scroll-story__image--right');
+    const title = root.querySelector('.prism-scroll-story__hero-title');
+    const progress = root.querySelector('.prism-scroll-story__progress span');
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    const distanceRef = { current: 0 };
     let frame = 0;
 
-    const measure = () => {
-      const nextDistance = Math.max(0, track.scrollWidth - section.clientWidth);
-      distanceRef.current = nextDistance;
-      setDistance(nextDistance);
-    };
-
-    const update = () => {
+    const render = () => {
       frame = 0;
-      const rect = section.getBoundingClientRect();
-      const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
-      const nextProgress = Math.min(1, Math.max(0, -rect.top / scrollable));
-      setProgress(nextProgress);
+      const pageTop = window.scrollY || window.pageYOffset || 0;
+      const rootTop = root.getBoundingClientRect().top + pageTop;
+      const localScroll = Math.max(0, pageTop - rootTop);
+      const total = Math.max(1, root.offsetHeight - window.innerHeight);
+      const pageProgress = Math.min(1, localScroll / total);
 
-      if (!reducedMotion) {
-        const eased = nextProgress * nextProgress * (3 - 2 * nextProgress);
-        const drift = (nextProgress - 0.5) * -18;
-        const scale = 1 + eased * 0.01;
-        track.style.transform = `translate3d(${-distanceRef.current * nextProgress}px,${drift}px,0) scale(${scale})`;
-      } else {
-        track.style.transform = 'none';
+      if (progress) progress.style.transform = `scaleX(${pageProgress})`;
+
+      if (reducedMotion) {
+        if (leftImage) leftImage.style.transform = 'none';
+        if (centerImage) centerImage.style.transform = 'none';
+        if (rightImage) rightImage.style.transform = 'none';
+        if (title) title.style.transform = 'none';
+        return;
       }
+
+      const sideOffset = Math.min(150, localScroll * 0.09);
+      const centerOffset = Math.min(54, localScroll * 0.035);
+      const titleProgress = Math.min(1, localScroll / Math.max(window.innerHeight * 1.2, 1));
+      const titleY = titleProgress * -20;
+      const titleScale = 1 - titleProgress * 0.025;
+
+      if (leftImage) leftImage.style.transform = `translate3d(0,${sideOffset}px,0) scale(1.045)`;
+      if (centerImage) centerImage.style.transform = `translate3d(0,${centerOffset}px,0) scale(1.02)`;
+      if (rightImage) rightImage.style.transform = `translate3d(0,${sideOffset * -1}px,0) scale(1.045)`;
+      if (title) title.style.transform = `translate3d(0,${titleY}px,0) scale(${titleScale})`;
     };
 
     const schedule = () => {
       if (frame) return;
-      frame = requestAnimationFrame(update);
+      frame = requestAnimationFrame(render);
     };
 
-    measure();
+    const revealTargets = root.querySelectorAll('[data-scroll-reveal]');
+    let observer;
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) entry.target.classList.add('is-visible');
+        });
+      }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+      revealTargets.forEach((element) => observer.observe(element));
+    } else {
+      revealTargets.forEach((element) => element.classList.add('is-visible'));
+    }
+
     schedule();
-    window.addEventListener('resize', measure);
-    window.addEventListener('resize', schedule);
     window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
 
     return () => {
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('resize', schedule);
       window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
       if (frame) cancelAnimationFrame(frame);
+      observer?.disconnect();
     };
   }, []);
 
   return (
     <section ref={sectionRef} className="prism-scroll-story" aria-label="Como a Prism funciona">
-      <div className="prism-scroll-story__pin">
-        <header className="prism-scroll-story__header">
-          <span>PRISM / COMO FUNCIONA</span>
-          <span>{String(Math.round(progress * 100)).padStart(2, '0')}%</span>
-        </header>
-        <div className="prism-scroll-story__viewport">
-          <div
-            ref={trackRef}
-            className="prism-scroll-story__track"
-            style={{ transform: `translate3d(${-distance * progress}px,0,0)` }}
-          >
-            <article className="prism-scroll-story__intro">
-              <p className="prism-scroll-story__kicker">A PRIMEIRA COISA DEPOIS DO HERO</p>
-              <h2>Da intenção ao resultado.</h2>
-              <p>Role a página. A Prism muda de eixo e mostra o caminho do trabalho enquanto você continua rolando.</p>
-              <span className="prism-scroll-story__peek">PRÓXIMO / 01 →</span>
-            </article>
-            {stories.map((story) => (
-              <article
-                className={`prism-scroll-story__card ${story.kind === 'black' ? 'prism-scroll-story__card--black' : ''}`}
-                key={story.index}
-              >
-                <div className="prism-scroll-story__meta">
-                  <span>{story.index}</span>
-                  <span>{story.eyebrow}</span>
-                </div>
-                <div className="prism-scroll-story__body">
-                  <div className="prism-scroll-story__mark">{story.mark}</div>
-                  <h3>{story.title}</h3>
-                  <p>{story.text}</p>
-                </div>
-              </article>
-            ))}
-            <article className="prism-scroll-story__end">
-              <span>PRISM IA / 2026</span>
-              <strong>Trabalho real.<br />Visível. Editável.</strong>
-            </article>
-          </div>
+      <div className="prism-scroll-story__progress" aria-hidden="true"><span /></div>
+
+      <aside className="prism-scroll-story__side prism-scroll-story__side--left" aria-hidden="true">
+        <div className="prism-scroll-story__side-label"><span>PRISM / 01</span><b>CONTEXT</b></div>
+        <div className="prism-scroll-story__image prism-scroll-story__image--left" style={{ backgroundImage: `url("${PARALLAX_IMAGES[0]}")` }} />
+      </aside>
+
+      <div className="prism-scroll-story__center">
+        <div className="prism-scroll-story__center-image">
+          <div className="prism-scroll-story__image prism-scroll-story__image--center" style={{ backgroundImage: `url("${PARALLAX_IMAGES[1]}")` }} />
         </div>
+
+        <section className="prism-scroll-story__hero" data-scroll-reveal>
+          <div className="prism-scroll-story__hero-meta">
+            <span>PRISM / COMO FUNCIONA</span>
+            <span>ROLE PARA ENTRAR</span>
+          </div>
+          <h2 className="prism-scroll-story__hero-title">Da intenção<br /><em>ao resultado.</em></h2>
+          <p>Uma camada de engenharia que transforma uma conversa em trabalho: contexto, roteamento, execução e revisão no mesmo fluxo.</p>
+          <span className="prism-scroll-story__scroll-cue">SCROLL <b>↓</b></span>
+        </section>
+
+        <div className="prism-scroll-story__chapters">
+          {chapters.map((chapter) => (
+            <article className="prism-scroll-story__chapter" data-scroll-reveal key={chapter.number}>
+              <div className="prism-scroll-story__chapter-index">
+                <span>{chapter.number}</span>
+                <small>{chapter.label}</small>
+              </div>
+              <div className="prism-scroll-story__chapter-body">
+                <h3>{chapter.title}</h3>
+                <p>{chapter.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <section className="prism-scroll-story__finish" data-scroll-reveal>
+          <span>PRISM IA / 2026</span>
+          <h3>Trabalho real.<br /><em>Visível. Editável.</em></h3>
+        </section>
       </div>
+
+      <aside className="prism-scroll-story__side prism-scroll-story__side--right" aria-hidden="true">
+        <div className="prism-scroll-story__side-label"><span>PRISM / 02</span><b>EXECUTION</b></div>
+        <div className="prism-scroll-story__image prism-scroll-story__image--right" style={{ backgroundImage: `url("${PARALLAX_IMAGES[2]}")` }} />
+      </aside>
     </section>
   );
 }

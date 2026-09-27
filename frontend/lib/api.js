@@ -6,7 +6,8 @@ const apiRoot = configuredApiUrl
   ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`)
   : '/api';
 
-let token = localStorage.getItem('prism_token');
+let token = null;
+try { token = localStorage.getItem('prism_token'); } catch {}
 const generationControllers = new Set();
 
 function stringifyError(value) {

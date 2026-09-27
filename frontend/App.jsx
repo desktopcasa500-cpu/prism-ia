@@ -92,8 +92,13 @@ function TimezoneSync() {
 
   useEffect(() => {
     if (!user?.id || syncedUserRef.current === user.id) return;
-    syncedUserRef.current = user.id;
-    api.patch('/user/me/timezone', { timezone: detectUserTimeZone() }).catch(() => {});
+    let active = true;
+    api.patch('/user/me/timezone', { timezone: detectUserTimeZone() })
+      .then(() => {
+        if (active) syncedUserRef.current = user.id;
+      })
+      .catch(() => {});
+    return () => { active = false; };
   }, [user?.id]);
 
   return null;

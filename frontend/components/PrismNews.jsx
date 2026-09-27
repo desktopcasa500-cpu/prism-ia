@@ -56,18 +56,20 @@ export default function PrismNews() {
       </div>
       <div className="prism-news__grid">
         {news.map((item, index) => (
-          <article className="prism-news__card" key={item.title}>
+          <article className="prism-news__card" key={`${item.sourceUrl || item.title}-${index}`}>
             <div className="prism-news__image-wrap">
-              <img
-                src={item.image}
-                alt=""
-                className="prism-news__image"
-                loading={index > 1 ? 'lazy' : 'eager'}
-                onError={(event) => {
-                  event.currentTarget.style.display = 'none';
-                  event.currentTarget.parentElement.classList.add('is-missing');
-                }}
-              />
+              {item.image ? (
+                <img
+                  src={item.image}
+                  alt=""
+                  className="prism-news__image"
+                  loading={index > 1 ? 'lazy' : 'eager'}
+                  onError={(event) => {
+                    event.currentTarget.style.display = 'none';
+                    event.currentTarget.parentElement.classList.add('is-missing');
+                  }}
+                />
+              ) : null}
               <span>{String(index + 1).padStart(2, '0')}</span>
             </div>
             <div className="prism-news__content">

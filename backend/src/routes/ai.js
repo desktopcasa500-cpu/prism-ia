@@ -14,17 +14,26 @@ const UNAVAILABLE_MESSAGE = 'Estamos com instabilidade nos servidores. Tente nov
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
+const MAX_ARTIFACTS = 500;
+const MAX_ARTIFACT_TOTAL_BYTES = 100_000_000;
+
 function parseArtifacts(text) {
   const artifacts = [];
+  let totalBytes = 0;
   const pattern = /<file\s+path=["']([^"']+)["']\s*>([\s\S]*?)<\/file>/gi;
   let match;
   while ((match = pattern.exec(String(text || ''))) !== null) {
     const path = match[1].trim().replace(/^\/+/, '');
     if (!path || path.includes('..') || path.length > 500) continue;
     const content = match[2].replace(/^\n/, '').replace(/\n$/, '');
-    if (content.length <= MAX_FILE_CONTENT) artifacts.push({ path, content });
+    const bytes = Buffer.byteLength(content, 'utf8');
+    if (content.length > MAX_FILE_CONTENT || bytes > MAX_FILE_CONTENT) continue;
+    if (artifacts.some((entry) => entry.path === path)) continue;
+    if (artifacts.length >= MAX_ARTIFACTS || totalBytes + bytes > MAX_ARTIFACT_TOTAL_BYTES) break;
+    artifacts.push({ path, content });
+    totalBytes += bytes;
   }
-  return artifacts.filter((item, index, array) => array.findIndex((entry) => entry.path === item.path) === index);
+  return artifacts;
 }
 async function getAccount(userId) { const result = await pool.query('SELECT plan FROM users WHERE id=$1', [userId]); if (!result.rows.length) return null; const plan = result.rows[0].plan || 'free'; return { plan, rank: normalizePlanRank(plan) }; }
 async function authorizeGeneration(userId, model, thinking) {
@@ -36,7 +45,14 @@ async function authorizeGeneration(userId, model, thinking) {
   if (thinking === 'ultracode' && !PLAN_FEATURES[account.rank]?.ultracode) return { ok: false, status: 403, code: 'PLAN_UPGRADE_REQUIRED', error: 'O modo Ultracode está disponível apenas no plano Empresarial.', model, requiredPlan: 'Empresarial' };
   return { ok: true, ...account };
 }
-async function validateSession(sessionId, userId) { if (!sessionId) return null; if (!isUuid(sessionId)) throw Object.assign(new Error('Identificador de sessão inválido.'), { status: 400, code: 'INVALID_SESSION_ID' }); const result = await pool.query('SELECT id,title,surface FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]); if (!result.rows.length) throw Object.assign(new Error('Sessão não encontrada.'), { status: 404, code: 'SESSION_NOT_FOUND' }); return result.rows[0]; }
+async function validateSession(sessionId, userId) {
+  if (!sessionId) return null;
+  if (!isUuid(sessionId)) throw Object.assign(new Error('Identificador de sessão inválido.'), { status: 400, code: 'INVALID_SESSION_ID' });
+  const result = await pool.query('SELECT id,title,surface FROM sessions WHERE id=$1 AND user_id=$2', [sessionId, userId]);
+  if (!result.rows.length) throw Object.assign(new Error('Sessão não encontrada.'), { status: 404, code: 'SESSION_NOT_FOUND' });
+  if (result.rows[0].surface !== 'codex') throw Object.assign(new Error('A sessão informada não pertence ao Codex.'), { status: 409, code: 'SESSION_SURFACE_MISMATCH' });
+  return result.rows[0];
+}
 async function loadProjectContext(projectId, userId) {
   if (!projectId) return { project: null, files: [] };
   if (!isUuid(projectId)) throw Object.assign(new Error('Identificador de projeto inválido.'), { status: 400, code: 'INVALID_PROJECT_ID' });
@@ -50,6 +66,8 @@ async function loadAttachments(ids, userId) {
   if (safe.some((id) => !isUuid(id))) throw Object.assign(new Error('Identificador de anexo inválido.'), { status: 400, code: 'INVALID_ATTACHMENT_ID' });
   if (!safe.length) return { ids: [], attachments: [], context: '' };
   const result = await pool.query('SELECT id,name,mime_type,size_bytes,content FROM uploads WHERE id=ANY($2::uuid[]) AND user_id=$1 ORDER BY created_at ASC', [userId, safe]);
+  const found = new Set(result.rows.map((row) => String(row.id)));
+  if (safe.some((id) => !found.has(id))) throw Object.assign(new Error('Anexo não encontrado.'), { status: 404, code: 'ATTACHMENT_NOT_FOUND' });
   const attachments = result.rows.map((row) => ({ id: row.id, name: row.name, mime_type: row.mime_type, size_bytes: Number(row.size_bytes || 0) }));
   const context = result.rows.map((row) => {
     const ext = row.name.split('.').pop()?.toLowerCase();
@@ -133,7 +151,7 @@ async function runGeneration(req,res,stream=false){
   onPhase:(phase)=>send({type:'phase',...phase,elapsedMs:Date.now()-startedAt}),
   onTrace:(trace)=>send({type:'trace',...trace,elapsedMs:Date.now()-startedAt}),
   onArtifact:(artifact)=>send({type:'artifact',...artifact,elapsedMs:Date.now()-startedAt}),
-}); if(closed)return; if(result?.status==='unavailable'){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;send({type:'error',code:'PROVIDERS_UNAVAILABLE',message:UNAVAILABLE_MESSAGE})}else{await recordTokens(reservation.reservationId,result.providers?.[0]||null,result.tokens||0);reservation=null;const saved=await persistGenerationMessages(input.sessionId,req.userId,input.prompt,result,input.thinking,input.model,result.attachments||[]);send({type:'phase',phase:'completed',label:'Concluído',detail:'O workspace recebeu o resultado do agente',elapsedMs:Date.now()-startedAt});send({type:'result',data:{...result,message:saved}})}}catch(error){if(reservation?.reservationId){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null}if(!closed)send({type:'error',code:error?.code||'GENERATION_FAILED',message:error?.code==='PROJECT_NOT_FOUND'?'Projeto não encontrado.':error?.code==='SESSION_NOT_FOUND'?'Sessão não encontrada.':UNAVAILABLE_MESSAGE})}finally{closed=true;if(heartbeat)clearInterval(heartbeat);if(!res.writableEnded)res.end()}
+}); if(closed)return; if(result?.status==='unavailable'){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null;send({type:'error',code:'PROVIDERS_UNAVAILABLE',message:UNAVAILABLE_MESSAGE})}else{await recordTokens(reservation.reservationId,result.providers?.[0]||null,result.tokens||0);const saved=await persistGenerationMessages(input.sessionId,req.userId,input.prompt,result,input.thinking,input.model,result.attachments||[]);reservation=null;send({type:'phase',phase:'completed',label:'Concluído',detail:'O workspace recebeu o resultado do agente',elapsedMs:Date.now()-startedAt});send({type:'result',data:{...result,message:saved}})}}catch(error){if(reservation?.reservationId){await releaseUsage(reservation.reservationId).catch(()=>{});reservation=null}if(!closed)send({type:'error',code:error?.code||'GENERATION_FAILED',message:error?.code==='PROJECT_NOT_FOUND'?'Projeto não encontrado.':error?.code==='SESSION_NOT_FOUND'?'Sessão não encontrada.':UNAVAILABLE_MESSAGE})}finally{closed=true;if(heartbeat)clearInterval(heartbeat);if(!res.writableEnded)res.end()}
   }catch(error){if(reservation?.reservationId)await releaseUsage(reservation.reservationId).catch(()=>{});console.error(`${stream?'AI streaming':'AI'} generation error:`,{code:error?.code,status:error?.status,message:error?.message});if(!res.headersSent){const status=error?.status>=400&&error?.status<500?error.status:502;const payload=error?.code==='PROJECT_NOT_FOUND'?{error:'Projeto não encontrado.',code:error.code}:error?.code==='SESSION_NOT_FOUND'?{error:'Sessão não encontrada.',code:error.code}:error?.code==='REQUEST_ABORTED'?{error:'Geração cancelada.',code:'REQUEST_ABORTED'}:{error:UNAVAILABLE_MESSAGE,code:error?.code||'GENERATION_FAILED'};return res.status(status).json(payload);}if(!res.writableEnded)res.end()}
 }
 router.post('/generate',(req,res)=>runGeneration(req,res,false));

@@ -10,6 +10,5 @@
       "schedule": "10 3 * * *"
     }
   ],
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "buildCommand": "npm run build"
 }

@@ -9,7 +9,7 @@ function normalizeRemoteNews(items) {
     .filter((item) => item && typeof item === 'object')
     .map((item) => ({
       category: String(item.category || 'IA').trim(),
-      date: String(item.date || '').trim(),
+      date: String(item.date || 'RECENTE').trim(),
       title: String(item.title || '').trim(),
       description: String(item.description || '').trim(),
       source: String(item.source || '').trim(),

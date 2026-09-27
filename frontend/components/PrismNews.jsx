@@ -15,8 +15,11 @@ export default function PrismNews() {
       try {
         const result = await api.get('/news');
         if (!alive) return;
-        if (Array.isArray(result?.items) && result.items.length) setNews(result.items);
-        if (result?.updatedLabel) setUpdatedLabel(result.updatedLabel);
+        const updatedAt = result?.updatedAt ? new Date(result.updatedAt).getTime() : 0;
+        const freshEnough = updatedAt > 0 && (Date.now() - updatedAt) < (7 * 24 * 60 * 60 * 1000);
+        if (freshEnough && Array.isArray(result?.items) && result.items.length) setNews(result.items);
+        if (freshEnough && result?.updatedLabel) setUpdatedLabel(result.updatedLabel);
+        if (!freshEnough) setUpdatedLabel('BASE EDITORIAL / SET 2026');
       } catch {
         // Mantém o fallback estático em silêncio; a landing nunca deve ficar vazia por causa disso.
       }

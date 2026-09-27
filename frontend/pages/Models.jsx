@@ -8,7 +8,7 @@ const MODELS = [
   { id: 'mini', route: '/modelos/mini', name: 'Prism Mini 1.0A', providers: ['NVIDIA · Llama 3.3 Nemotron Super', 'Groq · GPT-OSS 20B'], required: 0 },
   { id: 'edge', route: '/modelos/edge', name: 'Prism Edge 1.0A', providers: ['NVIDIA · Llama 3.1', 'Groq · GPT-OSS 20B (revisão)'], required: 2 },
   { id: 'tex', route: '/modelos/tex', name: 'Prism Tex 1.5A', providers: ['NVIDIA · Qwen 2.5 Code', 'Groq · Qwen 3 32B'], required: 2 },
-  { id: 'taff', route: '/prism-taff', name: 'Prism Taff 2.0', providers: ['NVIDIA · Kimi K3', 'Groq · GPT-OSS 120B', 'OpenCode Zen · Big Pickle'], required: 3 },
+  { id: 'taff', route: '/modelos/taff-2-0', name: 'Prism Taff 2.0', providers: ['NVIDIA · Kimi K3', 'Groq · GPT-OSS 120B', 'OpenCode Zen · Big Pickle'], required: 3 },
 ];
 
 const PLANS = {

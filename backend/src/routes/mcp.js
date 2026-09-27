@@ -6,6 +6,8 @@ import { releaseUsage, recordTokens, reserveUsage } from '../services/usage.js';
 
 const router = Router();
 router.use(requireAuth);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
 function normalizeName(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -38,6 +40,7 @@ async function ownsServer(id, userId) {
 
 async function resolveServer(id, userId) {
   if (id === 'builtin-github') return builtinGithubServer();
+  if (!isUuid(id)) return null;
   return ownsServer(id, userId);
 }
 
@@ -128,6 +131,7 @@ router.get('/:id/tools', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Identificador MCP inválido.', code: 'INVALID_MCP_ID' });
     const existing = await ownsServer(req.params.id, req.userId);
     if (!existing) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
     const name = req.body?.name === undefined ? existing.name : normalizeName(req.body.name);
@@ -158,6 +162,7 @@ router.patch('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Identificador MCP inválido.', code: 'INVALID_MCP_ID' });
     const result = await pool.query('DELETE FROM mcp_servers WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, req.userId]);
     if (!result.rows.length) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
     res.status(204).end();

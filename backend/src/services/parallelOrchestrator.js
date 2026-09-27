@@ -7,7 +7,7 @@ const MAX_TOOL_ROUNDS = 6;
 const MAX_CONTEXT = 30_000;
 const PROVIDERS = new Set(['nvidia', 'groq', 'opencode']);
 const ENV = {
-  nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NIM_API_KEY,
+  nvidia: () => process.env.NVIDIA_NIM_API_KEY || process.env.NVIDIA_API_KEY || process.env.NIM_API_KEY,
   groq: () => isGroqConfigured(),
   opencode: () => process.env.OPENCODE_ZEN_API_KEY || process.env.OPENCODE_API_KEY || process.env.ZEN_API_KEY,
 };

@@ -117,7 +117,7 @@ async function consult(advisor, task, userId = null, signal = null) {
   }
 
   throw Object.assign(
-    new Error('Groq indisponível: as duas chaves do Groq falharam.'),
+    new Error('Groq indisponível: todas as chaves configuradas falharam.'),
     { code: 'GROQ_KEYS_FAILED', cause: lastError },
   );
 }

@@ -15,6 +15,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 
 router.post('/', async (req, res, next) => {
+  const requestAbort = new AbortController();
+  const abortRequest = () => requestAbort.abort();
+  req.once('aborted', abortRequest);
+  res.once('close', () => { if (!res.writableEnded) requestAbort.abort(); });
   const sessionId = String(req.body?.sessionId || '').trim();
   const content = typeof req.body?.content === 'string' ? req.body.content.replace(/\u0000/g, '').trim() : '';
   const rawEffort = String(req.body?.effort || 'medium').trim().toLowerCase();
@@ -81,6 +85,7 @@ router.post('/', async (req, res, next) => {
       userId: req.userId,
       requestedModels,
       mcpServerIds,
+      signal: requestAbort.signal,
     });
     const saved = [];
     let totalTokens = 0;
@@ -110,7 +115,13 @@ router.post('/', async (req, res, next) => {
     res.json({ sessionId, results: result.results || [], saved, mcp_errors: result.mcp_errors || [], elapsed_ms: result.elapsed_ms || 0, usage });
   } catch (error) {
     if (reservation?.reservationId) await releaseUsage(reservation.reservationId).catch(() => {});
+    if (error?.code === 'REQUEST_ABORTED') {
+      if (!res.headersSent) return res.status(499).json({ error: 'Solicitação cancelada.', code: 'REQUEST_ABORTED' });
+      return;
+    }
     next(error);
+  } finally {
+    req.off('aborted', abortRequest);
   }
 });
 

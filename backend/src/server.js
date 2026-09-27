@@ -4,8 +4,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import app from './app.js';
 import { pool } from './db/pool.js';
-import { resetExpiredWeeklyLocks } from './services/weeklyUsageReset.js';
-import { refreshNewsFromWeb, shouldRefreshNews } from './services/newsService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,71 +54,19 @@ async function ensureDatabase() {
 
 const server = app.listen(port, host, () => console.log(`Prism IA listening on ${host}:${port}`));
 
-let resetJobTimer = null;
-let newsJobTimer = null;
 let shuttingDown = false;
-const runResetJob = async () => {
-  try {
-    const resetCount = await resetExpiredWeeklyLocks();
-    if (resetCount > 0) console.log(`Reset semanal: ${resetCount} conta(s) desbloqueada(s).`);
-  } catch (error) {
-    console.error('Falha no reset semanal:', error);
-  }
-};
-const runNewsJob = async () => {
-  try {
-    if (!(await shouldRefreshNews())) return;
-    const result = await refreshNewsFromWeb();
-    if (result.status === 'ok') console.log(`Notícias atualizadas: ${result.count} item(ns).`);
-    else if (result.status === 'error') console.error('Falha ao atualizar notícias:', result.error);
-  } catch (error) {
-    console.error('Falha no job de notícias:', error);
-  }
-};
 
-let databaseReady = false;
-let databaseRecoveryTimer = null;
-
-async function startDatabaseJobs() {
-  if (databaseReady) return;
-  await ensureDatabase();
-  databaseReady = true;
-  console.log('Banco de dados disponível; ativando jobs dependentes do PostgreSQL.');
-  await runResetJob();
-  await runNewsJob();
-  resetJobTimer = resetJobTimer || setInterval(runResetJob, 60_000);
-  resetJobTimer.unref?.();
-  newsJobTimer = newsJobTimer || setInterval(runNewsJob, 60 * 60 * 1000);
-  newsJobTimer.unref?.();
-}
-
-const recoverDatabase = async () => {
-  if (databaseReady) return;
-  try {
-    await startDatabaseJobs();
-    if (databaseRecoveryTimer) {
-      clearInterval(databaseRecoveryTimer);
-      databaseRecoveryTimer = null;
-    }
-  } catch (error) {
-    console.error('Banco ainda indisponível; nova tentativa automática em 30s:', {
-      code: error?.code || 'DATABASE_UNAVAILABLE',
-      host: databaseHost(),
-    });
-  }
-};
-
-recoverDatabase();
-databaseRecoveryTimer = setInterval(recoverDatabase, 30_000);
-databaseRecoveryTimer.unref?.();
+ensureDatabase().catch((error) => {
+  console.error('Banco permanece indisponível após a inicialização:', {
+    code: error?.code || 'DATABASE_UNAVAILABLE',
+    host: databaseHost(),
+  });
+});
 
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(`Recebido ${signal}; encerrando Prism IA.`);
-  if (resetJobTimer) clearInterval(resetJobTimer);
-  if (newsJobTimer) clearInterval(newsJobTimer);
-  if (databaseRecoveryTimer) clearInterval(databaseRecoveryTimer);
   const forceExit = setTimeout(() => process.exit(1), 10_000);
   forceExit.unref?.();
   try {

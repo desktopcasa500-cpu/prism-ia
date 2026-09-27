@@ -1,47 +1,57 @@
 # Prism IA
 
-Plataforma web da Prism IA com React/Vite no frontend, Express no backend, autenticação JWT, PostgreSQL e orquestração de provedores de IA.
+Plataforma web da Prism IA com React/Vite no frontend, Express no backend, autenticação JWT, PostgreSQL/Neon e orquestração de provedores de IA.
 
-## Produção no Render
+## Produção
 
-O projeto roda como **um único Web Service Node no Render**. O build do React é criado durante o deploy e o Express serve `dist` junto com a API.
+A infraestrutura de produção é:
 
-O `render.yaml` usa:
+- **Vercel** para hospedagem do frontend e do backend Express.
+- **Neon PostgreSQL** para persistência.
+- **Vercel Cron** para tarefas agendadas.
 
-```text
-Build: npm install && npm run build
-Start: npm start
-Health check: /api/health
-```
+O entrypoint de produção do Express é o `index.js` na raiz. O Vite gera o frontend em `public/`, que a Vercel serve pelo CDN. A API continua em `/api/*` dentro do mesmo domínio.
 
-O PostgreSQL deve ser o banco do Render. O navegador nunca acessa o banco diretamente.
+## Variáveis de ambiente
 
-## Variáveis do Render
-
-Configure no Web Service:
+Configure na Vercel, principalmente no ambiente **Production**:
 
 ```text
-DATABASE_URL=<Internal Database URL do PostgreSQL do Render>
+DATABASE_URL=<connection string do Neon>
 JWT_SECRET=<segredo longo e aleatório>
 JWT_EXPIRES_IN=7d
-GOOGLE_CLIENT_ID=<Client ID do Google, se o login Google for usado>
+CRON_SECRET=<segredo usado pelos cron jobs>
+APP_URL=https://SEU-DOMINIO
+FRONTEND_ORIGIN=https://SEU-DOMINIO
+GOOGLE_CLIENT_ID=<Client ID do Google, se usado>
 GITHUB_CLIENT_ID=<Client ID do GitHub OAuth>
 GITHUB_CLIENT_SECRET=<Client Secret do GitHub OAuth>
 GITHUB_REDIRECT_URI=https://SEU-DOMINIO/api/auth/github/callback
-VITE_GOOGLE_CLIENT_ID=<mesmo Client ID do Google usado pelo botão web>
 GROQ_API_KEY_1=<primeira chave Groq>
-GROQ_API_KEY_2=<segunda chave Groq, opcional>
+GROQ_API_KEY_2=<segunda chave Groq>
 NVIDIA_NIM_API_KEY=<chave NVIDIA NIM>
 NVIDIA_API_KEY=<alias aceito para NVIDIA NIM>
 OPENCODE_ZEN_API_KEY=<chave OpenCode Zen>
-OPENROUTER_API_KEY=<chave, opcional>
+OPENROUTER_API_KEY=<opcional>
 PRISM_OPENROUTER_FREE_FALLBACK=false
-MCP_ENCRYPTION_KEY=<chave longa e aleatória, se MCP persistido for usado>
+MCP_ENCRYPTION_KEY=<se MCP persistido for usado>
+STRIPE_SECRET_KEY=<se cobrança real for usada>
+PRISM_STRIPE_ENABLED=false
 ```
 
-Como frontend e API são servidos pelo mesmo Web Service, o cliente usa `/api` por padrão e normalmente não precisa de `VITE_API_URL`.
+Nunca coloque segredos no Git.
 
-Não coloque segredos, senhas ou URLs reais no Git.
+## Banco Neon
+
+O schema está em `backend/src/db/schema.sql`.
+
+Para uma primeira configuração do banco, a migração pode ser executada apontando `DATABASE_URL` para o Neon:
+
+```bash
+npm run migrate
+```
+
+Depois da migração, confirme a aplicação pelo endpoint `GET /api/health`. Uma resposta saudável deve informar `ok: true` e `database: "connected"`.
 
 ## Desenvolvimento
 
@@ -50,20 +60,47 @@ npm install
 npm run dev
 ```
 
-Para produção/local com o servidor completo:
+Backend local:
 
 ```bash
+npm run dev:api
+```
+
+Validação obrigatória:
+
+```bash
+npm run check
 npm run build
-npm start
 ```
 
-Para preparar o PostgreSQL localmente, use `backend/.env.example` como referência e execute:
+## Rotas principais
 
-```bash
-npm run migrate
+```text
+/login
+/register
+/chat
+/codex
+/studio
+/configuracoes
+/modelos
+/modelos/taff-2-0
 ```
 
+A Landing pública permanece em `frontend/pages/Landing.jsx` e não faz parte das alterações funcionais do app.
 
-### Provedores de IA
+## Cron jobs
 
-O endpoint `GET /api/models/providers` mostra somente quais provedores estão configurados, sem expor chaves. Com duas chaves Groq, o roteador distribui usuários entre as chaves e faz failover para a outra quando necessário. O OpenCode Zen usa o endpoint OpenAI-compatible do Zen e a configuração `OPENCODE_ZEN_API_KEY`. 
+Os jobs são registrados no `vercel.json`:
+
+```text
+GET /api/cron/reset-usage
+GET /api/cron/refresh-news
+```
+
+As duas rotas exigem `Authorization: Bearer <CRON_SECRET>`. A Vercel envia esse cabeçalho ao executar Vercel Cron quando `CRON_SECRET` está configurado.
+
+## Provedores de IA
+
+O endpoint `GET /api/models/providers` mostra quais provedores estão configurados sem expor chaves.
+
+Com duas chaves Groq, o roteador distribui usuários entre as chaves e faz failover quando uma delas falha.

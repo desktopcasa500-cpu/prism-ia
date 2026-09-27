@@ -5,10 +5,10 @@ import { searchWeb, webSearchConfigured } from './webSearch.js';
 export const NEWS_REFRESH_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000; // 2 dias
 const MAX_ITEMS = 8;
 const QUERIES = [
-  'novo modelo de inteligência artificial lançamento',
-  'Anthropic Claude atualização',
-  'OpenAI atualização produto',
-  'chip inferência inteligência artificial infraestrutura',
+  'AI model launch Anthropic Claude September 2026',
+  'OpenAI GPT-6 September 2026',
+  'Google Gemini 3.8 September 2026',
+  'NVIDIA AI robotics September 2026',
 ];
 
 function hostnameOf(url) {
@@ -37,7 +37,7 @@ async function fetchFreshNewsFromWeb() {
   const collected = [];
   for (const query of QUERIES) {
     try {
-      const results = await searchWeb(query, { count: 3, freshness: 'pw' });
+      const results = await searchWeb(query, { count: 3, freshness: 'pm' });
       for (const item of results) {
         if (!item.title || !item.url) continue;
         if (collected.some((existing) => existing.source_url === item.url)) continue;

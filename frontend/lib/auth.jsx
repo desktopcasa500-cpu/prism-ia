@@ -39,7 +39,8 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let active = true;
-    const token = localStorage.getItem('prism_token');
+    let token = null;
+    try { token = localStorage.getItem('prism_token'); } catch {}
     if (!token) {
       setUser(null);
       writeCachedUser(null);

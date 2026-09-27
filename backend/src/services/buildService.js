@@ -9,6 +9,12 @@ const PKG_BIN = path.join(ROOT, 'node_modules', '.bin', process.platform === 'wi
 const MAX_FILE_BYTES = 2_000_000;
 const MAX_FILES = 500;
 const MAX_TOTAL_BYTES = 100_000_000;
+const SECRET_ENV = /(?:^|_)(?:API_KEY|SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|DATABASE_URL|POSTGRES(?:_PRISMA)?_URL|CONNECTION_STRING)(?:$|_)/i;
+function executionEnv() {
+  const env = { ...process.env };
+  for (const name of Object.keys(env)) if (SECRET_ENV.test(name)) delete env[name];
+  return env;
+}
 
 function safeName(value, fallback = 'prism-app') {
   return String(value || fallback).replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || fallback;
@@ -16,7 +22,7 @@ function safeName(value, fallback = 'prism-app') {
 
 function run(command, args, cwd, timeoutMs = 240_000, signal = null) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, { cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env: executionEnv() });
     let stdout = '';
     let stderr = '';
     let settled = false;

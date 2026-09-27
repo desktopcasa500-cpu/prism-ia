@@ -31,7 +31,7 @@ export default function Landing() {
     <div className="pixel-landing home-redesign">
       <header className="pixel-nav">
         <Link className="pixel-brand" to="/" aria-label="Prism IA">
-          <span className="pixel-logo" />
+          <img className="pixel-logo-image" src="/prism-logo.svg" alt="" />
           <span>PRISM IA</span>
         </Link>
         <nav className="pixel-navlinks">
@@ -53,24 +53,6 @@ export default function Landing() {
       <main>
         <PrismScrollStory />
 
-        <section className="pixel-hero new-hero">
-          <div className="pixel-hero-main">
-            <div className="pixel-kicker">PRISM IA / 2026 / SOFTWARE ENGINEERING</div>
-            <h1 className="pixel-title"><span>BUILD</span><span>WITH</span><span className="accent">MORE.</span></h1>
-            <p className="pixel-hero-copy">Uma camada de engenharia que coloca diferentes motores de IA na mesma tarefa — para pensar, escrever, revisar e entregar software.</p>
-            <div className="pixel-hero-actions">
-              <Link className="pixel-cta pixel-cta-primary" to={primaryHref}>{primaryLabel}</Link>
-              {!user && <Link className="pixel-cta secondary" to="/register">Criar conta</Link>}
-              <Link className="pixel-cta secondary" to="/informacoes">Como funciona</Link>
-            </div>
-            <div className="hero-proof"><span>CHAT</span><i /> <span>CODEX</span><i /> <span>MODELS</span><i /> <span>WORKSPACE</span></div>
-          </div>
-          <aside className="pixel-hero-side">
-            <div className="hero-meta"><span>PRISM / 001</span><span>ORCHESTRATION</span></div>
-            <div className="pixel-grid-art" />
-            <div className="hero-note"><b>MULTIPLE ENGINES.</b><br />ONE WORKSPACE.<br /><small>Uma interface para o trabalho inteiro.</small></div>
-          </aside>
-        </section>
 
         <section className="home-intro home-intro-expanded">
           <span>01 / A IDEIA</span>

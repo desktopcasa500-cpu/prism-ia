@@ -13,7 +13,7 @@
   "buildCommand": "npm run check && npm run build",
   "rewrites": [
     {
-      "source": "/((?!api(?:/|$)|assets(?:/|$)|index\\.html$).*)",
+      "source": "/((?!api(?:/|$)|assets(?:/|$)|news(?:/|$)|prism-logo\\.svg$|index\\.html$).*)",
       "destination": "/index.html"
     }
   ]

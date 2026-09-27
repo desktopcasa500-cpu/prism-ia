@@ -79,8 +79,8 @@ export default function ChatRelease() {
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [model, setModel] = useState(() => localStorage.getItem('prism.home.model') || 'prism-mini-1.0');
-  const [effort, setEffort] = useState(() => localStorage.getItem('prism-default-effort') || 'medium');
+  const [model, setModel] = useState(readStoredModel);
+  const [effort, setEffort] = useState(readStoredEffort);
   const [projectId, setProjectId] = useState(() => localStorage.getItem('prism.chat.project') || '');
   const [attachments, setAttachments] = useState([]);
   const [modelOpen, setModelOpen] = useState(false);

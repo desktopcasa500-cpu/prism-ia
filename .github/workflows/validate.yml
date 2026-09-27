@@ -15,6 +15,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prism-package-lock
+          path: package-lock.json
+          retention-days: 1
       - run: npm ci
       - run: npm run check
       - run: npm run build

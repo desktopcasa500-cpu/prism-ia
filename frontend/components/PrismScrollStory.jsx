@@ -52,12 +52,13 @@ export default function PrismScrollStory() {
     if (!section || !track) return undefined;
 
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const distanceRef = { current: 0 };
     let frame = 0;
 
     const measure = () => {
       const nextDistance = Math.max(0, track.scrollWidth - section.clientWidth);
+      distanceRef.current = nextDistance;
       setDistance(nextDistance);
-      section.style.setProperty('--story-distance', \`${nextDistance}px\`);
     };
 
     const update = () => {
@@ -66,11 +67,14 @@ export default function PrismScrollStory() {
       const scrollable = Math.max(1, section.offsetHeight - window.innerHeight);
       const nextProgress = Math.min(1, Math.max(0, -rect.top / scrollable));
       setProgress(nextProgress);
-      section.style.setProperty('--story-progress', nextProgress.toFixed(4));
+
       if (!reducedMotion) {
         const eased = nextProgress * nextProgress * (3 - 2 * nextProgress);
-        const drift = (nextProgress - 0.5) * -26;
-        track.style.transform = \`translate3d(\${-distance}px,\${drift}px,0) scale(\${1 + eased * 0.012} )\`.replace(') )', '))');
+        const drift = (nextProgress - 0.5) * -18;
+        const scale = 1 + eased * 0.01;
+        track.style.transform = `translate3d(${-distanceRef.current * nextProgress}px,${drift}px,0) scale(${scale})`;
+      } else {
+        track.style.transform = 'none';
       }
     };
 
@@ -82,9 +86,12 @@ export default function PrismScrollStory() {
     measure();
     schedule();
     window.addEventListener('resize', measure);
+    window.addEventListener('resize', schedule);
     window.addEventListener('scroll', schedule, { passive: true });
+
     return () => {
       window.removeEventListener('resize', measure);
+      window.removeEventListener('resize', schedule);
       window.removeEventListener('scroll', schedule);
       if (frame) cancelAnimationFrame(frame);
     };
@@ -101,7 +108,7 @@ export default function PrismScrollStory() {
           <div
             ref={trackRef}
             className="prism-scroll-story__track"
-            style={{ transform: `translate3d(${-distance * progress}px, 0, 0)` }}
+            style={{ transform: `translate3d(${-distance * progress}px,0,0)` }}
           >
             <article className="prism-scroll-story__intro">
               <p className="prism-scroll-story__kicker">A PRIMEIRA COISA DEPOIS DO HERO</p>

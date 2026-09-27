@@ -36,10 +36,15 @@ function systemPrompt(effort) {
   ].join('\n');
 }
 
-async function request(url, options, timeout = REQUEST_TIMEOUT) {
+async function request(url, options, timeout = REQUEST_TIMEOUT, externalSignal = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  const onExternalAbort = () => controller.abort();
+  externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
   try {
+    if (externalSignal?.aborted) {
+      controller.abort();
+    }
     const response = await fetch(url, { ...options, signal: controller.signal });
     const raw = await response.text();
     let data = {};
@@ -47,9 +52,15 @@ async function request(url, options, timeout = REQUEST_TIMEOUT) {
     if (!response.ok) throw new Error(safeText(data?.error?.message || data?.error || data?.message || raw || `HTTP ${response.status}`));
     return data;
   } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('tempo limite do provedor excedido');
+    if (error?.name === 'AbortError') {
+      if (externalSignal?.aborted) throw Object.assign(new Error('Geração cancelada.'), { code: 'REQUEST_ABORTED' });
+      throw new Error('tempo limite do provedor excedido');
+    }
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
+  }
 }
 
 function openAiTools(tools) {
@@ -69,7 +80,7 @@ async function executeTool(tool, args, mcp) {
   catch (error) { return { text: safeText(error?.message || 'Falha na ferramenta MCP'), isError: true }; }
 }
 
-async function callProvider(provider, model, effort, requestedEffort, input, tools, mcp, userId) {
+async function callProvider(provider, model, effort, requestedEffort, input, tools, mcp, userId, signal = null) {
   const keys = provider === 'groq'
     ? getGroqKeyCandidates(userId || 'anonymous')
     : [{ slot: provider, key: ENV[provider]?.() }];
@@ -96,7 +107,7 @@ async function callProvider(provider, model, effort, requestedEffort, input, too
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${keyEntry.key}`, ...(provider === 'opencode' ? { 'X-Title': 'Prism IA' } : {}) },
           body: JSON.stringify(body),
-        });
+        }, REQUEST_TIMEOUT, signal);
         const message = data?.choices?.[0]?.message;
         if (!message) throw new Error(`${provider} retornou uma resposta inválida`);
         messages.push(message);
@@ -136,6 +147,7 @@ export async function runParallelOrchestration({
   userId,
   requestedModels = [],
   mcpServerIds = [],
+  signal = null,
 }) {
   const requestedEffort = String(effort || 'medium').trim().toLowerCase();
   const normalizedEffort = normalizeEffort(requestedEffort);
@@ -154,7 +166,7 @@ export async function runParallelOrchestration({
   const started = Date.now();
   try {
     const settled = await Promise.allSettled(unique.map(async (entry) => {
-      const result = await callProvider(entry.provider, entry.model, normalizedEffort, requestedEffort, input, mcp.tools, mcp, userId);
+      const result = await callProvider(entry.provider, entry.model, normalizedEffort, requestedEffort, input, mcp.tools, mcp, userId, signal);
       return {
         provider: entry.provider,
         model: entry.model,

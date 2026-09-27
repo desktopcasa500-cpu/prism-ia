@@ -28,7 +28,7 @@ A landing page fica fora desta arquitetura. As mudanças descritas aqui se aplic
 
 ## Variáveis de ambiente
 
-As chaves devem existir apenas no ambiente do backend/Render.
+As chaves devem existir apenas no ambiente do backend/Vercel.
 
 ### Banco e autenticação
 
@@ -65,17 +65,17 @@ GROQ_API_KEY é mantida apenas para compatibilidade com instalações antigas. O
 
 Nunca coloque valores reais dessas variáveis no Git.
 
-## Deploy no Render
+## Deploy no Vercel
 
-Build: npm install && npm run build
+Build: `npm run check && npm run build`
 
-Start: npm start
+Entrypoint do Express: `index.js` na raiz. O frontend Vite é publicado em `public/` e as rotas do SPA são reescritas explicitamente em `vercel.json`.
 
-O npm start valida a sintaxe do backend, aplica a migração/schema e inicia o Express.
+Banco: Neon PostgreSQL via `DATABASE_URL`.
 
-Health check: /api/health
+Migração inicial: `npm run migrate` apontando para o Neon antes do primeiro uso em produção.
 
-Para produção em domínio separado, defina FRONTEND_ORIGIN com a origem do frontend. Em uma instalação do Render onde frontend e API são servidos pelo mesmo Web Service, deixe a política usar a origem do próprio host ou configure explicitamente APP_URL.
+Health check: `/api/health`.
 
 ## Controles de produção
 

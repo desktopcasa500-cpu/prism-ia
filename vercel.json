@@ -10,7 +10,7 @@
       "schedule": "10 3 * * *"
     }
   ],
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run check && npm run build",
   "rewrites": [
     {
       "source": "/((?!api(?:/|$)).*)",

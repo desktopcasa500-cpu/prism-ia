@@ -206,6 +206,7 @@ router.get('/github/start', (req, res) => {
   const clientId = String(process.env.GITHUB_CLIENT_ID || '').trim();
   const clientSecret = String(process.env.GITHUB_CLIENT_SECRET || '').trim();
   if (!clientId || !clientSecret) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente.', code: 'GITHUB_NOT_CONFIGURED' });
+  if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
 
   const redirectUri = githubRedirectUri(req);
   const state = jwt.sign(

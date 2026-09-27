@@ -10,7 +10,7 @@ export default defineConfig({
   root: __dirname,
   plugins: [react()],
   build: {
-    outDir: path.resolve(__dirname, '../dist'),
+    outDir: path.resolve(__dirname, '../public'),
     emptyOutDir: true,
   },
   server: {

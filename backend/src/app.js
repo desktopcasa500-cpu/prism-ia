@@ -21,6 +21,7 @@ import billingRoutes from './routes/billing.js';
 import trafficRoutes from './routes/traffic.js';
 import buildRoutes from './routes/builds.js';
 import newsRoutes from './routes/news.js';
+import cronRoutes from './routes/cron.js';
 import { trafficGate } from './middleware/trafficGate.js';
 import { quotaGate } from './middleware/quotaGate.js';
 import { handleStripeWebhook } from './services/stripe.js';
@@ -128,6 +129,7 @@ app.get('/api/health', async (_req, res) => {
     });
   }
 });
+app.use('/api/cron', cronRoutes);
 app.use('/api/auth', authRoutes); app.use('/api/user', userRoutes); app.use('/api/chat', chatRoutes); app.use('/api/chat/parallel', parallelRoutes); app.use('/api/skills', skillsRoutes); app.use('/api/models', modelsRoutes); app.use('/api/projects', projectsRoutes); app.use('/api/projects', projectDownloadRoutes); app.use('/api/files', filesRoutes); app.use('/api/uploads', uploadsRoutes); app.use('/api/ai', aiRoutes); app.use('/api/mcp', mcpRoutes); app.use('/api/billing', billingRoutes); app.use('/api/traffic', trafficRoutes); app.use('/api/builds', buildRoutes); app.use('/api/news', newsRoutes);
 app.use(express.static(distPath, { index: false }));
 app.get('*', (req, res, next) => { if (req.path.startsWith('/api/')) return next(); return res.sendFile(path.join(distPath, 'index.html'), (error) => { if (error) next(error); }); });

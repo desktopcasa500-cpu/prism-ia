@@ -20,3 +20,96 @@
   .taff-page .taff-cta-row{flex-direction:column;align-items:stretch}
   .taff-page .taff-cta-primary,.taff-page .taff-cta-secondary{text-align:center}
 }
+
+/* Prism TAFF 2.0 — three-column scroll depth */
+.taff-page .taff-parallax-layout{
+  display:grid;
+  grid-template-columns:minmax(150px,20vw) minmax(0,1fr) minmax(150px,20vw);
+  align-items:start;
+  position:relative;
+  overflow:clip;
+  --taff-parallax-left:0px;
+  --taff-parallax-center:0px;
+  --taff-parallax-right:0px;
+  --taff-title-y:0px;
+  --taff-title-scale:1;
+}
+.taff-page .taff-parallax-column{
+  position:sticky;
+  top:60px;
+  height:calc(100vh - 60px);
+  min-height:480px;
+  overflow:hidden;
+  background:#dedbd2;
+}
+.taff-page .taff-parallax-column--left{border-right:1px solid var(--line)}
+.taff-page .taff-parallax-column--right{border-left:1px solid var(--line)}
+.taff-page .taff-parallax-column--center{
+  background:var(--paper);
+  min-width:0;
+}
+.taff-page .taff-parallax-image{
+  position:absolute;
+  inset:-5%;
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
+  filter:saturate(.76) contrast(.96);
+  opacity:.86;
+  will-change:transform;
+  transform:translate3d(0,var(--taff-parallax-left),0) scale(1.04);
+}
+.taff-page .taff-parallax-column--center .taff-parallax-image{
+  opacity:.055;
+  filter:grayscale(.2) saturate(.65) contrast(.92);
+  transform:translate3d(0,var(--taff-parallax-center),0) scale(1.02);
+}
+.taff-page .taff-parallax-column--right .taff-parallax-image{
+  transform:translate3d(0,var(--taff-parallax-right),0) scale(1.04);
+}
+.taff-page .taff-parallax-column--left:after,
+.taff-page .taff-parallax-column--right:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(21,21,21,.08),transparent 22%,transparent 72%,rgba(21,21,21,.16));
+}
+.taff-page .taff-parallax-column--center:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(243,241,234,.86),rgba(243,241,234,.72) 32%,rgba(243,241,234,.88));
+}
+.taff-page .taff-parallax-content{
+  position:relative;
+  z-index:1;
+  min-width:0;
+}
+.taff-page .taff-intro h1{
+  will-change:transform;
+  transform-origin:left top;
+  transform:translate3d(0,var(--taff-title-y),0) scale(var(--taff-title-scale));
+}
+.taff-page .taff-intro{
+  position:relative;
+  min-height:min(760px,calc(100vh - 60px));
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+@media(max-width:900px){
+  .taff-page .taff-parallax-layout{display:block}
+  .taff-page .taff-parallax-column{display:none}
+  .taff-page .taff-parallax-column--center{display:block;position:relative;top:auto;height:auto;min-height:0;overflow:visible;border:0}
+  .taff-page .taff-parallax-content{background:var(--paper)}
+  .taff-page .taff-intro{
+    min-height:calc(100vh - 60px);
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .taff-page .taff-parallax-image,
+  .taff-page .taff-intro h1{transform:none!important;will-change:auto}
+}
+

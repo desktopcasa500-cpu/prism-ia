@@ -150,10 +150,10 @@ export default function ChatRelease() {
   }, [authFail]);
 
   useEffect(() => { const current = MODELS.find((item) => item.id === model); const allowed = MODELS.find((item) => rank >= item.rank); if (allowed && current && rank < current.rank) setModel(allowed.id); }, [rank, model]);
-  useEffect(() => { localStorage.setItem('prism.home.model', model); }, [model]);
-  useEffect(() => { localStorage.setItem('prism-default-effort', effort); }, [effort]);
+  useEffect(() => { writeStorage('prism.home.model', model); }, [model]);
+  useEffect(() => { writeStorage('prism-default-effort', effort); }, [effort]);
   useEffect(() => { writeStorage('prism.chat.project', projectId); }, [projectId]);
-  useEffect(() => { localStorage.setItem('prism-compact-sidebar', String(sidebarCollapsed)); }, [sidebarCollapsed]);
+  useEffect(() => { writeStorage('prism-compact-sidebar', String(sidebarCollapsed)); }, [sidebarCollapsed]);
   useEffect(() => {
     if (!followingBottom) return undefined;
     let frame = 0;

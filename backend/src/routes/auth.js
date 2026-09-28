@@ -89,7 +89,7 @@ function setGithubSessionCookie(res, token) {
   const parts = [
     `prism_github_auth=${encodeURIComponent(token)}`,
     'HttpOnly',
-    'SameSite=Lax',
+    process.env.NODE_ENV === 'production' || process.env.VERCEL === '1' ? 'SameSite=None' : 'SameSite=Lax',
     'Path=/api/auth/github',
     'Max-Age=300',
   ];

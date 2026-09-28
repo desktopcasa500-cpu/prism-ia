@@ -11,6 +11,24 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 80;
 const MAX_PASSWORD_LENGTH = 128;
 
+function configuredEnv(...names) {
+  return names.map((name) => String(process.env[name] || '').trim()).find(Boolean) || '';
+}
+
+function providerConfig(req) {
+  const googleClientId = configuredEnv('GOOGLE_CLIENT_ID');
+  const githubClientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
+  const githubClientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
+  return {
+    google: Boolean(googleClientId),
+    googleClientId: googleClientId || null,
+    github: Boolean(githubClientId && githubClientSecret),
+    githubClientId: githubClientId || null,
+    githubClientSecret: Boolean(githubClientSecret),
+    callback: githubRedirectUri(req),
+  };
+}
+
 
 function appBaseUrl(req) {
   const configured = String(process.env.APP_URL || process.env.GITHUB_APP_URL || '').trim().replace(/\/+$/, '');
@@ -83,8 +101,8 @@ async function githubApi(path, options = {}) {
 }
 
 async function exchangeGithubCode(code, redirectUri) {
-  const clientId = String(process.env.GITHUB_CLIENT_ID || '').trim();
-  const clientSecret = String(process.env.GITHUB_CLIENT_SECRET || '').trim();
+  const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
+  const clientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
   if (!clientId || !clientSecret) throw Object.assign(new Error('Login com GitHub não está configurado neste ambiente.'), { status: 503, code: 'GITHUB_NOT_CONFIGURED' });
 
   const body = new URLSearchParams({
@@ -128,6 +146,17 @@ function normalizeCredentials(body = {}) {
   return { name, email, password };
 }
 
+router.get('/providers', (req, res) => {
+  const config = providerConfig(req);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    google: config.google,
+    googleClientId: config.googleClientId,
+    github: config.github,
+    githubCallback: config.github ? config.callback : null,
+  });
+});
+
 router.post('/register', async (req, res, next) => {
   try {
     const { name, email, password } = normalizeCredentials(req.body);
@@ -167,8 +196,8 @@ router.post('/login', async (req, res, next) => {
 router.post('/google', async (req, res, next) => {
   try {
     const credential = req.body?.credential;
-    const audience = process.env.GOOGLE_CLIENT_ID;
-    if (!credential || !audience) return res.status(503).json({ error: 'Login Google ainda não está configurado neste ambiente.' });
+    const audience = configuredEnv('GOOGLE_CLIENT_ID');
+    if (!credential || !audience) return res.status(503).json({ error: 'Login Google ainda não está configurado neste ambiente. Configure GOOGLE_CLIENT_ID.', code: 'GOOGLE_NOT_CONFIGURED' });
 
     const ticket = await googleClient.verifyIdToken({ idToken: credential, audience });
     const payload = ticket.getPayload();
@@ -203,9 +232,9 @@ router.post('/google', async (req, res, next) => {
 });
 
 router.get('/github/start', (req, res) => {
-  const clientId = String(process.env.GITHUB_CLIENT_ID || '').trim();
-  const clientSecret = String(process.env.GITHUB_CLIENT_SECRET || '').trim();
-  if (!clientId || !clientSecret) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente.', code: 'GITHUB_NOT_CONFIGURED' });
+  const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
+  const clientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
+  if (!clientId || !clientSecret) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente. Configure GITHUB_CLIENT_ID e GITHUB_CLIENT_SECRET.', code: 'GITHUB_NOT_CONFIGURED' });
   if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
 
   const redirectUri = githubRedirectUri(req);

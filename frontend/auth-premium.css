@@ -38,25 +38,13 @@
   letter-spacing: -0.04em;
 }
 
-.auth-screen__brand-mark {
-  width: 20px;
-  height: 20px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 1px;
-  padding: 2px;
-  background: #ee6f45;
-  border-radius: 50%;
-  overflow: hidden;
+.auth-screen__brand-logo{
+  width:24px;
+  height:24px;
+  display:block;
+  object-fit:contain;
+  flex:none;
 }
-
-.auth-screen__brand-mark i { display: block; background: #fff; }
-.auth-screen__brand-mark i:nth-child(1),
-.auth-screen__brand-mark i:nth-child(3),
-.auth-screen__brand-mark i:nth-child(5),
-.auth-screen__brand-mark i:nth-child(7),
-.auth-screen__brand-mark i:nth-child(9) { background: #ee6f45; }
 
 .auth-screen__left {
   width: min(660px, 100%);

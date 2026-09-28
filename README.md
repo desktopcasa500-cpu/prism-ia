@@ -23,7 +23,9 @@ JWT_EXPIRES_IN=7d
 CRON_SECRET=<segredo usado pelos cron jobs>
 APP_URL=https://SEU-DOMINIO
 FRONTEND_ORIGIN=https://SEU-DOMINIO
-GOOGLE_CLIENT_ID=<Client ID do Google, se usado>
+GOOGLE_CLIENT_ID=<Client ID do Google OAuth>
+GOOGLE_CLIENT_SECRET=<Client Secret do Google OAuth>
+GOOGLE_REDIRECT_URI=https://SEU-DOMINIO/api/auth/google/callback
 GITHUB_CLIENT_ID=<Client ID do GitHub OAuth>
 GITHUB_CLIENT_SECRET=<Client Secret do GitHub OAuth>
 GITHUB_REDIRECT_URI=https://SEU-DOMINIO/api/auth/github/callback
@@ -51,7 +53,7 @@ Para uma primeira configuração do banco, a migração pode ser executada apont
 npm run migrate
 ```
 
-Depois da migração, confirme a aplicação pelo endpoint `GET /api/health`. Uma resposta saudável deve informar `ok: true` e `database: "connected"`.
+Depois da migração, confirme a aplicação pelo endpoint `GET /api/health`. Uma resposta saudável deve informar `ok: true`.
 
 ## Desenvolvimento
 

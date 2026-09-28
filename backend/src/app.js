@@ -119,14 +119,13 @@ app.use(generationLimiter);
 app.use(trafficGate);
 app.use(quotaGate);
 app.get('/api/health', async (_req, res) => {
-  const health = providerHealth();
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, database: 'connected', database_env: databaseEnv, auth: Boolean(process.env.JWT_SECRET), ...health, mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), web: true, stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
+    res.status(200).json({ ok: true });
   } catch (error) {
-    res.status(200).json({
-      ok: false,
-      status: 'degraded',
+    res.status(503).json({ ok: false });
+  }
+});
       database: 'unreachable',
       database_error: error?.code || 'DATABASE_UNAVAILABLE',
       database_env: databaseEnv,

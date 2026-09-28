@@ -18,7 +18,7 @@ export async function createCheckoutSession({ plan, customerEmail, successUrl, c
   if (!client) return { ok: false, code: 'STRIPE_INACTIVE', status: 503, error: 'Stripe não está configurado no servidor.' };
   const result = await pool.query('SELECT email,stripe_customer_id FROM users WHERE id=$1', [userId]);
   if (!result.rows.length) return { ok: false, code: 'AUTH_REQUIRED', status: 401, error: 'Conta não encontrada.' };
-  const email = String(customerEmail || result.rows[0].email || '').trim();
+  const email = String(result.rows[0].email || '').trim();
   const priceId = configuredPlanPriceIds()[plan];
   if (!priceId || !email || !successUrl || !cancelUrl || !userId) return { ok: false, code: 'INVALID_CHECKOUT', status: 400, error: 'Plano, email, URLs e usuário são obrigatórios.' };
   let customerId = result.rows[0].stripe_customer_id || null;

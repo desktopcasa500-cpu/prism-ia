@@ -19,7 +19,7 @@ export default function GitHubSignIn({ disabled = false }) {
     if (disabled || busy || !configured) return;
     setBusy(true);
     window.location.assign('/api/auth/github/start?returnTo=%2Flogin');
-  }, [busy, disabled]);
+  }, [busy, configured, disabled]);
 
   return (
     <button

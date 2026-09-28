@@ -72,10 +72,12 @@ async function assertSafeUrl(rawUrl) {
   if (!['https:', 'http:'].includes(url.protocol)) throw new Error('Endpoint MCP deve usar HTTP ou HTTPS');
   if (url.username || url.password) throw new Error('Credenciais não podem ficar embutidas na URL');
   if (url.protocol === 'http:' && process.env.NODE_ENV === 'production' && process.env.MCP_ALLOW_HTTP !== 'true') throw new Error('Endpoints HTTP não são permitidos em produção');
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (process.env.NODE_ENV === 'production' && !allowedMcpHost(hostname)) {
+    throw new Error('Host MCP não autorizado neste ambiente.');
+  }
   if (process.env.MCP_ALLOW_PRIVATE_HOSTS !== 'true') {
-    const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) throw new Error('Endpoint MCP local ou privado bloqueado');
-    if (!allowedMcpHost(hostname)) throw new Error('Host MCP não autorizado neste ambiente.');
     const addresses = await dns.lookup(hostname, { all: true, verbatim: true }).catch((error) => {
       if (error?.code === 'ENOTFOUND' || error?.code === 'EAI_AGAIN') throw new Error('Não foi possível resolver o endpoint MCP');
       throw error;

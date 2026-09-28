@@ -27,19 +27,36 @@ function databaseHost() {
 async function runSchemaMigration() {
   const schemaPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema.sql');
   const schema = await fs.readFile(schemaPath, 'utf8');
-  const client = await pool.connect();
-  try {
-    await client.query('SELECT pg_advisory_lock(hashtext($1))', ['prism-ia-schema']);
+  const attempts = Math.min(5, Math.max(1, Number(process.env.DB_STARTUP_ATTEMPTS || 3)));
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
-      await client.query(schema);
-      await client.query('SELECT 1');
-    } finally {
-      await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['prism-ia-schema']).catch(() => {});
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT pg_advisory_lock(hashtext($1))', ['prism-ia-schema']);
+        try {
+          await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
+          await client.query(schema);
+          await client.query('SELECT 1');
+        } finally {
+          await client.query('SELECT pg_advisory_unlock(hashtext($1))', ['prism-ia-schema']).catch(() => {});
+        }
+      } finally {
+        client.release();
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      const transient = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ETIMEDOUT'].includes(error?.code);
+      if (!transient || attempt >= attempts) break;
+      const delay = Math.min(4000, 500 * 2 ** (attempt - 1));
+      console.error(`Banco indisponível (tentativa ${attempt}/${attempts}, código ${error.code}); nova tentativa em ${delay}ms.`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-  } finally {
-    client.release();
   }
+
+  throw lastError || new Error('Banco de dados indisponível.');
 }
 
 export function ensureDatabase() {

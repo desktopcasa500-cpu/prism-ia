@@ -2,25 +2,38 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-export default function GoogleSignIn({ onSuccess }) {
+export default function GoogleSignIn({ onSuccess, disabled = false }) {
   const hostRef = useRef(null);
   const successRef = useRef(onSuccess);
   const { login } = useAuth();
+  const [clientId, setClientId] = useState('');
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => { successRef.current = onSuccess; }, [onSuccess]);
 
   useEffect(() => {
-    if (!CLIENT_ID) return undefined;
+    let active = true;
+    api.get('/auth/providers')
+      .then((config) => {
+        if (!active) return;
+        setClientId(String(config?.googleClientId || ''));
+      })
+      .catch((err) => {
+        if (active) setError(err.message || 'Não foi possível carregar o login do Google.');
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!clientId || disabled) return undefined;
     let cancelled = false;
 
     const render = () => {
       if (cancelled || !window.google || !hostRef.current) return;
       hostRef.current.innerHTML = '';
       window.google.accounts.id.initialize({
-        client_id: CLIENT_ID,
+        client_id: clientId,
         callback: async (response) => {
           if (!response?.credential) {
             setError('O Google não retornou uma credencial válida.');
@@ -48,6 +61,7 @@ export default function GoogleSignIn({ onSuccess }) {
         text: 'continue_with',
         logo_alignment: 'left',
       });
+      setReady(true);
     };
 
     const existing = document.querySelector('script[data-google-gsi]');
@@ -66,8 +80,13 @@ export default function GoogleSignIn({ onSuccess }) {
     script.onerror = () => setError('Não foi possível carregar o login do Google.');
     document.head.appendChild(script);
     return () => { cancelled = true; };
-  }, [login]);
+  }, [clientId, disabled, login]);
 
-  if (!CLIENT_ID) return null;
-  return <div><div ref={hostRef} className="google-wrap" />{error && <div className="notice" style={{ marginTop: 10 }} role="alert">{error}</div>}</div>;
+  if (!clientId) return null;
+  return (
+    <div>
+      <div ref={hostRef} className="google-wrap" aria-busy={!ready} />
+      {error && <div className="notice" style={{ marginTop: 10 }} role="alert">{error}</div>}
+    </div>
+  );
 }

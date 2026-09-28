@@ -40,6 +40,7 @@ export default function Login() {
         invalid_identity: 'O provedor não retornou uma identidade válida.',
         missing_identity: 'Não foi possível obter sua identidade.',
         not_configured: 'O login com ' + providerName + ' ainda não está configurado no servidor.',
+        jwt_not_configured: 'A autenticação segura do servidor ainda não está configurada.',
         oauth_failed: 'O login com ' + providerName + ' falhou no servidor. Verifique a configuração OAuth.',
       };
       setError(messages[reason] || 'Não foi possível entrar com ' + providerName + '.');

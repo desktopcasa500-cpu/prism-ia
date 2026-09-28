@@ -50,7 +50,7 @@ function requiresSsl(connection) {
     return Boolean(
       process.env.NODE_ENV === 'production'
         || isServerless
-        || /(^|\\.)neon\.tech$/i.test(url.hostname)
+        || /(^|\.)neon\.tech$/i.test(url.hostname)
         || ['require', 'verify-ca', 'verify-full'].includes(sslMode),
     );
   } catch {

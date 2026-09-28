@@ -8,16 +8,19 @@ const __dirname = path.dirname(__filename);
 const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST || '0.0.0.0';
 
-const server = app.listen(port, host, () => console.log(`Prism IA listening on ${host}:${port}`));
-
+let server = null;
 let shuttingDown = false;
 
-ensureDatabase().catch((error) => {
-  console.error('Banco permanece indisponível após a inicialização:', {
+try {
+  await ensureDatabase();
+  server = app.listen(port, host, () => console.log(`Prism IA listening on ${host}:${port}`));
+} catch (error) {
+  console.error('Banco indisponível; servidor não foi iniciado:', {
     code: error?.code || 'DATABASE_UNAVAILABLE',
     message: error?.message || 'DATABASE_UNAVAILABLE',
   });
-});
+  process.exitCode = 1;
+}
 
 async function shutdown(signal) {
   if (shuttingDown) return;

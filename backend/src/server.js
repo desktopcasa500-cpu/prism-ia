@@ -11,11 +11,11 @@ const port = Number(process.env.PORT) || 4000;
 const host = process.env.HOST || '0.0.0.0';
 
 function databaseConfigured() {
-  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL);
+  return Boolean(process.env.DATABASE_URL || process.env.DATABASE || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL);
 }
 
 function databaseHost() {
-  const raw = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || '';
+  const raw = process.env.DATABASE_URL || process.env.DATABASE || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL || '';
   try { return new URL(raw).hostname; } catch { return 'desconhecido'; }
 }
 

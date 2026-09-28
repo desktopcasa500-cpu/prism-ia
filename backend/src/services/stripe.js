@@ -12,6 +12,30 @@ export function planRank(plan) { return PLAN_RANK[plan] ?? 0; }
 export function configuredPlanPriceIds() { return Object.fromEntries(Object.entries(PLAN_PRICE_ENV).map(([plan, env]) => [plan, String(process.env[env] || '').trim()])); }
 export function planFromPriceId(priceId) { const id = String(priceId || '').trim(); for (const [plan, env] of Object.entries(PLAN_PRICE_ENV)) if (String(process.env[env] || '').trim() === id && id) return plan; return null; }
 export function stripeStatus() { const prices = configuredPlanPriceIds(); return { enabled: Boolean(getStripe()), ready: Boolean(STRIPE_SECRET_KEY), webhookReady: Boolean(STRIPE_WEBHOOK_SECRET), plans: Object.fromEntries(Object.entries(prices).map(([plan, priceId]) => [plan, { configured: Boolean(priceId) }])) }; }
+function configuredAppUrl() {
+  const raw = String(process.env.APP_URL || process.env.FRONTEND_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (!raw) throw Object.assign(new Error('APP_URL ou FRONTEND_ORIGIN não configurado.'), { status: 503, code: 'APP_URL_NOT_CONFIGURED' });
+  let url;
+  try { url = new URL(raw); } catch { throw Object.assign(new Error('APP_URL/FRONTEND_ORIGIN inválido.'), { status: 503, code: 'APP_URL_INVALID' }); }
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw Object.assign(new Error('APP_URL precisa usar HTTPS em produção.'), { status: 503, code: 'APP_URL_INSECURE' });
+  }
+  return url;
+}
+
+function safeReturnUrl(value, fallbackPath) {
+  const base = configuredAppUrl();
+  let target;
+  try {
+    target = value ? new URL(String(value), base) : new URL(fallbackPath, base);
+  } catch {
+    throw Object.assign(new Error('URL de retorno inválida.'), { status: 400, code: 'INVALID_RETURN_URL' });
+  }
+  if (target.origin !== base.origin || (process.env.NODE_ENV === 'production' && target.protocol !== 'https:')) {
+    throw Object.assign(new Error('URL de retorno não autorizada.'), { status: 400, code: 'RETURN_URL_NOT_ALLOWED' });
+  }
+  return target.toString();
+}
 
 export async function createCheckoutSession({ plan, customerEmail, successUrl, cancelUrl, userId }) {
   const client = getStripe();
@@ -20,14 +44,16 @@ export async function createCheckoutSession({ plan, customerEmail, successUrl, c
   if (!result.rows.length) return { ok: false, code: 'AUTH_REQUIRED', status: 401, error: 'Conta não encontrada.' };
   const email = String(result.rows[0].email || '').trim();
   const priceId = configuredPlanPriceIds()[plan];
-  if (!priceId || !email || !successUrl || !cancelUrl || !userId) return { ok: false, code: 'INVALID_CHECKOUT', status: 400, error: 'Plano, email, URLs e usuário são obrigatórios.' };
+  if (!priceId || !email || !userId) return { ok: false, code: 'INVALID_CHECKOUT', status: 400, error: 'Plano, conta e configuração de preço são obrigatórios.' };
+  const resolvedSuccessUrl = safeReturnUrl(successUrl, '/configuracoes?billing=success');
+  const resolvedCancelUrl = safeReturnUrl(cancelUrl, '/configuracoes?billing=cancelled');
   let customerId = result.rows[0].stripe_customer_id || null;
   if (!customerId) { const customer = await client.customers.create({ email, metadata: { prismUserId: String(userId) } }); customerId = customer.id; await pool.query('UPDATE users SET stripe_customer_id=$2 WHERE id=$1', [userId, customerId]); }
-  const session = await client.checkout.sessions.create({ mode: 'subscription', customer: customerId, line_items: [{ price: priceId, quantity: 1 }], success_url: successUrl, cancel_url: cancelUrl, allow_promotion_codes: true, metadata: { prismUserId: String(userId), plan }, subscription_data: { metadata: { prismUserId: String(userId), plan } } });
+  const session = await client.checkout.sessions.create({ mode: 'subscription', customer: customerId, line_items: [{ price: priceId, quantity: 1 }], success_url: resolvedSuccessUrl, cancel_url: resolvedCancelUrl, allow_promotion_codes: true, metadata: { prismUserId: String(userId), plan }, subscription_data: { metadata: { prismUserId: String(userId), plan } } });
   return { ok: true, id: session.id, url: session.url, plan, priceId };
 }
 
-export async function createPortalSession({ userId, returnUrl }) { const client = getStripe(); if (!client) return { ok: false, code: 'STRIPE_INACTIVE', status: 503, error: 'Stripe não está configurado no servidor.' }; const result = await pool.query('SELECT stripe_customer_id FROM users WHERE id=$1', [userId]); if (!result.rows[0]?.stripe_customer_id) return { ok: false, code: 'STRIPE_CUSTOMER_REQUIRED', status: 409, error: 'A conta ainda não possui uma assinatura Stripe.' }; const session = await client.billingPortal.sessions.create({ customer: result.rows[0].stripe_customer_id, return_url: returnUrl }); return { ok: true, url: session.url }; }
+export async function createPortalSession({ userId, returnUrl }) { const client = getStripe(); if (!client) return { ok: false, code: 'STRIPE_INACTIVE', status: 503, error: 'Stripe não está configurado no servidor.' }; const result = await pool.query('SELECT stripe_customer_id FROM users WHERE id=$1', [userId]); if (!result.rows[0]?.stripe_customer_id) return { ok: false, code: 'STRIPE_CUSTOMER_REQUIRED', status: 409, error: 'A conta ainda não possui uma assinatura Stripe.' }; const safeUrl = safeReturnUrl(returnUrl, '/configuracoes'); const session = await client.billingPortal.sessions.create({ customer: result.rows[0].stripe_customer_id, return_url: safeUrl }); return { ok: true, url: session.url }; }
 function subscriptionPriceId(subscription) { return subscription?.items?.data?.[0]?.price?.id || null; }
 async function provisionFromSubscription(subscription, fallbackUserId = null) { const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id; const priceId = subscriptionPriceId(subscription); const metadataUserId = subscription?.metadata?.prismUserId || fallbackUserId; const plan = planFromPriceId(priceId) || subscription?.metadata?.plan || null; const active = ['active','trialing'].includes(String(subscription?.status || '').toLowerCase()); const result = metadataUserId ? await pool.query('SELECT id FROM users WHERE id=$1', [metadataUserId]) : await pool.query('SELECT id FROM users WHERE stripe_customer_id=$1', [customerId]); if (!result.rows.length) return; await pool.query('UPDATE users SET stripe_customer_id=$2,stripe_subscription_id=$3,stripe_price_id=$4,plan=$5 WHERE id=$1', [result.rows[0].id, customerId || null, subscription.id || null, priceId || null, active && plan ? plan : 'free']); }
 export async function handleStripeWebhook(rawBody, signature) { const client = getStripe(); if (!client) return { ok: false, status: 503, code: 'STRIPE_INACTIVE' }; if (!STRIPE_WEBHOOK_SECRET) return { ok: false, status: 503, code: 'STRIPE_WEBHOOK_SECRET_MISSING' }; let event; try { event = client.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET); } catch (error) { return { ok: false, status: 400, code: 'STRIPE_WEBHOOK_INVALID', error: error.message }; } switch (event.type) { case 'checkout.session.completed': { const session = event.data.object; const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id; const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id; if (session.metadata?.prismUserId) await pool.query('UPDATE users SET stripe_customer_id=$2,stripe_subscription_id=$3 WHERE id=$1', [session.metadata.prismUserId, customerId || null, subscriptionId || null]); if (subscriptionId) await provisionFromSubscription(await client.subscriptions.retrieve(subscriptionId), session.metadata?.prismUserId || null); break; } case 'customer.subscription.created': case 'customer.subscription.updated': case 'customer.subscription.deleted': await provisionFromSubscription(event.data.object); break; case 'invoice.paid': if (event.data.object.subscription) await provisionFromSubscription(await client.subscriptions.retrieve(event.data.object.subscription)); break; case 'invoice.payment_failed': { const customerId = typeof event.data.object.customer === 'string' ? event.data.object.customer : event.data.object.customer?.id; if (customerId) await pool.query("UPDATE users SET plan='free' WHERE stripe_customer_id=$1", [customerId]); break; } default: break; } return { ok: true, eventType: event.type, eventId: event.id }; }

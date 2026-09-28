@@ -97,6 +97,7 @@
 }
 .auth-social-button{
   width:100%;
+  text-decoration:none;
   min-height:42px;
   display:flex;
   align-items:center;
@@ -431,3 +432,8 @@
   .auth-screen__content{padding-inline:18px}
 }
 
+
+.auth-social-button.is-disabled{
+  pointer-events:none;
+  opacity:.55;
+}

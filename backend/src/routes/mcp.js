@@ -17,9 +17,18 @@ function normalizeEndpoint(value) {
   return String(value || '').trim().slice(0, 2048);
 }
 
-function builtinGithubServer() {
+function builtinGithubAllowed(userId) {
+  const allowed = String(process.env.GITHUB_MCP_ALLOWED_USER_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Boolean(allowed.length && allowed.includes(String(userId)));
+}
+
+function builtinGithubServer(userId) {
   const token = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) return null;
+  if (!token || !builtinGithubAllowed(userId)) return null;
   return {
     id: 'builtin-github',
     name: 'GitHub',
@@ -39,7 +48,7 @@ async function ownsServer(id, userId) {
 }
 
 async function resolveServer(id, userId) {
-  if (id === 'builtin-github') return builtinGithubServer();
+  if (id === 'builtin-github') return builtinGithubServer(userId);
   if (!isUuid(id)) return null;
   return ownsServer(id, userId);
 }
@@ -60,7 +69,7 @@ async function probeWithQuota(userId, server) {
 router.get('/', async (req, res, next) => {
   try {
     const servers = await getMcpServers(req.userId);
-    const github = builtinGithubServer();
+    const github = builtinGithubServer(req.userId);
     res.json({
       servers: [
         ...(github ? [{ id: github.id, name: github.name, endpoint_url: github.endpoint_url, enabled: true, builtin: true }] : []),
@@ -113,7 +122,7 @@ router.post('/:id/test', async (req, res, next) => {
   try {
     const server = await resolveServer(req.params.id, req.userId);
     if (!server) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
-    const result = await probeMcpServer(server);
+    const result = await probeWithQuota(req.userId, server);
     res.json({ ok: true, server: result.server, transport: result.transport, tool_count: result.tools.length, tools: result.tools });
   } catch (error) {
     res.status(422).json({ ok: false, error: error?.message || 'Falha ao testar o servidor MCP.' });
@@ -124,7 +133,7 @@ router.get('/:id/tools', async (req, res, next) => {
   try {
     const server = await resolveServer(req.params.id, req.userId);
     if (!server) return res.status(404).json({ error: 'Servidor MCP não encontrado.' });
-    const result = await probeMcpServer(server);
+    const result = await probeWithQuota(req.userId, server);
     res.json({ server: result.server, transport: result.transport, tools: result.tools });
   } catch (error) { next(error); }
 });

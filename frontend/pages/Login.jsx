@@ -22,7 +22,15 @@ export default function Login() {
     window.history.replaceState({}, document.title, window.location.pathname);
 
     if (githubStatus !== 'success') {
-      setError('Não foi possível entrar com o GitHub. Tente novamente.');
+      const reason = params.get('reason');
+      const messages = {
+        missing_code: 'O GitHub não retornou um código de autorização.',
+        invalid_state: 'A sessão de segurança do GitHub expirou. Tente novamente.',
+        no_verified_email: 'Sua conta do GitHub não tem um e-mail verificado disponível.',
+        invalid_identity: 'O GitHub não retornou uma identidade válida.',
+        oauth_failed: 'O login do GitHub falhou no servidor. Verifique a configuração OAuth.',
+      };
+      setError(messages[reason] || 'Não foi possível entrar com o GitHub. Tente novamente.');
       return;
     }
 

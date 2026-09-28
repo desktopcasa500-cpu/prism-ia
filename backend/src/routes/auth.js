@@ -34,9 +34,11 @@ function providerConfig(req) {
 
 
 function appBaseUrl(req) {
-  const configured = String(process.env.BACKEND_URL || process.env.GITHUB_APP_URL || process.env.APP_URL || '').trim().replace(/\/+$/, '');
+  const configured = String(process.env.APP_URL || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  const backend = String(process.env.BACKEND_URL || process.env.GITHUB_APP_URL || '').trim().replace(/\/+$/, '');
+  if (backend) return backend;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return `${req.protocol}://${req.get('host')}`;
 }
@@ -223,6 +225,7 @@ router.get('/providers', (req, res) => {
     googleMissing: missing.google,
     github: config.github,
     githubMissing: missing.github,
+    googleCallback: config.google ? googleRedirectUri(req) : null,
     githubCallback: config.github ? config.callback : null,
   });
 });
@@ -417,7 +420,8 @@ router.post('/google', async (req, res, next) => {
 
 router.get('/github/start', (req, res) => {
   const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
-  if (!clientId) return oauthErrorRedirect(res, 'github', 'not_configured');
+  const clientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
+  if (!clientId || !clientSecret) return oauthErrorRedirect(res, 'github', 'not_configured');
   if (!process.env.JWT_SECRET) return oauthErrorRedirect(res, 'github', 'jwt_not_configured');
 
   const redirectUri = githubRedirectUri(req);

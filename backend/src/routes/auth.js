@@ -63,7 +63,7 @@ function setProviderSessionCookie(res, name, token) {
 
 function clearProviderSessionCookie(res, name) {
   const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-  res.setHeader('Set-Cookie', [
+  res.append('Set-Cookie', [
     `${name}=`,
     'HttpOnly',
     process.env.NODE_ENV === 'production' || process.env.VERCEL === '1' ? 'SameSite=None' : 'SameSite=Lax',
@@ -116,7 +116,7 @@ function setGithubSessionCookie(res, token) {
     'Max-Age=300',
   ];
   if (secure) parts.push('Secure');
-  res.setHeader('Set-Cookie', parts.join('; '));
+  res.append('Set-Cookie', parts.join('; '));
 }
 
 function clearGithubSessionCookie(res) {
@@ -129,7 +129,7 @@ function clearGithubSessionCookie(res) {
     'Max-Age=0',
   ];
   if (secure) parts.push('Secure');
-  res.setHeader('Set-Cookie', parts.join('; '));
+  res.append('Set-Cookie', parts.join('; '));
 }
 
 
@@ -221,7 +221,7 @@ router.get('/providers', (req, res) => {
     google: config.google,
     googleClientId: config.googleClientId,
     googleMissing: missing.google,
-    github: Boolean(config.githubClientId),
+    github: config.github,
     githubMissing: missing.github,
     githubCallback: config.github ? config.callback : null,
   });

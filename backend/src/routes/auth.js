@@ -16,8 +16,8 @@ function configuredEnv(...names) {
 }
 
 function providerConfig(req) {
-  const googleClientId = configuredEnv('GOOGLE_CLIENT_ID');
-  const githubClientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
+  const googleClientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
+  const githubClientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID', 'VITE_GITHUB_CLIENT_ID');
   const githubClientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
   return {
     google: Boolean(googleClientId),
@@ -31,7 +31,7 @@ function providerConfig(req) {
 
 
 function appBaseUrl(req) {
-  const configured = String(process.env.APP_URL || process.env.GITHUB_APP_URL || '').trim().replace(/\/+$/, '');
+  const configured = String(process.env.BACKEND_URL || process.env.GITHUB_APP_URL || process.env.APP_URL || '').trim().replace(/\/+$/, '');
   if (configured) return configured;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
@@ -101,7 +101,7 @@ async function githubApi(path, options = {}) {
 }
 
 async function exchangeGithubCode(code, redirectUri) {
-  const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
+  const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID', 'VITE_GITHUB_CLIENT_ID');
   const clientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
   if (!clientId || !clientSecret) throw Object.assign(new Error('Login com GitHub não está configurado neste ambiente.'), { status: 503, code: 'GITHUB_NOT_CONFIGURED' });
 

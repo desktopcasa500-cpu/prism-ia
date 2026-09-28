@@ -10,6 +10,8 @@ const MIME_BY_EXT = {
   png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', webp:'image/webp', gif:'image/gif', svg:'image/svg+xml', py:'text/x-python', java:'text/x-java-source', go:'text/plain', rs:'text/plain', sql:'application/sql'
 };
 const MAX_BYTES = 10 * 1024 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isUuid = (value) => typeof value === 'string' && UUID.test(value);
 const TEXT_EXTENSIONS = new Set(['txt','md','json','csv','js','ts','jsx','tsx','html','css','py','java','go','rs','sql']);
 function extension(name) { return String(name || '').split('.').pop()?.toLowerCase() || ''; }
 function cleanName(name) { return String(name || '').replace(/[\u0000\r\n]/g, '').trim().slice(0, 240); }
@@ -18,6 +20,7 @@ function decodeText(base64, ext) { if (!TEXT_EXTENSIONS.has(ext)) return null; t
 router.get('/', async (req, res, next) => {
   try {
     const projectId = req.query?.projectId ? String(req.query.projectId) : null;
+    if (projectId && !isUuid(projectId)) return res.status(400).json({ error: 'Identificador de projeto inválido.', code: 'INVALID_PROJECT_ID' });
     const result = await pool.query(`SELECT id,project_id,name,mime_type,size_bytes,created_at FROM uploads WHERE user_id=$1 AND ($2::uuid IS NULL OR project_id=$2::uuid) ORDER BY created_at DESC LIMIT 200`, [req.userId, projectId]);
     res.json({ uploads: result.rows.map((row) => ({ ...row, downloadUrl: `/api/uploads/${row.id}`, kind: String(row.mime_type || '').startsWith('image/') ? 'image' : row.mime_type === 'application/pdf' ? 'pdf' : row.mime_type === 'application/zip' ? 'zip' : 'file' })) });
   } catch (error) { next(error); }
@@ -25,6 +28,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const name=cleanName(req.body?.name); const data=String(req.body?.dataBase64||'').trim(); const projectId=req.body?.projectId?String(req.body.projectId):null;
+    if(projectId && !isUuid(projectId)) return res.status(400).json({error:'Identificador de projeto inválido.',code:'INVALID_PROJECT_ID'});
     if(!name||!data)return res.status(400).json({error:'Nome e conteúdo do arquivo são obrigatórios.',code:'FILE_REQUIRED'});
     const ext=extension(name); if(!MIME_BY_EXT[ext])return res.status(415).json({error:'Tipo de arquivo não suportado.',code:'FILE_TYPE_UNSUPPORTED'});
     const normalized=data.includes(',')?data.slice(data.indexOf(',')+1):data; const buffer=Buffer.from(normalized,'base64');

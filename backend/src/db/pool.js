@@ -43,12 +43,29 @@ const poolMax = envNumber('DB_POOL_MAX', isServerless ? 2 : 10, 1, 50);
 const connectionTimeoutMillis = envNumber('DB_CONNECTION_TIMEOUT_MS', 8_000, 1_000, 30_000);
 const idleTimeoutMillis = envNumber('DB_IDLE_TIMEOUT_MS', isServerless ? 15_000 : 30_000, 1_000, 120_000);
 
+function requiresSsl(connection) {
+  try {
+    const url = new URL(connection);
+    const sslMode = String(url.searchParams.get('sslmode') || '').toLowerCase();
+    return Boolean(
+      process.env.NODE_ENV === 'production'
+        || isServerless
+        || /(^|\\.)neon\.tech$/i.test(url.hostname)
+        || ['require', 'verify-ca', 'verify-full'].includes(sslMode),
+    );
+  } catch {
+    return process.env.NODE_ENV === 'production' || isServerless;
+  }
+}
+
+const useSsl = requiresSsl(connectionString);
+
 export { databaseEnv, connectionString };
 
 export const pool = connectionString
   ? new Pool({
       connectionString,
-      ssl: process.env.NODE_ENV === 'production' || isServerless ? { rejectUnauthorized: false } : false,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
       max: poolMax,
       idleTimeoutMillis,
       connectionTimeoutMillis,

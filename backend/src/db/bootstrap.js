@@ -11,7 +11,8 @@ function databaseConfigured() {
     process.env.DATABASE_URL
       || process.env.DATABASE
       || process.env.POSTGRES_URL
-      || process.env.POSTGRES_PRISMA_URL,
+      || process.env.POSTGRES_PRISMA_URL
+      || process.env.POSTGRES_URL_NON_POOLING,
   );
 }
 
@@ -20,6 +21,7 @@ function databaseHost() {
     || process.env.DATABASE
     || process.env.POSTGRES_URL
     || process.env.POSTGRES_PRISMA_URL
+    || process.env.POSTGRES_URL_NON_POOLING
     || '';
   try { return new URL(raw).hostname; } catch { return 'desconhecido'; }
 }

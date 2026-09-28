@@ -18,7 +18,7 @@ const PLANS = {
   Empresarial: { price: 'R$140/mês', rank: 4 },
 };
 
-router.get('/status', (_req, res) => res.json({ ...stripeStatus(), prices: Object.keys(PLANS), billingSimulation: !stripeStatus().enabled, simulationMessage: !stripeStatus().enabled ? 'A cobrança ainda não está conectada.' : null }));
+router.get('/status', (_req, res) => { const status = stripeStatus(); return res.json({ ...status, prices: Object.keys(PLANS), billingSimulation: BILLING_SIMULATION_ALLOWED, simulationMessage: BILLING_SIMULATION_ALLOWED ? 'A cobrança simulada está disponível apenas para desenvolvimento.' : (!status.enabled ? 'A cobrança ainda não está conectada.' : null) }); });
 router.get('/plans', (_req, res) => res.json({ plans: Object.entries(PLANS).map(([name, info]) => ({ name, ...info, configured: Boolean(configuredPlanPriceIds()[name]) })) }));
 router.get('/wallet', async (req, res, next) => { try { const wallet = await getWallet(req.userId); if (!wallet) return res.status(404).json({ error: 'Conta não encontrada.' }); res.json(wallet); } catch (error) { next(error); } });
 router.post('/top-up/simulated', async (req, res, next) => {
@@ -74,7 +74,7 @@ router.post('/checkout', async (req, res, next) => {
         message: 'Upgrade simulado em ambiente de desenvolvimento.',
       });
     }
-    const result = await createCheckoutSession({ plan, customerEmail: req.user?.email || req.body?.customerEmail, successUrl: req.body?.successUrl, cancelUrl: req.body?.cancelUrl, userId: req.userId });
+    const result = await createCheckoutSession({ plan, successUrl: req.body?.successUrl, cancelUrl: req.body?.cancelUrl, userId: req.userId });
     if (!result.ok) return res.status(result.status || 503).json(result);
     res.json(result);
   } catch (error) { next(error); }

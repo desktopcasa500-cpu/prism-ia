@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getApiUrl } from '../lib/api.js';
 
 export default function GoogleSignIn({ disabled = false }) {
   const [busy, setBusy] = useState(false);
@@ -6,7 +7,7 @@ export default function GoogleSignIn({ disabled = false }) {
   function start() {
     if (disabled || busy) return;
     setBusy(true);
-    window.location.assign('/api/auth/google/start?returnTo=%2Flogin');
+    window.location.assign(getApiUrl('/auth/google/start?returnTo=%2Flogin'));
   }
 
   return (

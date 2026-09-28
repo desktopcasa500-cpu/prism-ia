@@ -106,16 +106,37 @@ export async function buildWorkspace({workspace,target,signal}){
   const build=await buildProject({projectName:workspace.project.name,files:workspace.files,target});const expiresAt=Date.now()+DOWNLOAD_TTL;await pool.query("INSERT INTO builds(id,user_id,project_id,platform,filename,status,output_path,expires_at) VALUES($1,$2,$3,$4,$5,'completed',$6,to_timestamp($7/1000.0))",[build.buildId,workspace.userId,workspace.projectId,target,build.filename,build.outputPath,expiresAt]);return{ok:true,type:'build',buildId:build.buildId,filename:build.filename,size:build.size,expiresAt:new Date(expiresAt).toISOString(),downloadPath:`/api/builds/${build.buildId}/download?token=${encodeURIComponent(signDownload(build.buildId,workspace.userId,expiresAt))}`,details:build.details};
 }
 
-export function agentToolDefinitions(){return[
-  {modelName:'prism_exec',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'execute_command',kind:'native',description:'Executa um comando de desenvolvimento dentro do workspace atual, com política de segurança e limite de tempo.',inputSchema:{type:'object',properties:{command:{type:'string'},cwd:{type:'string'},timeoutMs:{type:'integer'}},required:['command']}},
+const BASE_AGENT_TOOLS = [
   {modelName:'prism_read_file',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'read_file',kind:'native',description:'Lê um arquivo do projeto atual.',inputSchema:{type:'object',properties:{path:{type:'string'}},required:['path']}},
   {modelName:'prism_write_file',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'write_file',kind:'native',description:'Cria ou substitui um arquivo do projeto e persiste a alteração no workspace.',inputSchema:{type:'object',properties:{path:{type:'string'},content:{type:'string'}},required:['path','content']}},
   {modelName:'prism_list_files',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'list_files',kind:'native',description:'Lista os arquivos do projeto atual.',inputSchema:{type:'object',properties:{}}},
-  {modelName:'prism_build',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'build_project',kind:'native',description:'Compila, valida ou empacota o projeto. Suporta Java/JAR, JavaScript, Windows EXE e ZIP.',inputSchema:{type:'object',properties:{target:{type:'string',enum:['jar','js','win32-x64','zip']}},required:['target']}},
-  {modelName:'prism_verify',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'verify_project',kind:'native',description:'Executa verificações apropriadas ao projeto, como node --check, javac, testes ou lint.',inputSchema:{type:'object',properties:{command:{type:'string'}}}},
-];}
+];
+
+const EXECUTION_AGENT_TOOLS = [
+  {modelName:'prism_exec',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'execute_command',kind:'native',description:'Executa um comando de desenvolvimento dentro de um worker isolado.',inputSchema:{type:'object',properties:{command:{type:'string'},cwd:{type:'string'},timeoutMs:{type:'integer'}},required:['command']}},
+  {modelName:'prism_build',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'build_project',kind:'native',description:'Compila, valida ou empacota o projeto em um ambiente isolado.',inputSchema:{type:'object',properties:{target:{type:'string',enum:['jar','js','win32-x64','zip']}},required:['target']}},
+  {modelName:'prism_verify',serverId:'prism-agent',serverName:'Prism Agent Runtime',toolName:'verify_project',kind:'native',description:'Executa verificações apropriadas ao projeto em um ambiente isolado.',inputSchema:{type:'object',properties:{command:{type:'string'}}}},
+];
+
+export function agentToolDefinitions(){
+  return process.env.NODE_ENV === 'production'
+    ? BASE_AGENT_TOOLS
+    : [...BASE_AGENT_TOOLS, ...EXECUTION_AGENT_TOOLS];
+}
 
 export async function executeAgentTool(tool,args,workspace,execution=null){
+  const executionTool = new Set(['prism_exec','prism_build','prism_verify']);
+  if (
+    process.env.NODE_ENV === 'production' &&
+    executionTool.has(tool) &&
+    String(process.env.PRISM_UNSANDBOXED_AGENT || '').toLowerCase() !== 'true'
+  ) {
+    throw Object.assign(
+      new Error('Execução de código está desativada neste ambiente até um worker isolado estar configurado.'),
+      { code: 'AGENT_SANDBOX_REQUIRED', status: 503 },
+    );
+  }
+
   if(tool==='prism_read_file')return readProjectFile(workspace,args.path);
   if(tool==='prism_write_file')return upsertProjectFile(workspace,args.path,args.content);
   if(tool==='prism_list_files')return listProjectFiles(workspace);

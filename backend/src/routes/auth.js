@@ -51,7 +51,7 @@ function googleRedirectUri(req) {
 
 function setProviderSessionCookie(res, name, token) {
   const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-  res.setHeader('Set-Cookie', [
+  res.append('Set-Cookie', [
     `${name}=${encodeURIComponent(token)}`,
     'HttpOnly',
     process.env.NODE_ENV === 'production' || process.env.VERCEL === '1' ? 'SameSite=None' : 'SameSite=Lax',

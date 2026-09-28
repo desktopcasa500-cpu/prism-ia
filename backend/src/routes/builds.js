@@ -94,7 +94,7 @@ router.post('/', async (req, res) => {
       let totalBytes = 0;
       zipRoot = await fs.mkdtemp(path.join(os.tmpdir(), `prism-project-${crypto.randomUUID()}-`));
       for (const file of files) {
-        const absolute = path.join(root, file.path);
+        const absolute = path.join(zipRoot, file.path);
         if (!absolute.startsWith(root + path.sep)) throw Object.assign(new Error('Caminho de arquivo inválido.'), { code: 'INVALID_PROJECT_PATH' });
         const content = String(file.content || '');
         const bytes = Buffer.byteLength(content, 'utf8');

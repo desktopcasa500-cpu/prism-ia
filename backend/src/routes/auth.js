@@ -53,7 +53,7 @@ function setProviderSessionCookie(res, name, token) {
   res.setHeader('Set-Cookie', [
     `${name}=${encodeURIComponent(token)}`,
     'HttpOnly',
-    'SameSite=Lax',
+    process.env.NODE_ENV === 'production' || process.env.VERCEL === '1' ? 'SameSite=None' : 'SameSite=Lax',
     'Path=/api/auth',
     'Max-Age=300',
     ...(secure ? ['Secure'] : []),
@@ -65,7 +65,7 @@ function clearProviderSessionCookie(res, name) {
   res.setHeader('Set-Cookie', [
     `${name}=`,
     'HttpOnly',
-    'SameSite=Lax',
+    process.env.NODE_ENV === 'production' || process.env.VERCEL === '1' ? 'SameSite=None' : 'SameSite=Lax',
     'Path=/api/auth',
     'Max-Age=0',
     ...(secure ? ['Secure'] : []),
@@ -80,7 +80,8 @@ function safeReturnPath(value) {
 function cookieValue(header, name) {
   const source = String(header || '');
   const match = source.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.slice(name.length + 1)) : '';
+  if (!match) return '';
+  try { return decodeURIComponent(match.slice(name.length + 1)); } catch { return ''; }
 }
 
 function setGithubSessionCookie(res, token) {
@@ -109,6 +110,11 @@ function clearGithubSessionCookie(res) {
   res.setHeader('Set-Cookie', parts.join('; '));
 }
 
+
+function oauthErrorRedirect(res, provider, reason) {
+  const params = new URLSearchParams({ [provider]: 'error', reason });
+  return res.redirect(`/login?${params.toString()}`);
+}
 async function githubApi(path, options = {}) {
   const response = await fetch(`https://api.github.com${path}`, {
     ...options,
@@ -203,12 +209,9 @@ router.get('/google/start', (req, res) => {
   const clientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
   const clientSecret = configuredEnv('GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_CLIENT_SECRET');
   if (!clientId || !clientSecret) {
-    return res.status(503).json({
-      error: 'Login com Google não está configurado neste ambiente. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.',
-      code: 'GOOGLE_NOT_CONFIGURED',
-    });
+    return oauthErrorRedirect(res, 'google', 'not_configured');
   }
-  if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
+  if (!process.env.JWT_SECRET) return oauthErrorRedirect(res, 'google', 'jwt_not_configured');
 
   const state = jwt.sign(
     { purpose: 'google_oauth', returnTo: safeReturnPath(req.query?.returnTo) },
@@ -387,8 +390,8 @@ router.post('/google', async (req, res, next) => {
 
 router.get('/github/start', (req, res) => {
   const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
-  if (!clientId) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente. Configure GITHUB_CLIENT_ID.', code: 'GITHUB_CLIENT_NOT_CONFIGURED' });
-  if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
+  if (!clientId) return oauthErrorRedirect(res, 'github', 'not_configured');
+  if (!process.env.JWT_SECRET) return oauthErrorRedirect(res, 'github', 'jwt_not_configured');
 
   const redirectUri = githubRedirectUri(req);
   const state = jwt.sign(

@@ -10,6 +10,25 @@ const MCP_TIMEOUT = 35_000;
 const MAX_TOOL_RESULT = 30_000;
 const MAX_TOOLS_PER_SERVER = 128;
 
+function allowedMcpHost(hostname) {
+  const hosts = String(process.env.MCP_ALLOWED_HOSTS || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (process.env.NODE_ENV !== 'production') return true;
+  return hosts.includes(String(hostname || '').toLowerCase());
+}
+
+function builtinGithubAllowed(userId) {
+  const allowed = String(process.env.GITHUB_MCP_ALLOWED_USER_IDS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return Boolean(allowed.length && allowed.includes(String(userId)));
+}
+
 function encryptionKey() {
   const configured = String(process.env.MCP_ENCRYPTION_KEY || '').trim();
   if (!configured) throw new Error('MCP_ENCRYPTION_KEY não configurada');
@@ -56,6 +75,7 @@ async function assertSafeUrl(rawUrl) {
   if (process.env.MCP_ALLOW_PRIVATE_HOSTS !== 'true') {
     const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
     if (hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateIp(hostname)) throw new Error('Endpoint MCP local ou privado bloqueado');
+    if (!allowedMcpHost(hostname)) throw new Error('Host MCP não autorizado neste ambiente.');
     const addresses = await dns.lookup(hostname, { all: true, verbatim: true }).catch((error) => {
       if (error?.code === 'ENOTFOUND' || error?.code === 'EAI_AGAIN') throw new Error('Não foi possível resolver o endpoint MCP');
       throw error;
@@ -91,7 +111,13 @@ function normalizeToolResult(result) {
 
 function transportOptions(token) {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  return { authProvider: token ? { token: async () => token } : undefined, requestInit: { headers } };
+  return {
+    authProvider: token ? { token: async () => token } : undefined,
+    requestInit: {
+      headers,
+      redirect: 'error',
+    },
+  };
 }
 
 async function connectServer(server) {
@@ -155,8 +181,19 @@ export async function createMcpExecutionContext(userId, options = {}) {
   const saved = await pool.query(sql, params);
   const servers = [...saved.rows];
   const githubToken = process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN;
-  if (githubToken && (!hasFilter || filter.includes('builtin-github'))) {
-    servers.push({ id: 'builtin-github', name: 'GitHub', endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/', auth_token_encrypted: encryptSecret(githubToken), enabled: true, builtin: true });
+  if (
+    githubToken &&
+    builtinGithubAllowed(userId) &&
+    (!hasFilter || filter.includes('builtin-github'))
+  ) {
+    servers.push({
+      id: 'builtin-github',
+      name: 'GitHub',
+      endpoint_url: process.env.GITHUB_MCP_URL || 'https://api.githubcopilot.com/mcp/',
+      auth_token_encrypted: encryptSecret(githubToken),
+      enabled: true,
+      builtin: true,
+    });
   }
 
   const results = await Promise.allSettled(servers.map(async (server) => ({ server, connection: await connectServer(server) })));

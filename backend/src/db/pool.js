@@ -9,7 +9,9 @@ const databaseEnv = process.env.DATABASE_URL
       ? 'POSTGRES_URL'
       : process.env.POSTGRES_PRISMA_URL
         ? 'POSTGRES_PRISMA_URL'
-        : null;
+        : process.env.POSTGRES_URL_NON_POOLING
+          ? 'POSTGRES_URL_NON_POOLING'
+          : null;
 const connectionString = databaseEnv ? process.env[databaseEnv] : null;
 
 const missingDatabaseError = () => {

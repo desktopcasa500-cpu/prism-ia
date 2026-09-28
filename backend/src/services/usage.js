@@ -158,7 +158,7 @@ export async function reserveUsage(userId, model) {
     if (weeklyLocked && canUseExtraFunds(plan) && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
       const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
       if (charged.rows.length) {
-        const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
+        const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 0, now()) RETURNING id', [userId, model || null]);
         await client.query('COMMIT');
         const balance = Number(charged.rows[0].wallet_balance_cents || 0);
         return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, balance) };
@@ -169,7 +169,7 @@ export async function reserveUsage(userId, model) {
       if (rank >= 2 && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
         const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
         if (charged.rows.length) {
-          const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
+          const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 0, now()) RETURNING id', [userId, model || null]);
           await client.query('COMMIT');
           const balance = Number(charged.rows[0].wallet_balance_cents || 0);
           return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, balance) };
@@ -181,7 +181,7 @@ export async function reserveUsage(userId, model) {
       return { ok: false, code: 'WEEKLY_USAGE_LOCKED', status: 429, usage: currentUsage(until), canUseExtraFunds: rank >= 2 };
     }
 
-    const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, created_at) VALUES ($1, $2, NULL, 0, 1, now()) RETURNING id', [userId, model || null]);
+    const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 0, now()) RETURNING id', [userId, model || null]);
     await client.query('COMMIT');
     return { ok: true, reservationId: inserted.rows[0]?.id || null, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, walletBalance) };
   } catch (error) {
@@ -192,8 +192,33 @@ export async function reserveUsage(userId, model) {
 
 export async function releaseUsage(reservationId) {
   if (!reservationId) return false;
-  const result = await pool.query('UPDATE usage SET units=0 WHERE id=$1 AND COALESCE(units, 0) > 0 RETURNING id', [reservationId]);
-  return Boolean(result.rows.length);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const released = await client.query(
+      'UPDATE usage SET units=0 WHERE id=$1 AND COALESCE(units, 0) > 0 RETURNING user_id, COALESCE(extra_funds_cents, 0) AS refund_cents',
+      [reservationId],
+    );
+    if (!released.rows.length) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+    const refundCents = Math.max(0, Number(released.rows[0].refund_cents || 0));
+    if (refundCents > 0) {
+      await client.query(
+        'UPDATE users SET wallet_balance_cents=wallet_balance_cents+$2 WHERE id=$1',
+        [released.rows[0].user_id, refundCents],
+      );
+      await client.query('UPDATE usage SET extra_funds_cents=0 WHERE id=$1', [reservationId]);
+    }
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function recordTokens(reservationId, provider, tokens) {

@@ -26,7 +26,7 @@ export default function Login() {
     const googleStatus = params.get('google');
     const provider = githubStatus ? 'github' : googleStatus ? 'google' : '';
     const status = githubStatus || googleStatus;
-    if (!status) return;
+    if (!status || !provider) return;
 
     window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -52,7 +52,7 @@ export default function Login() {
     api.post('/auth/' + provider + '/session')
       .then((result) => {
         if (!active) return;
-        if (!result.token || !result.user) throw new Error('A resposta do provedor está incompleta.');
+        if (!result?.token || !result?.user) throw new Error('A resposta do provedor está incompleta.');
         login(result.token, result.user);
         navigate('/chat', { replace: true });
       })

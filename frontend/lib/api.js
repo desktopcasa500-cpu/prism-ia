@@ -138,7 +138,13 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
 
     const payload = await parseResponseBody(response);
     if (!response.ok) {
-      const message = stringifyError(payload?.error) || stringifyError(payload?.message) || `Erro ${response.status}`;
+      let message = stringifyError(payload?.error) || stringifyError(payload?.message) || `Erro ${response.status}`;
+      if (response.status >= 500 && payload?.code && payload.code !== 'SERVER_ERROR') {
+        message += ` (${payload.code})`;
+      }
+      if (response.status >= 500 && payload?.requestId) {
+        message += ` — ID ${payload.requestId}`;
+      }
       throw makeApiError(message, response, payload);
     }
 

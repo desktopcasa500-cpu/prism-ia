@@ -1,7 +1,4 @@
 import 'dotenv/config';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import app from './app.js';
 import { pool } from './db/pool.js';
 import { ensureDatabase } from './db/bootstrap.js';
@@ -18,7 +15,7 @@ let shuttingDown = false;
 ensureDatabase().catch((error) => {
   console.error('Banco permanece indisponível após a inicialização:', {
     code: error?.code || 'DATABASE_UNAVAILABLE',
-    host: databaseHost(),
+    message: error?.message || 'DATABASE_UNAVAILABLE',
   });
 });
 

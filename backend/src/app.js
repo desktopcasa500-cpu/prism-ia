@@ -25,7 +25,7 @@ import cronRoutes from './routes/cron.js';
 import { trafficGate } from './middleware/trafficGate.js';
 import { quotaGate } from './middleware/quotaGate.js';
 import { handleStripeWebhook } from './services/stripe.js';
-import { pool } from './db/pool.js';
+import { pool, databaseEnv } from './db/pool.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -114,13 +114,14 @@ app.get('/api/health', async (_req, res) => {
   const health = providerHealth();
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, database: 'connected', auth: Boolean(process.env.JWT_SECRET), ...health, mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), web: true, stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
+    res.json({ ok: true, database: 'connected', database_env: databaseEnv, auth: Boolean(process.env.JWT_SECRET), ...health, mcp: Boolean(process.env.MCP_ENCRYPTION_KEY), web: true, stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true') });
   } catch (error) {
     res.status(200).json({
       ok: false,
       status: 'degraded',
       database: 'unreachable',
       database_error: error?.code || 'DATABASE_UNAVAILABLE',
+      database_env: databaseEnv,
       auth: Boolean(process.env.JWT_SECRET),
       ...health,
       mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),

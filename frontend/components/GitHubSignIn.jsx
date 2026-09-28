@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../lib/api.js';
+import { api, getApiUrl } from '../lib/api.js';
 
 export default function GitHubSignIn({ disabled = false }) {
   const [busy, setBusy] = useState(false);
@@ -13,7 +13,7 @@ export default function GitHubSignIn({ disabled = false }) {
         const missing = Array.isArray(config?.githubMissing) ? config.githubMissing.join(', ') : 'GITHUB_CLIENT_ID';
         throw new Error('Login com GitHub indisponível. Configure: ' + missing + '.');
       }
-      window.location.assign('/api/auth/github/start?returnTo=%2Flogin');
+      window.location.assign(getApiUrl('/auth/github/start?returnTo=%2Flogin'));
     } catch (error) {
       setBusy(false);
       window.dispatchEvent(new CustomEvent('prism-auth-error', { detail: error?.message || 'Login com GitHub indisponível.' }));

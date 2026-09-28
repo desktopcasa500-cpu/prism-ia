@@ -158,7 +158,7 @@ export async function reserveUsage(userId, model) {
     if (weeklyLocked && canUseExtraFunds(plan) && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
       const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
       if (charged.rows.length) {
-        const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 0, now()) RETURNING id', [userId, model || null]);
+        const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 1, now()) RETURNING id', [userId, model || null]);
         await client.query('COMMIT');
         const balance = Number(charged.rows[0].wallet_balance_cents || 0);
         return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, balance) };
@@ -169,7 +169,7 @@ export async function reserveUsage(userId, model) {
       if (rank >= 2 && walletBalance >= EXTRA_REQUEST_COST_CENTS) {
         const charged = await client.query('UPDATE users SET wallet_balance_cents=wallet_balance_cents-$2, weekly_locked_until=NULL WHERE id=$1 AND wallet_balance_cents >= $2 RETURNING wallet_balance_cents', [userId, EXTRA_REQUEST_COST_CENTS]);
         if (charged.rows.length) {
-          const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 0, now()) RETURNING id', [userId, model || null]);
+          const inserted = await client.query('INSERT INTO usage (user_id, model, provider, tokens, units, extra_funds_cents, created_at) VALUES ($1, $2, NULL, 0, 1, 1, now()) RETURNING id', [userId, model || null]);
           await client.query('COMMIT');
           const balance = Number(charged.rows[0].wallet_balance_cents || 0);
           return { ok: true, reservationId: inserted.rows[0]?.id || null, extraFundsUsed: true, usage: snapshot(plan, timezone, dailyUsed + 1, weeklyUsed + 1, null, now, oldestDailyUsage || now, balance) };

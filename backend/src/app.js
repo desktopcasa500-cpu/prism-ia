@@ -120,7 +120,16 @@ app.use(trafficGate);
 app.use(quotaGate);
 app.get('/api/health', async (_req, res) => {
   try {
-    await pool.query('SELECT 1');
+    const result = await pool.query(`
+      SELECT
+        current_database() AS database,
+        to_regclass('public.users') AS users_table,
+        to_regclass('public.sessions') AS sessions_table,
+        to_regclass('public.messages') AS messages_table
+    `);
+    const row = result.rows[0] || {};
+    const schemaReady = Boolean(row.users_table && row.sessions_table && row.messages_table);
+    if (!schemaReady) return res.status(503).json({ ok: false, database: 'connected', code: 'DATABASE_SCHEMA_MISMATCH' });
     return res.status(200).json({ ok: true, database: 'connected' });
   } catch (error) {
     const code = databaseSchemaFailure(error)

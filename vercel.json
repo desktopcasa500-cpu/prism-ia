@@ -10,7 +10,7 @@
       "schedule": "10 3 * * *"
     }
   ],
-  "buildCommand": "npm run check && npm run build",
+  "buildCommand": "if [ -n \"$DATABASE_URL\" ] || [ -n \"$DATABASE\" ] || [ -n \"$POSTGRES_URL\" ] || [ -n \"$POSTGRES_PRISMA_URL\" ] || [ -n \"$POSTGRES_URL_NON_POOLING\" ]; then npm run migrate; fi; npm run check && npm run build",
   "rewrites": [
     { "source": "/login", "destination": "/index.html" },
     { "source": "/register", "destination": "/index.html" },

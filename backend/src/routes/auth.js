@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { URLSearchParams } from 'node:url';
+import crypto from 'node:crypto';
 import { pool } from '../db/pool.js';
 
 const router = Router();
@@ -70,6 +71,27 @@ function clearProviderSessionCookie(res, name) {
     'Max-Age=0',
     ...(secure ? ['Secure'] : []),
   ].join('; '));
+}
+
+function setOAuthStateCookie(res, provider, nonce) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  res.append('Set-Cookie', [
+    'prism_oauth_' + provider + '=' + encodeURIComponent(nonce),
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/api/auth',
+    'Max-Age=600',
+    ...(secure ? ['Secure'] : []),
+  ].join('; '));
+}
+
+function consumeOAuthStateCookie(req, res, provider, nonce) {
+  const expected = cookieValue(req.headers.cookie, 'prism_oauth_' + provider);
+  clearProviderSessionCookie(res, 'prism_oauth_' + provider);
+  if (!expected || !nonce) return false;
+  const left = Buffer.from(String(expected));
+  const right = Buffer.from(String(nonce));
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
 function safeReturnPath(value) {
@@ -213,8 +235,10 @@ router.get('/google/start', (req, res) => {
   }
   if (!process.env.JWT_SECRET) return oauthErrorRedirect(res, 'google', 'jwt_not_configured');
 
+  const nonce = crypto.randomBytes(32).toString('base64url');
+  setOAuthStateCookie(res, 'google', nonce);
   const state = jwt.sign(
-    { purpose: 'google_oauth', returnTo: safeReturnPath(req.query?.returnTo) },
+    { purpose: 'google_oauth', nonce, returnTo: safeReturnPath(req.query?.returnTo) },
     process.env.JWT_SECRET,
     { expiresIn: '10m' },
   );
@@ -242,6 +266,9 @@ router.get('/google/callback', async (req, res) => {
 
     const statePayload = jwt.verify(state, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (statePayload?.purpose !== 'google_oauth') return res.redirect(`${returnTo}?google=error&reason=invalid_state`);
+    if (!consumeOAuthStateCookie(req, res, 'google', statePayload?.nonce)) {
+      return res.redirect(`${returnTo}?google=error&reason=invalid_state`);
+    }
     const requestedReturnTo = safeReturnPath(statePayload?.returnTo);
 
     const clientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
@@ -394,8 +421,10 @@ router.get('/github/start', (req, res) => {
   if (!process.env.JWT_SECRET) return oauthErrorRedirect(res, 'github', 'jwt_not_configured');
 
   const redirectUri = githubRedirectUri(req);
+  const nonce = crypto.randomBytes(32).toString('base64url');
+  setOAuthStateCookie(res, 'github', nonce);
   const state = jwt.sign(
-    { purpose: 'github_oauth', returnTo: safeReturnPath(req.query?.returnTo) },
+    { purpose: 'github_oauth', nonce, returnTo: safeReturnPath(req.query?.returnTo) },
     process.env.JWT_SECRET || '',
     { expiresIn: '10m' },
   );
@@ -420,6 +449,9 @@ router.get('/github/callback', async (req, res) => {
 
     const statePayload = jwt.verify(state, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (statePayload?.purpose !== 'github_oauth') return res.redirect(`${returnTo}?github=error&reason=invalid_state`);
+    if (!consumeOAuthStateCookie(req, res, 'github', statePayload?.nonce)) {
+      return res.redirect(`${returnTo}?github=error&reason=invalid_state`);
+    }
     const requestedReturnTo = safeReturnPath(statePayload?.returnTo);
 
     const redirectUri = githubRedirectUri(req);

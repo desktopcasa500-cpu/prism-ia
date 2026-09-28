@@ -69,7 +69,7 @@ export default function Login() {
       <main className="auth-screen__content">
         <header className="auth-screen__brand-row">
           <Link className="auth-screen__brand" to="/" aria-label="Prism IA">
-            <span className="auth-screen__brand-mark" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /><i /></span>
+            <img className="auth-screen__brand-logo" src="/prism-logo.svg" alt="" aria-hidden="true" />
             <span>Prism IA</span>
           </Link>
         </header>

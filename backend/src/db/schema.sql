@@ -157,10 +157,12 @@ CREATE TABLE IF NOT EXISTS usage (
   provider TEXT,
   tokens INTEGER NOT NULL DEFAULT 0,
   units INTEGER NOT NULL DEFAULT 1,
+  extra_funds_cents INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE usage ADD COLUMN IF NOT EXISTS units INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE usage ADD COLUMN IF NOT EXISTS extra_funds_cents INTEGER NOT NULL DEFAULT 0;
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON sessions(user_id, updated_at DESC);

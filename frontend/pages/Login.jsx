@@ -15,36 +15,48 @@ export default function Login() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const handler = (event) => setError(String(event.detail || 'Erro de autenticação.'));
+    window.addEventListener('prism-auth-error', handler);
+    return () => window.removeEventListener('prism-auth-error', handler);
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const githubStatus = params.get('github');
-    if (!githubStatus) return;
+    const googleStatus = params.get('google');
+    const provider = githubStatus ? 'github' : googleStatus ? 'google' : '';
+    const status = githubStatus || googleStatus;
+    if (!status) return;
 
     window.history.replaceState({}, document.title, window.location.pathname);
 
-    if (githubStatus !== 'success') {
+    if (status !== 'success') {
       const reason = params.get('reason');
+      const providerName = provider === 'google' ? 'Google' : 'GitHub';
       const messages = {
-        missing_code: 'O GitHub não retornou um código de autorização.',
-        invalid_state: 'A sessão de segurança do GitHub expirou. Tente novamente.',
-        no_verified_email: 'Sua conta do GitHub não tem um e-mail verificado disponível.',
-        invalid_identity: 'O GitHub não retornou uma identidade válida.',
-        oauth_failed: 'O login do GitHub falhou no servidor. Verifique a configuração OAuth.',
+        missing_code: 'O provedor não retornou um código de autorização.',
+        invalid_state: 'A sessão de segurança expirou. Tente novamente.',
+        no_verified_email: 'Sua conta não tem um e-mail verificado disponível.',
+        invalid_identity: 'O provedor não retornou uma identidade válida.',
+        missing_identity: 'Não foi possível obter sua identidade.',
+        not_configured: 'O login com ' + providerName + ' ainda não está configurado no servidor.',
+        oauth_failed: 'O login com ' + providerName + ' falhou no servidor. Verifique a configuração OAuth.',
       };
-      setError(messages[reason] || 'Não foi possível entrar com o GitHub. Tente novamente.');
+      setError(messages[reason] || 'Não foi possível entrar com ' + providerName + '.');
       return;
     }
 
     let active = true;
     setBusy(true);
-    api.post('/auth/github/session')
+    api.post('/auth/' + provider + '/session')
       .then((result) => {
         if (!active) return;
-        if (!result.token || !result.user) throw new Error('A resposta do GitHub está incompleta.');
+        if (!result.token || !result.user) throw new Error('A resposta do provedor está incompleta.');
         login(result.token, result.user);
         navigate('/chat', { replace: true });
       })
       .catch((err) => {
-        if (active) setError(err.message || 'Não foi possível finalizar o login com o GitHub.');
+        if (active) setError(err.message || 'Não foi possível finalizar o login social.');
       })
       .finally(() => {
         if (active) setBusy(false);

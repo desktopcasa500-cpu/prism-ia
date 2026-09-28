@@ -121,20 +121,9 @@ app.use(quotaGate);
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.status(200).json({ ok: true });
-  } catch (error) {
-    res.status(503).json({ ok: false });
-  }
-});
-      database: 'unreachable',
-      database_error: error?.code || 'DATABASE_UNAVAILABLE',
-      database_env: databaseEnv,
-      auth: Boolean(process.env.JWT_SECRET),
-      ...health,
-      mcp: Boolean(process.env.MCP_ENCRYPTION_KEY),
-      web: true,
-      stripe: Boolean(process.env.STRIPE_SECRET_KEY && process.env.PRISM_STRIPE_ENABLED === 'true'),
-    });
+    return res.status(200).json({ ok: true });
+  } catch {
+    return res.status(503).json({ ok: false });
   }
 });
 app.use('/api/cron', cronRoutes);

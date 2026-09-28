@@ -1,13 +1,24 @@
 import pg from 'pg';
 
 const { Pool } = pg;
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+const databaseEnv = process.env.DATABASE_URL
+  ? 'DATABASE_URL'
+  : process.env.DATABASE
+    ? 'DATABASE'
+    : process.env.POSTGRES_URL
+      ? 'POSTGRES_URL'
+      : process.env.POSTGRES_PRISMA_URL
+        ? 'POSTGRES_PRISMA_URL'
+        : null;
+const connectionString = databaseEnv ? process.env[databaseEnv] : null;
 
 const missingDatabaseError = () => {
-  const error = new Error('DATABASE_URL não configurada. Configure DATABASE_URL nas Environment Variables do serviço.');
+  const error = new Error('Banco de dados não configurado. Defina DATABASE_URL ou DATABASE nas Environment Variables do serviço.');
   error.code = 'DATABASE_NOT_CONFIGURED';
   return error;
 };
+
+export { databaseEnv, connectionString };
 
 export const pool = connectionString
   ? new Pool({

@@ -1,95 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api.js';
-import { useAuth } from '../lib/auth.jsx';
+import { useState } from 'react';
 
-export default function GoogleSignIn({ onSuccess, disabled = false }) {
-  const hostRef = useRef(null);
-  const successRef = useRef(onSuccess);
-  const { login } = useAuth();
-  const [clientId, setClientId] = useState('');
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState('');
+export default function GoogleSignIn({ disabled = false }) {
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => { successRef.current = onSuccess; }, [onSuccess]);
-
-  useEffect(() => {
-    let active = true;
-    api.get('/auth/providers')
-      .then((config) => {
-        if (!active) return;
-        setClientId(String(config?.googleClientId || ''));
-      })
-      .catch((err) => {
-        if (active) setError(err.message || 'Não foi possível carregar o login do Google.');
-      });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (!clientId || disabled) return undefined;
-    let cancelled = false;
-
-    const render = () => {
-      if (cancelled || !window.google || !hostRef.current) return;
-      hostRef.current.innerHTML = '';
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response) => {
-          if (!response?.credential) {
-            setError('O Google não retornou uma credencial válida.');
-            return;
-          }
-          setError('');
-          try {
-            const result = await api.post('/auth/google', { credential: response.credential });
-            if (!result.token || !result.user) throw new Error('A resposta do servidor está incompleta.');
-            login(result.token, result.user);
-            successRef.current?.();
-          } catch (err) {
-            setError(err.message || 'Não foi possível entrar com o Google.');
-          }
-        },
-        context: 'signin',
-        ux_mode: 'popup',
-        auto_select: false,
-      });
-      window.google.accounts.id.renderButton(hostRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: Math.min(360, hostRef.current.clientWidth || 360),
-        shape: 'rectangular',
-        text: 'continue_with',
-        logo_alignment: 'left',
-      });
-      setReady(true);
-    };
-
-    const existing = document.querySelector('script[data-google-gsi]');
-    if (existing) {
-      if (window.google) render();
-      else existing.addEventListener('load', render, { once: true });
-      return () => { cancelled = true; };
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleGsi = 'true';
-    script.onload = render;
-    script.onerror = () => setError('Não foi possível carregar o login do Google.');
-    document.head.appendChild(script);
-    return () => { cancelled = true; };
-  }, [clientId, disabled, login]);
-
-  if (!clientId) {
-    return error ? <div className="notice" role="alert">{error}</div> : null;
+  function start() {
+    if (disabled || busy) return;
+    setBusy(true);
+    window.location.assign('/api/auth/google/start?returnTo=%2Flogin');
   }
 
   return (
-    <div>
-      <div ref={hostRef} className="google-wrap" aria-busy={!ready} />
-      {error && <div className="notice" style={{ marginTop: 10 }} role="alert">{error}</div>}
-    </div>
+    <button type="button" className="auth-social-button" onClick={start} disabled={disabled || busy} aria-label="Continuar com Google">
+      <span aria-hidden="true" className="auth-social-button__mark">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <path fill="#4285F4" d="M21.35 12.23c0-.68-.06-1.33-.18-1.96H12v3.71h5.22a4.46 4.46 0 0 1-1.94 2.93v2.43h3.14c1.84-1.7 2.93-4.21 2.93-7.11Z"/>
+          <path fill="#34A853" d="M12 21.75c2.63 0 4.84-.87 6.45-2.36l-3.14-2.43c-.87.58-1.98.92-3.31.92-2.55 0-4.71-1.72-5.49-4.03H3.27v2.51A9.75 9.75 0 0 0 12 21.75Z"/>
+          <path fill="#FBBC05" d="M6.51 13.85A5.86 5.86 0 0 1 6.2 12c0-.64.11-1.27.31-1.85V7.64H3.27A9.75 9.75 0 0 0 2.25 12c0 1.57.38 3.06 1.02 4.36l3.24-2.51Z"/>
+          <path fill="#EA4335" d="M12 6.12c1.43 0 2.7.49 3.71 1.46l2.78-2.78C16.83 3.14 14.63 2.25 12 2.25a9.75 9.75 0 0 0-8.73 5.39l3.24 2.51c.78-2.31 2.94-4.03 5.49-4.03Z"/>
+        </svg>
+      </span>
+      <span>{busy ? 'Conectando...' : 'Continuar com Google'}</span>
+    </button>
   );
 }

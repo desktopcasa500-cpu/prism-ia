@@ -31,8 +31,15 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const distPath = path.resolve(__dirname, '../../public');
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || process.env.APP_URL || '')
-  .split(',').map((value) => value.trim().replace(/\/$/, '')).filter(Boolean);
+const allowedOrigins = [
+  process.env.FRONTEND_ORIGIN,
+  process.env.APP_URL,
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '',
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+]
+  .flatMap((value) => String(value || '').split(','))
+  .map((value) => value.trim().replace(/\/$/, ''))
+  .filter(Boolean);
 
 function providerHealth() {
   const providers = {

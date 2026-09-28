@@ -21,7 +21,7 @@ export default function PlanPanel({ open, onClose, currentPlan = 'Grátis', requ
       const response = await api.get('/billing/status');
       if (response.billingSimulation) {
         const simulated = await api.post('/billing/checkout', { plan: upgrade.name });
-        setResult({ message: simulated.message || 'Upgrade simulado com sucesso. A cobrança ainda não está conectada.' });
+        setResult({ message: simulated.message || 'Upgrade simulado com sucesso. A cobrança ainda não está conectada.', simulated: true });
       } else if (response.enabled) {
         const created = await api.post('/billing/checkout', { plan: upgrade.name, successUrl: `${window.location.origin}/configuracoes?billing=success`, cancelUrl: `${window.location.origin}/configuracoes?billing=cancelled` });
         if (!created?.url) throw new Error('O provedor de pagamento não retornou a página de checkout.');

@@ -82,7 +82,10 @@ export default function GoogleSignIn({ onSuccess, disabled = false }) {
     return () => { cancelled = true; };
   }, [clientId, disabled, login]);
 
-  if (!clientId) return null;
+  if (!clientId) {
+    return error ? <div className="notice" role="alert">{error}</div> : null;
+  }
+
   return (
     <div>
       <div ref={hostRef} className="google-wrap" aria-busy={!ready} />

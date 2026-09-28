@@ -17,11 +17,13 @@ function configuredEnv(...names) {
 
 function providerConfig(req) {
   const googleClientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
+  const googleClientSecret = configuredEnv('GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_CLIENT_SECRET');
   const githubClientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID', 'VITE_GITHUB_CLIENT_ID');
   const githubClientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
   return {
-    google: Boolean(googleClientId),
+    google: Boolean(googleClientId && googleClientSecret),
     googleClientId: googleClientId || null,
+    googleClientSecret: Boolean(googleClientSecret),
     github: Boolean(githubClientId && githubClientSecret),
     githubClientId: githubClientId || null,
     githubClientSecret: Boolean(githubClientSecret),
@@ -40,6 +42,34 @@ function appBaseUrl(req) {
 
 function githubRedirectUri(req) {
   return String(process.env.GITHUB_REDIRECT_URI || `${appBaseUrl(req)}/api/auth/github/callback`).trim();
+}
+
+function googleRedirectUri(req) {
+  return String(process.env.GOOGLE_REDIRECT_URI || `${appBaseUrl(req)}/api/auth/google/callback`).trim();
+}
+
+function setProviderSessionCookie(res, name, token) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  res.setHeader('Set-Cookie', [
+    `${name}=${encodeURIComponent(token)}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/api/auth',
+    'Max-Age=300',
+    ...(secure ? ['Secure'] : []),
+  ].join('; '));
+}
+
+function clearProviderSessionCookie(res, name) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  res.setHeader('Set-Cookie', [
+    `${name}=`,
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/api/auth',
+    'Max-Age=0',
+    ...(secure ? ['Secure'] : []),
+  ].join('; '));
 }
 
 function safeReturnPath(value) {
@@ -149,7 +179,10 @@ function normalizeCredentials(body = {}) {
 router.get('/providers', (req, res) => {
   const config = providerConfig(req);
   const missing = {
-    google: config.google ? [] : ['GOOGLE_CLIENT_ID'],
+    google: config.google ? [] : [
+      ...(config.googleClientId ? [] : ['GOOGLE_CLIENT_ID']),
+      ...(config.googleClientSecret ? [] : ['GOOGLE_CLIENT_SECRET']),
+    ],
     github: config.github ? [] : [
       ...(config.githubClientId ? [] : ['GITHUB_CLIENT_ID']),
       ...(config.githubClientSecret ? [] : ['GITHUB_CLIENT_SECRET']),
@@ -160,10 +193,122 @@ router.get('/providers', (req, res) => {
     google: config.google,
     googleClientId: config.googleClientId,
     googleMissing: missing.google,
-    github: config.github,
+    github: Boolean(config.githubClientId),
     githubMissing: missing.github,
     githubCallback: config.github ? config.callback : null,
   });
+});
+
+router.get('/google/start', (req, res) => {
+  const clientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
+  const clientSecret = configuredEnv('GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_CLIENT_SECRET');
+  if (!clientId || !clientSecret) {
+    return res.status(503).json({
+      error: 'Login com Google não está configurado neste ambiente. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.',
+      code: 'GOOGLE_NOT_CONFIGURED',
+    });
+  }
+  if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
+
+  const state = jwt.sign(
+    { purpose: 'google_oauth', returnTo: safeReturnPath(req.query?.returnTo) },
+    process.env.JWT_SECRET,
+    { expiresIn: '10m' },
+  );
+
+  const query = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: googleRedirectUri(req),
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'select_account',
+    scope: 'openid email profile',
+    state,
+  });
+
+  return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${query.toString()}`);
+});
+
+router.get('/google/callback', async (req, res) => {
+  const returnTo = '/login';
+  try {
+    if (!process.env.JWT_SECRET) throw Object.assign(new Error('JWT_SECRET não configurado.'), { status: 503, code: 'JWT_NOT_CONFIGURED' });
+    const state = String(req.query?.state || '');
+    const code = String(req.query?.code || '');
+    if (!state || !code) return res.redirect(`${returnTo}?google=error&reason=missing_code`);
+
+    const statePayload = jwt.verify(state, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    if (statePayload?.purpose !== 'google_oauth') return res.redirect(`${returnTo}?google=error&reason=invalid_state`);
+    const requestedReturnTo = safeReturnPath(statePayload?.returnTo);
+
+    const clientId = configuredEnv('GOOGLE_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_ID', 'VITE_GOOGLE_CLIENT_ID');
+    const clientSecret = configuredEnv('GOOGLE_CLIENT_SECRET', 'GOOGLE_OAUTH_CLIENT_SECRET');
+    if (!clientId || !clientSecret) return res.redirect(`${returnTo}?google=error&reason=not_configured`);
+
+    const tokenClient = new OAuth2Client(clientId, clientSecret, googleRedirectUri(req));
+    const { tokens } = await tokenClient.getToken({ code, redirect_uri: googleRedirectUri(req) });
+    if (!tokens?.id_token) return res.redirect(`${returnTo}?google=error&reason=missing_identity`);
+
+    const ticket = await tokenClient.verifyIdToken({ idToken: tokens.id_token, audience: clientId });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload?.email || payload.email_verified !== true) {
+      return res.redirect(`${returnTo}?google=error&reason=invalid_identity`);
+    }
+
+    const email = payload.email.trim().toLowerCase();
+    const existing = await pool.query(
+      'SELECT id, email, name, plan, created_at, google_id, avatar_url FROM users WHERE email = $1',
+      [email],
+    );
+    let user = existing.rows[0];
+
+    if (user) {
+      await pool.query(
+        'UPDATE users SET google_id = $1, avatar_url = COALESCE($2, avatar_url) WHERE id = $3',
+        [payload.sub, payload.picture || null, user.id],
+      );
+    } else {
+      const result = await pool.query(
+        'INSERT INTO users (email, password_hash, name, google_id, avatar_url) VALUES ($1, NULL, $2, $3, $4) RETURNING id, email, name, plan, created_at',
+        [
+          email,
+          String(payload.name || email.split('@')[0]).trim().slice(0, MAX_NAME_LENGTH),
+          payload.sub,
+          payload.picture || null,
+        ],
+      );
+      user = result.rows[0];
+    }
+
+    const fresh = await pool.query(
+      'SELECT id, email, name, plan, created_at FROM users WHERE id = $1',
+      [user.id],
+    );
+    setProviderSessionCookie(res, 'prism_google_auth', issueToken(fresh.rows[0]));
+    return res.redirect(`${requestedReturnTo}?google=success`);
+  } catch (error) {
+    console.error('Google OAuth error:', { code: error?.code, message: error?.message });
+    return res.redirect(`${returnTo}?google=error&reason=oauth_failed`);
+  }
+});
+
+router.post('/google/session', async (req, res) => {
+  const token = cookieValue(req.headers.cookie, 'prism_google_auth');
+  if (!token || !process.env.JWT_SECRET) return res.status(401).json({ error: 'Sessão Google não encontrada.', code: 'GOOGLE_SESSION_MISSING' });
+  try {
+    const sessionPayload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const result = await pool.query(
+      'SELECT id, email, name, plan, created_at FROM users WHERE id = $1',
+      [sessionPayload?.sub],
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: 'Usuário do Google não encontrado.', code: 'GOOGLE_USER_NOT_FOUND' });
+    clearProviderSessionCookie(res, 'prism_google_auth');
+    return res.json({ token, user: publicUser(user) });
+  } catch {
+    clearProviderSessionCookie(res, 'prism_google_auth');
+    return res.status(401).json({ error: 'Sessão Google inválida ou expirada.', code: 'GOOGLE_SESSION_INVALID' });
+  }
 });
 
 router.post('/register', async (req, res, next) => {
@@ -242,8 +387,7 @@ router.post('/google', async (req, res, next) => {
 
 router.get('/github/start', (req, res) => {
   const clientId = configuredEnv('GITHUB_CLIENT_ID', 'GITHUB_OAUTH_CLIENT_ID');
-  const clientSecret = configuredEnv('GITHUB_CLIENT_SECRET', 'GITHUB_OAUTH_CLIENT_SECRET');
-  if (!clientId || !clientSecret) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente. Configure GITHUB_CLIENT_ID e GITHUB_CLIENT_SECRET.', code: 'GITHUB_NOT_CONFIGURED' });
+  if (!clientId) return res.status(503).json({ error: 'Login com GitHub não está configurado neste ambiente. Configure GITHUB_CLIENT_ID.', code: 'GITHUB_CLIENT_NOT_CONFIGURED' });
   if (!process.env.JWT_SECRET) return res.status(503).json({ error: 'JWT_SECRET não configurado.', code: 'JWT_NOT_CONFIGURED' });
 
   const redirectUri = githubRedirectUri(req);

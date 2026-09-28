@@ -148,11 +148,20 @@ function normalizeCredentials(body = {}) {
 
 router.get('/providers', (req, res) => {
   const config = providerConfig(req);
+  const missing = {
+    google: config.google ? [] : ['GOOGLE_CLIENT_ID'],
+    github: config.github ? [] : [
+      ...(config.githubClientId ? [] : ['GITHUB_CLIENT_ID']),
+      ...(config.githubClientSecret ? [] : ['GITHUB_CLIENT_SECRET']),
+    ],
+  };
   res.setHeader('Cache-Control', 'no-store');
   res.json({
     google: config.google,
     googleClientId: config.googleClientId,
+    googleMissing: missing.google,
     github: config.github,
+    githubMissing: missing.github,
     githubCallback: config.github ? config.callback : null,
   });
 });

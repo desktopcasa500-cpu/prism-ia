@@ -1,6 +1,4 @@
-const configuredApiUrl = import.meta.env.PROD
-  ? ''
-  : String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
 
 const apiRoot = configuredApiUrl
   ? (configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`)
@@ -134,7 +132,7 @@ async function request(method, path, body, { signal, timeout = 30_000 } = {}) {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: normalized.body !== undefined ? JSON.stringify(normalized.body) : undefined,
-      credentials: configuredApiUrl ? 'omit' : 'same-origin',
+      credentials: configuredApiUrl ? 'include' : 'same-origin',
       signal: controller.signal,
     });
 
@@ -222,7 +220,7 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 300_000 } 
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(normalized.body),
-      credentials: configuredApiUrl ? 'omit' : 'same-origin',
+      credentials: configuredApiUrl ? 'include' : 'same-origin',
       signal: controller.signal,
     });
 
@@ -278,6 +276,11 @@ async function streamRequest(path, body, onEvent, { signal, timeout = 300_000 } 
     signal?.removeEventListener('abort', onAbort);
     release();
   }
+}
+
+export function getApiUrl(path = '') {
+  const normalized = String(path || '').startsWith('/') ? String(path) : `/${path}`;
+  return `${apiRoot}${normalized}`;
 }
 
 export const api = {
